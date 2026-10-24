@@ -836,6 +836,7 @@ function scrLogin(){
       ? `<div class="who">${S.players.map(p => `<button class="who-card ${lf && lf.id === p.id ? 'on' : ''}" data-act="pick-player" data-id="${esc(p.id)}" style="--c:var(--${esc(p.color || 'sky')})">${avatar(p, 76)}<span class="who-name">${esc(p.name)}</span><span class="who-sub">${[p.age ? 'Age ' + esc(p.age) : '', SKINS[p.theme] && p.theme !== 'classic' ? esc(SKINS[p.theme].brand) : ''].filter(Boolean).join(' · ') || '&nbsp;'}</span></button>`).join('')}</div>`
       : `<div class="sticker form"><h2>No players yet</h2><p class="muted">A grown-up can add players in the Grown-ups area. It takes a minute.</p><button class="btn" data-act="go" data-to="parent">Open the Grown-ups area</button></div>`}
     ${lf ? loginForm(lf) : ''}
+    <div class="sticker howvid"><div><h2>New here? Watch how it works</h2><p class="muted">Two and a half minutes with Taylor, your Times Table Coach.</p></div><button class="btn" data-act="howvid">\u25B6 Watch the video</button></div>
     <p class="foot-link"><button class="link" data-act="go" data-to="parent">Grown-ups area</button></p>
   </section>`;
 }
@@ -1529,6 +1530,20 @@ async function familyPhoto(path){
   return url;
 }
 const dressPhoto = (d, cls = '') => `<img class="dress-ph ${cls}" data-photo="stage/era${pad2(d)}-a.jpg" alt="">`;
+// The how-it-works video (24 Oct 2026). It shows the children's photos, so it sits in the private family bucket like them,
+// and plays in an overlay outside the app's own markup so the login screen's refreshes never restart it.
+function showHowVideo(){
+  if (document.querySelector('.vid-over')) return;
+  const o = document.createElement('div'); o.className = 'vid-over';
+  o.innerHTML = '<div class="vid-box"><button class="btn ghost small vid-x" type="button">Close</button><p class="vid-msg">Loading the video\u2026</p></div>';
+  document.body.appendChild(o);
+  const close = () => { const v = o.querySelector('video'); if (v) v.pause(); o.remove(); };
+  o.addEventListener('click', e => { if (e.target === o || e.target.classList.contains('vid-x')) close(); });
+  familyPhoto('video/how-it-works.mp4').then(url => {
+    const v = document.createElement('video'); v.src = url; v.controls = true; v.autoplay = true; v.playsInline = true;
+    o.querySelector('.vid-msg').replaceWith(v);
+  }).catch(() => { o.querySelector('.vid-msg').textContent = 'The video needs the internet the first time. Connect to Wi-Fi and try again.'; });
+}
 function hydratePhotos(){ app.querySelectorAll('img[data-photo]').forEach(im => familyPhoto(im.dataset.photo).then(u => { im.src = u; }).catch(() => {})); }
 
 /* ---------- reward games (games.js) ---------- */
@@ -1609,6 +1624,7 @@ const A = {
   'toggle-kind': el => { const k = el.dataset.k; S.v.cfg[k] = !S.v.cfg[k]; render(); },
   start: () => startPlay(S.v.mode, S.v.cfg),
   'start-daily': () => startDaily(),
+  howvid: () => showHowVideo(),
   'method-step': el => startMethodStep(el.dataset.mode),
   key: el => { press(el.dataset.k); },
   hint: () => { const P = S.play; if (P) { P.hint = hint(P.q.a, P.q.b); render(); } },
