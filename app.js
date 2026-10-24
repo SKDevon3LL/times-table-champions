@@ -550,6 +550,10 @@ function weeklyGoals(p, sessions, player){
   if (quest) goals.push({name:`Quest: make all twelve ${quest}s facts strong`, cur: strongCount(p, quest), goal:12});
   return goals;
 }
+// A test wins a trophy only when it includes a table that is not strong yet (Sam, 24 Oct 2026: no collecting trophies on
+// the easy 10s). Once every table is strong, any test can win one. The Daily Challenge always can: it picks their weakest facts.
+const notStrong = (p, tables) => tables.filter(t => t !== 1 && strongCount(p, t) < 12);
+const trophyTest = (p, tables) => notStrong(p, tables).length > 0 || notStrong(p, ALL).length === 0;
 // The table to work on next: the first in teaching order that isn't fully strong (the 1s look after themselves).
 const focusTable = p => { const plan = planFor(S.me); return (plan && (plan.focus || []).find(t => ALL.includes(t) && strongCount(p, t) < 12)) || TEACH_ORDER.find(t => t !== 1 && strongCount(p, t) < 12) || null; };
 // Today's order (Sam, 24 Oct 2026): the Daily Challenge is today's work. Once it is done, the Bonus Round, in order:
@@ -661,6 +665,7 @@ function startPlay(mode, cfg, pool){
     total: mode === 'test' ? cfg.count : mode === 'daily' ? 15 : cfg.method ? METHOD_QS : null,
     answers:[], correct:0, streak:0, best:0, input:'', start:Date.now(), fb:null, hint:null, retry:false, locked:false, done:false};
   if (mode === 'clock') P.bestKey = P.tables.join('-') + '|' + P.kinds.join('');
+  if (mode === 'test') P.trophyOK = trophyTest(S.prog, P.tables);
   if (mode !== 'daily' && !pool && !cfg.method && !S.demo) ls.set(`cfg.${mode}.${S.me.id}`, cfg);
   S.play = P; S.screen = 'play';
   if (mode === 'clock') { P.endsAt = Date.now() + 60000; P.timer = setInterval(tick, 100); }
@@ -764,7 +769,8 @@ async function finish(abandoned){
   const n = P.answers.length, c = P.answers.filter(a => a.ok).length;
   if (n === 0) { S.play = null; go('home'); return; }
   const pct = Math.round(c / n * 100), ms = Date.now() - P.start, prog = S.prog, today = dayStr();
-  const prize = (!abandoned && (P.mode === 'test' || P.mode === 'daily')) ? tierFor(pct) : null;
+  const prize = (!abandoned && (P.mode === 'daily' || (P.mode === 'test' && P.trophyOK))) ? tierFor(pct) : null;
+  const noTrophy = !abandoned && P.mode === 'test' && !P.trophyOK && !!tierFor(pct);
   let xp = c * 10 + (prize ? prize.xp : 0);
   let dailyDone = false;
   if (P.mode === 'daily' && !abandoned) {
@@ -804,7 +810,7 @@ async function finish(abandoned){
   if (abandoned) entry.ab = true;
   S.sessions.push(entry); ensureLogCur(); S.logCur.sessions.push(entry);
   if (!S.demo) Promise.all([saveProg(), saveLog()]).catch(saveFail);
-  S.result = Object.assign({}, entry, {answers:P.answers, newBest, prevBest, newBadges, newItems, unlocked, dailyDone, bonus, cfg:P.cfg, poolPairs:P.pool, best:P.best});
+  S.result = Object.assign({}, entry, {answers:P.answers, newBest, prevBest, newBadges, newItems, unlocked, dailyDone, bonus, noTrophy, cfg:P.cfg, poolPairs:P.pool, best:P.best});
   S.play = null; S.screen = 'results'; render(); scrollTo(0, 0);
   if (prize) { confetti(prize.id); sound('win'); }
   else if (newBest) confetti('gold');
@@ -879,10 +885,10 @@ function scrHome(){
   <div class="grid-home">
     <div class="col">
       ${gameBanner(p)}${todayCard(p)}
-      <div class="extra-h"><h2>Extra practice</h2><p>Not part of today's work or the weekly plan: play any of these whenever you like. Every right answer earns 10 ${ptsName()}, and a test at 70% or more also wins a trophy for your ${skinId() === 'eras' ? 'Eras Tour' : skinId() === 'trail' ? 'jungle trail' : 'weekly trail'}.</p></div>
+      <div class="extra-h"><h2>Extra practice</h2><p>Not part of today's work or the weekly plan: play any of these whenever you like. Every right answer earns 10 ${ptsName()}, and a test at 70% or more on a table that isn't strong yet also wins a trophy for your ${skinId() === 'eras' ? 'Eras Tour' : skinId() === 'trail' ? 'jungle trail' : 'weekly trail'}.</p></div>
       <div class="modes">
         ${modeTile('practice', '7×8', 'Practise', `No timer, tricks when you get stuck. 10 ${ptsName()} a right answer.`, 'mint')}
-        ${modeTile('test', '90%', 'Take a test', '70% or more wins a trophy for your trail.', 'sun')}
+        ${modeTile('test', '90%', 'Take a test', "70% or more on a table that isn't strong yet wins a trophy.", 'sun')}
         ${modeTile('clock', '60s', 'Beat the Clock', `Beat your best in 60 seconds. 10 ${ptsName()} a right answer.`, 'tomato')}
         ${modeTile('explore', '12²', 'Explore', 'See the patterns in every table, just for fun.', 'sky')}
       </div>
@@ -1110,6 +1116,7 @@ function scrSetup(){
       <div style="display:grid;gap:6px"><h3>Extra question types</h3>
         <button class="toggle" data-act="toggle-kind" data-k="miss" aria-pressed="${!!c.miss}"><span class="sw"></span>Missing numbers, like 6 × ? = 42</button>
         <button class="toggle" data-act="toggle-kind" data-k="div" aria-pressed="${!!c.div}"><span class="sw"></span>Division, like 42 ÷ 6 = ?</button></div>
+      ${m === 'test' && c.tables.length ? (trophyTest(S.prog, c.tables) ? `<p class="callout mint">This test can win a trophy for your trail.</p>` : `<p class="callout">These tables are already strong, so this test earns ${ptsName()} but no trophy. Add ${(t => t ? `the ${t}s` : 'a table that is not strong yet')(focusTable(S.prog))} to win one.</p>`) : ''}
       ${m === 'clock' ? `<p class="callout ${best ? 'mint' : ''}">${best ? `Your best with these tables: <b>${best.score}</b> in 60 seconds (${fmtDate(best.t)}). Can you beat it?` : 'No score yet with these tables. Set your first record!'}</p>` : ''}
       <div><button class="btn big" data-act="start" ${c.tables.length ? '' : 'disabled'}>${c.tables.length ? 'Start' : 'Pick at least one table'}</button></div>
     </div></section>`;
@@ -1176,6 +1183,7 @@ function scrResults(){
         : r.bonus && r.bonus.step ? `<p class="callout">Bonus Round: ${r.bonus.step} of ${r.bonus.of} done. Next: ${esc(r.bonus.next.name)}, and finish them all for double ${ptsName()}. ${nextBtn(r.bonus.next)}</p>`
         : r.bonus && r.bonus.hint ? `<p class="callout">Bonus Round: do the steps in order for double ${ptsName()}. Next: ${esc(r.bonus.next.name)}. ${nextBtn(r.bonus.next)}</p>`
         : r.dailyDone ? `<p class="callout">Today's work complete! Want more ${ptsName()}? Do the Bonus Round, in order: ${bonusSteps().map(x => x.name).join(', then ')}. Finish them all and every point you win in them is doubled. ${nextBtn(bonusSteps()[0])}</p>` : ''}
+      ${r.noTrophy ? `<p class="callout">Great score! No trophy this time: every table in this test is already strong. Add ${(t => t ? `the ${t}s` : 'a table that is not strong yet')(focusTable(S.prog))} to win one.</p>` : ''}
       ${reward ? `<p class="callout">Your reward for a ${prize.name}: <b>${esc(reward)}</b></p>` : ''}
       ${nt ? `<p class="callout">${r.pct < 70 ? 'So close to a prize.' : 'Brilliant work.'} Score ${nt.min}% next time to win a ${nt.name}.</p>` : ''}
       ${resultItems(r)}
