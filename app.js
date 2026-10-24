@@ -695,7 +695,9 @@ function startDaily(){
 
 function pickPair(P){
   const pool = P.pool || P.tables.flatMap(t => ALL.map(k => [t, k]));
-  const w = pool.map(([a, b]) => { const k = fkey(a, b); let x = [6,5,4,2,1][level(S.prog.facts[k])]; if (k === P.lastKey) x = .02; return x; });
+  // Weak facts come up more, but never one of the last 3 asked, and each time a fact has come up this round it gets less likely.
+  const recent = P.answers.slice(-3).map(x => x.k), asked = {}; for (const x of P.answers) asked[x.k] = (asked[x.k] || 0) + 1;
+  const w = pool.map(([a, b]) => { const k = fkey(a, b); let x = [6,5,4,2,1][level(S.prog.facts[k])] / (1 + 2 * (asked[k] || 0)); if (k === P.lastKey || (recent.includes(k) && pool.length > 4)) x = .02; return x; });
   let r = Math.random() * w.reduce((s, x) => s + x, 0);
   for (let i = 0; i < pool.length; i++) { r -= w[i]; if (r <= 0) return pool[i]; }
   return pool[pool.length - 1];
@@ -1484,7 +1486,7 @@ function gamesParent(pls){
       const eras = pl.theme === 'eras', ok = S.gameOK[pl.id] || {}, approved = ok.status === 'approved';
       const pics = eras
         ? ERAS.flatMap((e, k) => [['a', 'singing'], ['d', 'dancing'], ['t', 'twirling']].map(([s, w]) => thumb(`stage/era${pad2(k)}-${s}.jpg`, `${e.era} · ${w}`)))
-        : [...[['start', 'Start of a level'], ['chop', 'Chopping: right answer'], ['miss', 'Missed: wrong answer'], ['hold', 'Holding ground'], ['gold', 'Found the gold'], ['chase', 'Run for the boat'], ['run', 'Running with the gold'], ['win', 'Made it to the boat'], ['caught', 'Caught']].map(([n, w]) => thumb(`jungle/${n}.jpg`, w)),
+        : [...[['start', 'Start of a level'], ['chop', 'Chopping: right answer'], ['miss', 'Missed: wrong answer'], ['hold', 'Holding ground'], ['gold', 'Found the gold'], ['chase', 'Run for the boat'], ['run', 'Running with the gold'], ['win', 'Made it to the boat'], ['caught', 'Caught'], ['snake-attack', 'Snake attack']].map(([n, w]) => thumb(`jungle/${n}.jpg`, w)),
            ...['jungle1', 'jungle2', 'path', 'rock', 'gold', 'river', 'boat', 'snake', 'panther', 'anaconda'].map(n => thumb(`jungle/tiles/${n}.jpg`, 'Board: ' + n))];
       return `<div class="sticker" style="margin-bottom:20px"><div class="card-h"><h3>${esc(pl.name)}'s ${eras ? 'Eras Stadium Show' : 'Jungle Gold Run'}</h3>${approved ? '<span class="pill approved">Approved</span>' : '<span class="pill">Waiting for approval</span>'}</div>
         <p>${eras ? 'She picks a dress and a song, then sings on a stadium stage to an original tune. Every right answer brings more fans in; 80,000 fans wins the MTV Award.' : 'He chops a path to the gold, one right answer per swing, then runs it back to the boat before the snakes, panthers and anacondas catch him.'}</p>
@@ -1595,7 +1597,7 @@ function startGame(){
   if (!demo && p.gameTrail !== trailStart(p)) { p.gameTrail = trailStart(p); p.gameMs = 0; }
   p.game = p.game || {};
   S.screen = 'game'; render(); scrollTo(0, 0);
-  const api = {ask: gameQuestion, sound, audio: audioCtx, photo: photoOk(S.me.photo) ? S.me.photo : null, picture: familyPhoto, dressSvg, eras: ERAS, state: demo ? {} : p.game, save: () => { if (!demo) saveProg().catch(saveFail); }};
+  const api = {ask: gameQuestion, sound, soundOn: () => S.sound, audio: audioCtx, photo: photoOk(S.me.photo) ? S.me.photo : null, picture: familyPhoto, dressSvg, eras: ERAS, state: demo ? {} : p.game, save: () => { if (!demo) saveProg().catch(saveFail); }};
   gameInst = (skinId() === 'eras' ? window.TTCGames.stage : window.TTCGames.jungle)(document.getElementById('game-host'), api);
   if (demo) return;   // a grown-up's demo: no 30-minute clock, nothing saved
   let ticks = 0;

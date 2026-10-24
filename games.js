@@ -24,6 +24,19 @@ function askBox(box, api, seconds, done){
 // Every answer is a turn: snakes, panthers and anacondas each close in on their own beat, so a wrong answer lets them gain.
 function jungle(host, api){
   const W = 7, H = 9, BOAT = 3, SENSE = {snake:2, panther:3, anaconda:5};
+  // Adventure music (an original track made for the game) loops quietly while he plays, when sound is on.
+  const music = new Audio('audio/jungle-adventure.mp3'); music.loop = true; music.volume = .35;
+  if (api.soundOn && api.soundOn()) music.play().catch(() => {});
+  // Snakes hiss louder as they slither closer, and strike with a snap when they catch him.
+  const hiss = (vol, strike) => { if (api.soundOn && !api.soundOn()) return; try {
+    const ac = api.audio(), len = strike ? .9 : .6, b = ac.createBuffer(1, ac.sampleRate * len, ac.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) { const t = i / d.length; d[i] = (Math.random() * 2 - 1) * Math.min(1, t * 12) * (1 - t) * (1 + .5 * Math.sin(i / 90)); }
+    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = b; f.type = 'bandpass'; f.frequency.value = 5200; f.Q.value = .9; g.gain.value = vol;
+    s.connect(f); f.connect(g); g.connect(ac.destination); s.start();
+    if (strike) { const o = ac.createOscillator(), og = ac.createGain(); o.type = 'square'; o.frequency.setValueAtTime(180, ac.currentTime); o.frequency.exponentialRampToValueAtTime(50, ac.currentTime + .18);
+      og.gain.setValueAtTime(.45, ac.currentTime); og.gain.exponentialRampToValueAtTime(.001, ac.currentTime + .2); o.connect(og); og.connect(ac.destination); o.start(); o.stop(ac.currentTime + .22); }
+  } catch {} };
+  const snakeNear = () => { const ds = st.preds.filter(p => p.kind !== 'panther').map(p => Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c)); return ds.length ? Math.min(...ds) : 99; };
   let level = 1, st = null, busy = false, cancelQ = null;
   // Hughie's adventure pictures (private family-photos bucket, made from his own photos): start, chop, gold, chase, win, caught.
   const scene = (name, title, text, go, btn) => `<div class="sticker jg-scene"><img class="jg-photo" data-p="jungle/${name}.jpg" alt=""><h2>${title}</h2><p>${text}</p><button class="btn big" data-go="${go}">${btn}</button></div>`;
@@ -130,7 +143,8 @@ function jungle(host, api){
       o.innerHTML = scene('win', 'You made it to the boat with the gold!', `Level ${level} done. The jungle gets wilder from here.`, 'next', 'Next level');
       api.sound('win');
     } else {
-      o.innerHTML = scene('caught', who === 'anaconda' ? 'An anaconda got you!' : who === 'panther' ? 'The panther got you!' : 'A snake got you!', `Right answers keep you ahead of them. Try level ${level} again.`, 'again', 'Try again');
+      if (who !== 'panther') hiss(.9, true);
+      o.innerHTML = scene(who === 'panther' ? 'caught' : 'snake-attack', who === 'anaconda' ? 'An anaconda got you!' : who === 'panther' ? 'The panther got you!' : 'Snake attack!', `Right answers keep you ahead of them. Try level ${level} again.`, 'again', 'Try again');
       api.sound('bad');
     }
   }
@@ -160,7 +174,8 @@ function jungle(host, api){
       for (const p of st.preds) if (st.turn % p.every === 0 || !ok) { stepPred(p); if (p.r === st.pl.r && p.c === st.pl.c) { who = p; break; } }
     }
     draw();
-    if (who) over(false, who.kind);
+    if (who) { over(false, who.kind); return; }
+    const near = snakeNear(); if (near <= 3) hiss([0, .7, .45, .25][near]);
   }
   host.onclick = e => {
     const go = e.target.closest('[data-go]');
@@ -179,7 +194,7 @@ function jungle(host, api){
     cancelQ = askBox($('q'), api, 10, ok => { cancelQ = null; busy = false; turn(ok, r, c); });
   };
   newLevel();
-  return {destroy(){ if (cancelQ) cancelQ(); host.onclick = null; host.innerHTML = ''; }};
+  return {destroy(){ if (cancelQ) cancelQ(); music.pause(); host.onclick = null; host.innerHTML = ''; }};
 }
 
 /* ---------- Jessica: the Eras Stadium Show ---------- */
