@@ -1386,7 +1386,6 @@ function scrParent(){
         <label for="pc2">Type it again</label><input id="pc2" name="pin2" type="password" inputmode="numeric" autocomplete="off" maxlength="8" required>
         <button class="btn" type="submit">Change PIN</button></form>
     </div>
-    <h2 class="sec">This device</h2>${devicePanel()}
     <h2 class="sec">This device</h2>${devicePanel()}`; }
   const GTABS = [['family', 'Family report'], ['methods', 'Ways to learn'], ['games', 'Reward games'], ['try', 'Try it yourself'], ['settings', 'Settings']];
   const gt = GTABS.some(t => t[0] === S.gtab) ? S.gtab : 'family';
