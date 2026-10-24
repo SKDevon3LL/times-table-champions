@@ -169,6 +169,7 @@ function ago(t){
   return 'on ' + fmtDate(t);
 }
 function syncText(){
+  if (S.demo) return 'Demo: nothing is saved';
   if (!navigator.onLine) return 'Offline · saved on this iPad';
   if (Sync.status === 'syncing') return 'Saving online…';
   if (Sync.status === 'signed-out') return 'Saved here · sign in again to sync';
@@ -178,6 +179,7 @@ function syncText(){
 }
 function updateSyncChip(){ const el = document.getElementById('sync-chip'); if (el) el.textContent = syncText(); }
 async function onRemoteChange(){
+  if (S.demo) return;   // a grown-up is mid-demo on a copy of the data; the parent area reloads when it ends
   await loadPlayers();
   if (S.me) {
     const fresh = S.players.find(p => p.id === S.me.id);
@@ -357,7 +359,7 @@ function methodsKids(){
 /* ---------- state ---------- */
 const S = {
   screen:'loading', players:[], family:{rewards:{}}, me:null, prog:null, sessions:[], logins:[], logCur:null,
-  play:null, result:null, v:{}, err:null, okMsg:null, parentOK:false, pdata:{}, methods:{}, plans:{}, sound: ls.get('sound') ?? true
+  play:null, result:null, v:{}, err:null, okMsg:null, parentOK:false, pdata:{}, methods:{}, plans:{}, demo:null, sound: ls.get('sound') ?? true
 };
 const defaultProg = id => ({player:id, xp:0, facts:{}, prizes:{bronze:0,silver:0,gold:0,diamond:0}, prizeLog:[], bests:{}, days:[], daily:{}, badges:{}, totals:{q:0,c:0}, logins:0, lastLogin:0, created:Date.now()});
 function normProg(p, id){ const d = defaultProg(id); p = Object.assign(d, p || {}); p.prizes = Object.assign(defaultProg(id).prizes, p.prizes || {}); return p; }
@@ -562,7 +564,8 @@ function weakPairs(p, n){
 /* ---------- actions ---------- */
 function go(to){
   if (S.play && to !== 'play') { quit(); return; }
-  if (S.screen === 'game' && gameTimer) { stopGame(); saveProg().catch(saveFail); }
+  if (S.screen === 'game' && (gameTimer || gameInst)) { const demo = !!S.demo; stopGame(); if (!demo) saveProg().catch(saveFail); }
+  if (S.demo && (to === 'home' || to === 'login')) { endDemo(); to = 'parent'; }
   if (to === 'parent' && isParentDevice() && !S.parentOK) { S.parentOK = true; setTimeout(loadParentData, 0); }
   S.screen = to; S.err = null; S.okMsg = null; render(); scrollTo(0, 0);
 }
@@ -582,7 +585,7 @@ function startPlay(mode, cfg, pool){
     total: mode === 'test' ? cfg.count : mode === 'daily' ? 15 : (pool && mode === 'practice' ? null : null),
     answers:[], correct:0, streak:0, best:0, input:'', start:Date.now(), fb:null, hint:null, retry:false, locked:false, done:false};
   if (mode === 'clock') P.bestKey = P.tables.join('-') + '|' + P.kinds.join('');
-  if (mode !== 'daily' && !pool) ls.set(`cfg.${mode}.${S.me.id}`, cfg);
+  if (mode !== 'daily' && !pool && !S.demo) ls.set(`cfg.${mode}.${S.me.id}`, cfg);
   S.play = P; S.screen = 'play';
   if (mode === 'clock') { P.endsAt = Date.now() + 60000; P.timer = setInterval(tick, 100); }
   else P.timer = setInterval(tickElapsed, 1000);
@@ -683,7 +686,7 @@ async function finish(abandoned){
   const P = S.play; if (!P || P.done) return;
   P.done = true; clearInterval(P.timer);
   const n = P.answers.length, c = P.answers.filter(a => a.ok).length;
-  if (n === 0) { S.play = null; S.screen = 'home'; render(); return; }
+  if (n === 0) { S.play = null; go('home'); return; }
   const pct = Math.round(c / n * 100), ms = Date.now() - P.start, prog = S.prog, today = dayStr();
   const prize = (!abandoned && (P.mode === 'test' || P.mode === 'daily')) ? tierFor(pct) : null;
   let xp = c * 10 + (prize ? prize.xp : 0);
@@ -712,7 +715,7 @@ async function finish(abandoned){
   if (P.pool) entry.pool = true;
   if (abandoned) entry.ab = true;
   S.sessions.push(entry); ensureLogCur(); S.logCur.sessions.push(entry);
-  Promise.all([saveProg(), saveLog()]).catch(saveFail);
+  if (!S.demo) Promise.all([saveProg(), saveLog()]).catch(saveFail);
   S.result = Object.assign({}, entry, {answers:P.answers, newBest, prevBest, newBadges, newItems, unlocked, dailyDone, cfg:P.cfg, poolPairs:P.pool, best:P.best});
   S.play = null; S.screen = 'results'; render(); scrollTo(0, 0);
   if (prize) { confetti(prize.id); sound('win'); }
@@ -1285,6 +1288,7 @@ function scrParent(){
     ${S.okMsg ? `<p class="callout mint" role="status" style="margin-bottom:18px">${esc(S.okMsg)}</p>` : ''}
     ${pls.length ? `<div class="overview">${overview}</div>` : '<p class="callout" style="margin-bottom:18px">Add the first player below to get started.</p>'}
     ${methodsParent()}
+    ${demosParent(pls)}
     ${pls.length ? `<h2 class="sec">Reports</h2>${detail}` : ''}
     <h2 class="sec">Settings</h2>
     <div class="settings">
@@ -1331,6 +1335,40 @@ function devicePanel(){
 }
 const swatches = (name, cur) => `<div class="swatches" role="radiogroup">${COLORS.map(([c, l]) => `<label title="${l}"><input type="radio" name="color" value="${c}" ${c === cur ? 'checked' : ''} aria-label="${l}"><span style="--c:var(--${c})"></span></label>`).join('')}</div>`;
 
+// Try it yourself: a grown-up plays as a child on a copy of their data. Nothing is saved, and the reward game opens
+// without a trail (Sam, 24 Oct 2026: "give the grown ups demos to test").
+function demosParent(pls){
+  if (!pls.length) return '';
+  return `<h2 class="sec">Try it yourself</h2>
+    <p class="muted" style="margin:-6px 0 16px">Play anything as ${esc(pls.map(p => p.name).join(' or '))} to see what they see. Nothing you do here is saved to their progress, and the reward games open without a trail.</p>
+    <div class="settings">${pls.map(pl => {
+      const sk = SKINS[pl.theme] || SKINS.classic, game = pl.theme === 'eras' ? 'Eras Stadium Show' : pl.theme === 'trail' ? 'Jungle Gold Run' : null;
+      const b = (what, label, cls = 'ghost') => `<button class="btn small ${cls}" data-act="demo" data-id="${esc(pl.id)}" data-what="${what}">${esc(label)}</button>`;
+      return `<div class="sticker"><div class="ov-head">${avatar(pl, 44)}<h3>As ${esc(pl.name)}</h3></div>
+        <div class="row" style="margin-top:12px">${b('daily', sk.daily, '')}${b('practice', 'Practise')}${b('test', 'Take a test')}${b('clock', 'Beat the Clock')}${b('explore', 'Explore')}${game ? b('game', game, '') : ''}</div></div>`;
+    }).join('')}</div>`;
+}
+async function startDemo(id, what){
+  const pl = S.players.find(x => x.id === id); if (!pl || S.demo) return;
+  const d = await loadPlayerData(id);
+  S.demo = {me: S.me, prog: S.prog, sessions: S.sessions, logins: S.logins, logCur: S.logCur};
+  S.me = pl; applySkin(pl);
+  S.prog = clone(d.prog); S.sessions = d.sessions.slice(); S.logins = d.logins.slice();
+  S.logCur = {player: id, month: monthStr(), logins: [], sessions: []};
+  S.v = {}; S.okMsg = null;
+  if (what === 'game') startGame();
+  else if (what === 'daily') startDaily();
+  else if (what === 'explore') go('explore');
+  else openSetup(what);
+}
+function endDemo(){
+  const d = S.demo; if (!d) return;
+  S.demo = null;
+  if (S.play) { clearInterval(S.play.timer); S.play = null; }
+  S.me = d.me; S.prog = d.prog; S.sessions = d.sessions; S.logins = d.logins; S.logCur = d.logCur;
+  applySkin(S.me); S.v = {};
+  setTimeout(loadParentData, 0);
+}
 async function loadParentData(){
   await loadPlayers();
   await Promise.all(S.players.map(async pl => { try { S.pdata[pl.id] = await loadPlayerData(pl.id); } catch {} }));
@@ -1370,17 +1408,18 @@ function gameQuestion(){
 }
 function scrGame(){
   return `<header class="top"><div class="brand">${logo()}<span>${gameName()}</span></div>
-    <div class="top-right"><span class="sync" id="game-clock">${Math.ceil((GAME_MS - gameUsed(S.prog)) / 60000)} min left</span><button class="btn ghost small" data-act="go" data-to="home">Finish for now</button></div></header>
+    <div class="top-right"><span class="sync" id="game-clock">${S.demo ? 'Demo: nothing is saved' : Math.ceil((GAME_MS - gameUsed(S.prog)) / 60000) + ' min left'}</span><button class="btn ghost small" data-act="go" data-to="home">${S.demo ? 'Back to the Grown-ups area' : 'Finish for now'}</button></div></header>
     <div id="game-host" class="game-host"></div>`;
 }
 function startGame(){
-  const p = S.prog;
-  if (!gameOpen(p) || !window.TTCGames) { go('home'); return; }
-  if (p.gameTrail !== trailStart(p)) { p.gameTrail = trailStart(p); p.gameMs = 0; }
+  const p = S.prog, demo = !!S.demo;
+  if (!window.TTCGames || (!demo && !gameOpen(p))) { go('home'); return; }
+  if (!demo && p.gameTrail !== trailStart(p)) { p.gameTrail = trailStart(p); p.gameMs = 0; }
   p.game = p.game || {};
   S.screen = 'game'; render(); scrollTo(0, 0);
-  const api = {ask: gameQuestion, sound, audio: audioCtx, photo: photoOk(S.me.photo) ? S.me.photo : null, picture: familyPhoto, dressSvg, eras: ERAS, state: p.game, save: () => saveProg().catch(saveFail)};
+  const api = {ask: gameQuestion, sound, audio: audioCtx, photo: photoOk(S.me.photo) ? S.me.photo : null, picture: familyPhoto, dressSvg, eras: ERAS, state: demo ? {} : p.game, save: () => { if (!demo) saveProg().catch(saveFail); }};
   gameInst = (skinId() === 'eras' ? window.TTCGames.stage : window.TTCGames.jungle)(document.getElementById('game-host'), api);
+  if (demo) return;   // a grown-up's demo: no 30-minute clock, nothing saved
   let ticks = 0;
   gameTimer = setInterval(() => {
     if (document.visibilityState !== 'visible') return;
@@ -1446,12 +1485,13 @@ const A = {
     if (m === 'explore') go('explore'); else if (m === 'daily') startDaily(); else openSetup(m, t);
   },
   sound: () => { S.sound = !S.sound; ls.set('sound', S.sound); render(); },
-  logout: () => { if (S.play) { clearInterval(S.play.timer); S.play = null; } S.me = null; S.prog = null; S.parentOK = false; ss.del('me'); S.v = {}; applySkin(null); go('login'); },
+  logout: () => { if (S.demo) { go('home'); return; } if (S.play) { clearInterval(S.play.timer); S.play = null; } S.me = null; S.prog = null; S.parentOK = false; ss.del('me'); S.v = {}; applySkin(null); go('login'); },
   'ex-cell': el => { S.v.ex.a = +el.dataset.a; S.v.ex.b = +el.dataset.b; render(); },
   'ex-hl': el => { const v = el.dataset.v === 'sq' ? 'sq' : +el.dataset.v; S.v.ex.hl = S.v.ex.hl === v ? null : v; render(); },
   'parent-lock': () => { S.parentOK = false; go(S.me ? 'home' : 'login'); },
   pp: el => { S.v.pp = el.dataset.id; render(); },
   game: () => startGame(),
+  demo: el => startDemo(el.dataset.id, el.dataset.what),
   method: async el => {
     const id = el.dataset.id, status = el.dataset.s, m = METHODS.find(x => x.id === id);
     if (!m || !['approved', 'rejected'].includes(status)) return;
