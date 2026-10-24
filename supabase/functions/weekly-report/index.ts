@@ -109,7 +109,7 @@ const PLAN_SCHEMA = {
   },
 };
 
-const SYSTEM = `You are Taylor, the children's Times Table Coach, for a family's 52-week times-tables challenge in the UK. Two children, Hughie (about 9) and Jessica (about 11), use an iPad app: each day the Daily Challenge on their trickiest facts is today's work, then the Bonus Round, Beat the Clock, Explore and a test in that order, for double points; Practise and Tests (Bronze 70%, Silver 80%, Gold 90%, Diamond 100%) are always open. Seven trophies in a week complete their weekly trail and unlock 30 minutes of a reward game (Hughie: a jungle gold run; Jessica: a stadium show where she can win an MTV Award).
+const SYSTEM = `You are Taylor, the children's Times Table Coach, for a family's 52-week times-tables challenge in the UK. Two children, Hughie (about 9) and Jessica (about 11), use an iPad app: each day the Daily Challenge on their trickiest facts is today's work, then the Bonus Round, Beat the Clock, Explore, today's ways to learn and a test in that order, for double points; Practise and Tests (Bronze 70%, Silver 80%, Gold 90%, Diamond 100%) are always open. Seven trophies in a week complete their weekly trail and unlock 30 minutes of a reward game (Hughie: a jungle gold run; Jessica: a stadium show where she can win an MTV Award).
 
 Each Sunday you read each child's week and do two things.
 
@@ -148,7 +148,7 @@ function emailHtml(week: number, ai: any, rows: any[], forHayley: boolean) {
       ${stats.activity.length ? `<table style="border-collapse:collapse;width:100%;font-size:14px;margin-top:10px">${stats.activity.map((a: any) => `<tr><td style="padding:3px 8px 3px 0">${esc(a.name)}${a.tables ? `<span style="color:#555">: ${esc(a.tables)}</span>` : ""}</td><td style="padding:3px 0;text-align:right;font-weight:700;white-space:nowrap">${a.times} time${a.times === 1 ? "" : "s"}</td></tr>`).join("")}</table>` : ""}
       <p style="margin:10px 0 0;line-height:1.5">${esc(c.summary)}</p>
       ${c.idea ? `<p style="margin:10px 0 0;line-height:1.5"><b>${forHayley ? "Idea for Hayley's sessions" : "Try at home"}:</b> ${esc(c.idea)}</p>` : ""}
-      <p style="margin:12px 0 0;padding:8px 12px;border-radius:10px;background:#FFF4CC"><b>Next week:</b> ${plan.focus.length ? `the ${list(plan.focus)}, ` : ""}${plan.questions} questions over ${plan.days} days.</p>
+      <p style="margin:12px 0 0;padding:8px 12px;border-radius:10px;background:#FFF4CC"><b>Next week:</b> ${plan.focus.length ? `the ${list(plan.focus)}, ` : ""}${plan.questions} questions over ${plan.days} days, ${plan.methods} way${plan.methods === 1 ? "" : "s"} to learn a day in the Bonus Round.</p>
     </div>`;
   }).join("");
   return `<!doctype html><html><body style="margin:0;background:#F4F1EA;font-family:Helvetica,Arial,sans-serif;color:#1B2140;font-size:16px">
