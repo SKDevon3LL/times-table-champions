@@ -1489,7 +1489,7 @@ function gamesParent(pls){
       const eras = pl.theme === 'eras', ok = S.gameOK[pl.id] || {}, approved = ok.status === 'approved';
       const pics = eras
         ? ERAS.flatMap((e, k) => [['a', 'singing'], ['d', 'dancing'], ['t', 'twirling']].map(([s, w]) => thumb(`stage/era${pad2(k)}-${s}.jpg`, `${e.era} · ${w}`)))
-        : [...[['start', 'Start of a level'], ['chop', 'Chopping: right answer'], ['miss', 'Missed: wrong answer'], ['hold', 'Holding ground'], ['gold', 'Found the gold'], ['chase', 'Run for the boat'], ['run', 'Running with the gold'], ['win', 'Made it to the boat'], ['caught', 'Caught'], ['snake-attack', 'Snake attack'], ['panther-attack', 'Panther attack']].map(([n, w]) => thumb(`jungle/${n}.jpg`, w)),
+        : [...[['start', 'Start of a level'], ['chop', 'Chopping: right answer'], ['miss', 'Missed: wrong answer'], ['hold', 'Holding ground'], ['gold', 'Found the gold'], ['chase', 'Run for the boat'], ['run', 'Running with the gold'], ['win', 'Made it to the boat'], ['caught', 'Caught'], ['snake-attack', 'Snake attack'], ['panther-attack', 'Panther attack'], ['ogre-chase', 'Ogre chase'], ['ogre-pot', 'In the ogre\u2019s pot']].map(([n, w]) => thumb(`jungle/${n}.jpg`, w)),
            ...['jungle1', 'jungle2', 'path', 'rock', 'gold', 'river', 'boat', 'snake', 'panther', 'anaconda'].map(n => thumb(`jungle/tiles/${n}.jpg`, 'Board: ' + n))];
       return `<div class="sticker" style="margin-bottom:20px"><div class="card-h"><h3>${esc(pl.name)}'s ${eras ? 'Eras Stadium Show' : 'Jungle Gold Run'}</h3>${approved ? '<span class="pill approved">Approved</span>' : '<span class="pill">Waiting for approval</span>'}</div>
         <p>${eras ? 'She picks a dress and a song, then sings on a stadium stage to an original tune. Every right answer brings more fans in; 80,000 fans wins the MTV Award.' : 'He chops a path to the gold, one right answer per swing, then runs it back to the boat before the snakes, panthers and anacondas catch him.'}</p>
@@ -1574,8 +1574,11 @@ function showHowVideo(){
   const close = () => { const v = o.querySelector('video'); if (v) v.pause(); o.remove(); };
   o.addEventListener('click', e => { if (e.target === o || e.target.classList.contains('vid-x')) close(); });
   familyPhoto('video/how-it-works.mp4').then(url => {
-    const v = document.createElement('video'); v.src = url; v.controls = true; v.autoplay = true; v.playsInline = true;
-    o.querySelector('.vid-msg').replaceWith(v);
+    // Not autoplay: on an iPad that started the sound before the first picture (Hughie, 24 Oct 2026). Wait until it can
+    // play through, then start it; if the iPad wants a tap first, the controls are there.
+    const v = document.createElement('video'); v.controls = true; v.playsInline = true; v.preload = 'auto'; v.style.visibility = 'hidden';
+    v.addEventListener('canplaythrough', () => { v.style.visibility = ''; const m = o.querySelector('.vid-msg'); if (m) m.remove(); v.play().catch(() => {}); }, {once: true});
+    v.src = url; o.querySelector('.vid-box').appendChild(v); v.load();
   }).catch(() => { o.querySelector('.vid-msg').textContent = 'The video needs the internet the first time. Connect to Wi-Fi and try again.'; });
 }
 function hydratePhotos(){ app.querySelectorAll('img[data-photo]').forEach(im => familyPhoto(im.dataset.photo).then(u => { im.src = u; }).catch(() => {})); }
