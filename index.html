@@ -302,7 +302,14 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webk
 @media (min-aspect-ratio:5/4){
   .gq{left:auto;right:16px;bottom:auto;top:50%;transform:translateY(-50%);width:min(380px,32vw)}
   .gq-opts{grid-template-columns:1fr}
-  .jg{max-width:min(620px,calc((100vh - 190px) * 7 / 9));padding-bottom:24px}
+  .jg{max-width:none;display:grid;grid-template-columns:minmax(180px,1fr) auto minmax(180px,1fr);grid-template-rows:auto auto;gap:10px 16px;align-items:center;padding-bottom:24px}
+  .jg-bar{grid-column:2;grid-row:1}
+  .jg-board{grid-column:2;grid-row:2;width:min(620px,calc((100vh - 190px) * 7 / 9))}
+  .jg-act{grid-column:1;grid-row:1/3;display:grid;justify-items:center;justify-self:end;width:min(360px,100%)}
+  .jg-act img{width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:16px;border:3px solid var(--line);box-shadow:5px 5px 0 var(--shadow);background:#2F5D2A}
+  .jg-act b{margin-top:-24px;background:#FFE36E;color:#1B2140;border:3px solid var(--line);border-radius:999px;padding:4px 18px;font-family:var(--display);font-size:24px;font-weight:400}
+  .jg .gq{grid-column:3;grid-row:1/3;position:static;transform:none;width:min(380px,100%);justify-self:start}
+  .jg .jg-over{position:fixed}
 }
 .dress-ph{width:44px;height:66px;object-fit:cover;border-radius:8px;border:2px solid var(--line);background:var(--card2)}
 .dress-ph.big{width:72px;height:108px;flex:none}
@@ -324,6 +331,22 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webk
 @keyframes stg-pop{0%{opacity:0;transform:translate(-50%,20px) scale(.8)}20%{opacity:1;transform:translate(-50%,0) scale(1.1)}100%{opacity:0;transform:translate(-50%,-60px) scale(1)}}
 .jg-bd{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:-1;filter:blur(10px) brightness(.6);transform:scale(1.06)}
 .jg-bar{color:#FFFFFF;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+.jg-act{display:none}
+body:has(#game-host) .top{position:relative;z-index:35}   /* above a game's full-screen cards, so Finish for now always works */
+.lightbox{z-index:40;cursor:zoom-out}
+.lightbox img{max-width:min(92vw,720px);max-height:88vh;border-radius:16px;border:3px solid var(--line);background:#1D1450}
+.jg-board.tiles .jg-c{background-size:cover;background-position:center}
+.jg-board.tiles .jg-c .emo{visibility:hidden}
+.jg-board.tiles .jg-c.jungle{background-image:var(--t-jungle1)}
+.jg-board.tiles .jg-c.jungle.alt{background-image:var(--t-jungle2)}
+.jg-board.tiles .jg-c.path{background-image:var(--t-path)}
+.jg-board.tiles .jg-c.rock{background-image:var(--t-rock)}
+.jg-board.tiles .jg-c.gold{background-image:var(--t-gold)}
+.jg-board.tiles .jg-c.river{background-image:var(--t-river)}
+.jg-board.tiles .jg-c.river.boat{background-image:var(--t-boat)}
+.jg-board.tiles .jg-c.has-snake{background-image:var(--t-snake)}
+.jg-board.tiles .jg-c.has-panther{background-image:var(--t-panther)}
+.jg-board.tiles .jg-c.has-anaconda{background-image:var(--t-anaconda)}
 body:has(.jg-bd) .top .brand, body:has(.jg-bd) .top .sync{color:#FFFFFF;text-shadow:0 1px 4px rgba(0,0,0,.7)}
 .jg-scene{display:grid;gap:10px;justify-items:center;text-align:center;max-width:420px}
 .jg-photo{width:100%;max-height:52vh;aspect-ratio:2/3;object-fit:cover;border-radius:14px;border:3px solid var(--line);background:#2F5D2A}

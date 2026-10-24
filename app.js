@@ -359,7 +359,7 @@ function methodsKids(){
 /* ---------- state ---------- */
 const S = {
   screen:'loading', players:[], family:{rewards:{}}, me:null, prog:null, sessions:[], logins:[], logCur:null,
-  play:null, result:null, v:{}, err:null, okMsg:null, parentOK:false, pdata:{}, methods:{}, plans:{}, demo:null, sound: ls.get('sound') ?? true
+  play:null, result:null, v:{}, err:null, okMsg:null, parentOK:false, pdata:{}, methods:{}, plans:{}, gameOK:{}, demo:null, sound: ls.get('sound') ?? true
 };
 const defaultProg = id => ({player:id, xp:0, facts:{}, prizes:{bronze:0,silver:0,gold:0,diamond:0}, prizeLog:[], bests:{}, days:[], daily:{}, badges:{}, totals:{q:0,c:0}, logins:0, lastLogin:0, created:Date.now()});
 function normProg(p, id){ const d = defaultProg(id); p = Object.assign(d, p || {}); p.prizes = Object.assign(defaultProg(id).prizes, p.prizes || {}); return p; }
@@ -370,6 +370,7 @@ async function loadPlayers(){
     S.family = Object.assign({rewards:{}}, (await Store.get('settings/family')) || {});
     S.methods = Object.fromEntries((await Store.list('methods')).map(m => [m.id, m]));
     S.plans = Object.fromEntries((await Store.list('plans')).map(x => [x.id, x]));
+    S.gameOK = Object.fromEntries((await Store.list('games')).map(x => [x.id, x]));
   } catch { S.players = []; toast("Couldn't load players. Reload the page to try again."); }
 }
 async function loadPlayerData(id){
@@ -849,7 +850,9 @@ const TRAIL_STOPS = 7, GAME_MS = 30 * 60 * 1000;
 const trailStart = p => Math.max(weekStart(), p.trailReset || 0);
 const itemsOwned = p => Math.min(TRAIL_STOPS, (p.prizeLog || []).filter(x => x.t >= trailStart(p)).length);
 const gameUsed = p => p.gameTrail === trailStart(p) ? (p.gameMs || 0) : 0;
-const gameOpen = p => skinId() !== 'classic' && itemsOwned(p) >= TRAIL_STOPS && gameUsed(p) < GAME_MS;
+// A child's game opens only once a grown-up has approved it in the Grown-ups area (games/<id>; Sam, 24 Oct 2026: "final approval").
+const gameApproved = pl => !!pl && ((S.gameOK || {})[pl.id] || {}).status === 'approved';
+const gameOpen = p => skinId() !== 'classic' && itemsOwned(p) >= TRAIL_STOPS && gameUsed(p) < GAME_MS && gameApproved(S.me);
 const gameName = () => skinId() === 'eras' ? 'Eras Stadium Show' : 'Jungle Gold Run';
 // Jessica's seven dresses change every trail; Hughie packs the same seven tools for the jungle.
 const trailDress = (p, i) => (Math.floor(trailStart(p) / (7 * 864e5)) * TRAIL_STOPS + i) % ERAS.length;
@@ -929,6 +932,7 @@ function collectionCard(p){
   const id = skinId(); if (id === 'classic') return '';
   const n = itemsOwned(p), sel = S.v.item, open = gameOpen(p), mins = Math.ceil((GAME_MS - gameUsed(p)) / 60000);
   const goal = open ? `<div class="callout mint unlock"><div><b>${id === 'eras' ? 'Your stadium show is open!' : 'The jungle gold is waiting!'}</b> ${mins} minutes of play left.</div><button class="btn" data-act="game">${id === 'eras' ? 'Go on stage' : 'Start the Gold Run'}</button></div>`
+    : n >= TRAIL_STOPS && !gameApproved(S.me) ? `<p class="callout">Trail complete! Your ${id === 'eras' ? 'stadium show' : 'Jungle Gold Run'} is waiting for a grown-up to approve it.</p>`
     : `<p class="muted small">Win ${TRAIL_STOPS - n} more troph${TRAIL_STOPS - n === 1 ? 'y' : 'ies'} by Sunday to unlock ${id === 'eras' ? 'your stadium show' : 'the Jungle Gold Run'}: 30 minutes of play. A new trail starts every Monday.</p>`;
   if (id === 'eras') {
     const ds = Array.from({length:TRAIL_STOPS}, (_, k) => trailDress(p, k)), e = sel !== undefined && sel < TRAIL_STOPS && ERAS[ds[sel]];
@@ -1057,7 +1061,8 @@ function resultItems(r){
     if (id === 'eras') { const e = ERAS[trailDress(S.prog, k)]; h += `<div class="callout item-new">${dressPhoto(trailDress(S.prog, k), 'big')}<div><b>New dress: ${esc(e.album)}!</b> ${esc(e.look)}</div></div>`; }
     else if (id === 'trail') { const j = JUNGLE[k], t = TOOLS[j.tool]; h += `<div class="callout item-new">${toolSvg(j.tool, 54)}<div><b>New tool: ${esc(t.name)}!</b> ${esc(t.use)} Camp ${k + 1} reached: ${esc(j.camp.toLowerCase())}.</div></div>`; }
   }
-  if (r.unlocked) h += `<div class="callout mint unlock"><div><b>You completed this week's trail!</b> The ${gameName()} is open: 30 minutes of play.</div><button class="btn" data-act="game">Play now</button></div>`;
+  if (r.unlocked) h += gameApproved(S.me) ? `<div class="callout mint unlock"><div><b>You completed this week's trail!</b> The ${gameName()} is open: 30 minutes of play.</div><button class="btn" data-act="game">Play now</button></div>`
+    : `<div class="callout"><b>You completed this week's trail!</b> Your ${gameName()} is waiting for a grown-up to approve it.</div>`;
   return h;
 }
 function scrResults(){
@@ -1288,6 +1293,7 @@ function scrParent(){
     ${S.okMsg ? `<p class="callout mint" role="status" style="margin-bottom:18px">${esc(S.okMsg)}</p>` : ''}
     ${pls.length ? `<div class="overview">${overview}</div>` : '<p class="callout" style="margin-bottom:18px">Add the first player below to get started.</p>'}
     ${methodsParent()}
+    ${gamesParent(pls)}
     ${demosParent(pls)}
     ${pls.length ? `<h2 class="sec">Reports</h2>${detail}` : ''}
     <h2 class="sec">Settings</h2>
@@ -1321,6 +1327,7 @@ function scrParent(){
         <button class="btn" type="submit">Change PIN</button></form>
     </div>
     <h2 class="sec">This device</h2>${devicePanel()}
+    ${S.v.lightbox ? `<div class="jg-over lightbox" data-act="lightbox"><img data-photo="${esc(S.v.lightbox)}" alt=""></div>` : ''}
   </section>`;
 }
 function devicePanel(){
@@ -1335,6 +1342,33 @@ function devicePanel(){
 }
 const swatches = (name, cur) => `<div class="swatches" role="radiogroup">${COLORS.map(([c, l]) => `<label title="${l}"><input type="radio" name="color" value="${c}" ${c === cur ? 'checked' : ''} aria-label="${l}"><span style="--c:var(--${c})"></span></label>`).join('')}</div>`;
 
+// Reward games, for the grown-ups' approval: every picture each game uses, a Play it demo, and Approve. A child's game
+// opens at the end of their trail only once approved (games/<id>).
+function gamesParent(pls){
+  const kids = pls.filter(pl => pl.theme === 'eras' || pl.theme === 'trail');
+  if (!kids.length) return '';
+  const thumb = (p, label) => `<button class="look" style="--era:var(--card2);--era-t:var(--ink)" data-act="lightbox" data-p="${p}"><img data-photo="${p}" alt=""><span>${esc(label)}</span></button>`;
+  return `<h2 class="sec">Reward games: for your approval</h2>
+    <p class="muted" style="margin:-6px 0 16px">Every picture the games use, made from the children's own photos and kept private to the family. A child's game opens at the end of their trail only once a grown-up has approved it here. Tap a picture to see it full size.</p>
+    ${kids.map(pl => {
+      const eras = pl.theme === 'eras', ok = S.gameOK[pl.id] || {}, approved = ok.status === 'approved';
+      const pics = eras
+        ? ERAS.flatMap((e, k) => [['a', 'singing'], ['d', 'dancing'], ['t', 'twirling']].map(([s, w]) => thumb(`stage/era${pad2(k)}-${s}.jpg`, `${e.era} · ${w}`)))
+        : [...[['start', 'Start of a level'], ['chop', 'Chopping: right answer'], ['miss', 'Missed: wrong answer'], ['hold', 'Holding ground'], ['gold', 'Found the gold'], ['chase', 'Run for the boat'], ['run', 'Running with the gold'], ['win', 'Made it to the boat'], ['caught', 'Caught']].map(([n, w]) => thumb(`jungle/${n}.jpg`, w)),
+           ...['jungle1', 'jungle2', 'path', 'rock', 'gold', 'river', 'boat', 'snake', 'panther', 'anaconda'].map(n => thumb(`jungle/tiles/${n}.jpg`, 'Board: ' + n))];
+      return `<div class="sticker" style="margin-bottom:20px"><div class="card-h"><h3>${esc(pl.name)}'s ${eras ? 'Eras Stadium Show' : 'Jungle Gold Run'}</h3>${approved ? '<span class="pill approved">Approved</span>' : '<span class="pill">Waiting for approval</span>'}</div>
+        <p>${eras ? 'She picks a dress and a song, then sings on a stadium stage to an original tune. Every right answer brings more fans in; 80,000 fans wins the MTV Award.' : 'He chops a path to the gold, one right answer per swing, then runs it back to the boat before the snakes, panthers and anacondas catch him.'}</p>
+        <div class="looks" style="grid-template-columns:repeat(auto-fill,minmax(76px,1fr))">${pics.join('')}</div>
+        <div class="row" style="margin-top:14px"><button class="btn small ghost" data-act="demo" data-id="${esc(pl.id)}" data-what="game">Play it</button>${approved ? `<span class="muted small">Approved${ok.by ? ' by ' + esc(ok.by) : ''}${ok.at ? ' ' + ago(ok.at) : ''}.</span><button class="btn small ghost" data-act="game-unapprove" data-id="${esc(pl.id)}">Take approval back</button>` : `<button class="btn small" data-act="game-approve" data-id="${esc(pl.id)}">Approve for ${esc(pl.name)}</button>`}</div>
+      </div>`;
+    }).join('')}`;
+}
+async function setGameApproval(id, status){
+  const pl = S.players.find(x => x.id === id); if (!pl) return;
+  const doc = {status, by: (Device.get() || {}).name || '', at: Date.now()};
+  try { await Store.set('games/' + id, doc); S.gameOK[id] = doc; toast(status === 'approved' ? `${pl.name}'s game is approved.` : `${pl.name}'s game is on hold.`); } catch { saveFail(); }
+  render();
+}
 // Try it yourself: a grown-up plays as a child on a copy of their data. Nothing is saved, and the reward game opens
 // without a trail (Sam, 24 Oct 2026: "give the grown ups demos to test").
 function demosParent(pls){
@@ -1492,6 +1526,9 @@ const A = {
   pp: el => { S.v.pp = el.dataset.id; render(); },
   game: () => startGame(),
   demo: el => startDemo(el.dataset.id, el.dataset.what),
+  'game-approve': el => setGameApproval(el.dataset.id, 'approved'),
+  'game-unapprove': el => setGameApproval(el.dataset.id, 'pending'),
+  lightbox: el => { S.v.lightbox = el.dataset.p || null; render(); },
   method: async el => {
     const id = el.dataset.id, status = el.dataset.s, m = METHODS.find(x => x.id === id);
     if (!m || !['approved', 'rejected'].includes(status)) return;

@@ -29,7 +29,16 @@ function jungle(host, api){
   const scene = (name, title, text, go, btn) => `<div class="sticker jg-scene"><img class="jg-photo" data-p="jungle/${name}.jpg" alt=""><h2>${title}</h2><p>${text}</p><button class="btn big" data-go="${go}">${btn}</button></div>`;
   const loadPics = el => el.querySelectorAll('img[data-p]').forEach(im => api.picture(im.dataset.p).then(u => { if (im.isConnected) im.src = u; }).catch(() => {}));
   const backdrop = name => { const im = host.querySelector('.jg-bd'); if (im) { im.dataset.p = `jungle/${name}.jpg`; loadPics(host); } };
-  host.innerHTML = `<img class="jg-bd" alt=""><div class="jg">
+  // The action panel beside the board (held sideways) and the blurred backdrop: what Hughie is doing this turn.
+  const action = (name, cap) => { const a = $('act'); if (a) { a.querySelector('img').dataset.p = `jungle/${name}.jpg`; a.querySelector('b').textContent = cap; } backdrop(name); };
+  // The board's picture tiles: shown once every one is on the device, the emoji until then.
+  const TILES = ['jungle1', 'jungle2', 'path', 'rock', 'gold', 'river', 'boat', 'snake', 'panther', 'anaconda'];
+  Promise.all(TILES.map(t => api.picture(`jungle/tiles/${t}.jpg`).then(u => [t, u]))).then(pairs => {
+    const b = $('board'); if (!b || !b.isConnected) return;
+    for (const [t, u] of pairs) host.style.setProperty('--t-' + t, `url("${u}")`);
+    b.classList.add('tiles');
+  }).catch(() => {});
+  host.innerHTML = `<img class="jg-bd" alt=""><div class="jg"><div class="jg-act" data-k="act"><img alt=""><b></b></div>
     <div class="jg-bar"><b>Level <span data-k="lvl">1</span></b><span class="jg-msg" data-k="msg"></span><b>Gold <span data-k="gold">${api.state.gold || 0}</span></b></div>
     <div class="jg-board" data-k="board" style="--w:${W}"></div>
     <div class="gq" data-k="q" hidden></div>
@@ -63,7 +72,7 @@ function jungle(host, api){
     $('lvl').textContent = level;
     msg('Tap a square next to you to chop towards the gold.');
     draw();
-    backdrop('chop');
+    action('start', "Let's go!");
     busy = true;
     const o = $('over'); o.hidden = false;
     o.innerHTML = scene('start', `Level ${level}`, level === 1 ? 'Chop a path to the gold, then get back to the boat. Every right answer swings your machete.' : 'The jungle is wilder now. Keep your answers sharp!', 'begin', 'Start the adventure');
@@ -90,12 +99,13 @@ function jungle(host, api){
       const kind = g[r][c], p = at(preds, r, c), me = pl.r === r && pl.c === c, boat = r === H - 1 && c === BOAT;
       let inner = '';
       if (me) inner = `<span class="jg-me">${api.photo ? `<img src="${api.photo}" alt="">` : '🧒'}${has ? '<i>💰</i>' : ''}</span>`;
-      else if (p) inner = `<span class="jg-${p.kind}">${p.kind === 'panther' ? '🐆' : '🐍'}</span>`;
-      else if (boat) inner = '🛶';
-      else if (kind === 'gold') inner = '💰';
-      else if (kind === 'rock') inner = '🪨';
-      else if (kind === 'jungle') inner = ['🌿', '🌴', '🌱'][(r * 7 + c * 3) % 3];
-      h += `<button class="jg-c ${kind}${boat ? ' boat' : ''}${canGo(r, c) ? ' can' : ''}" data-r="${r}" data-c="${c}" aria-label="Row ${r + 1}, column ${c + 1}">${inner}</button>`;
+      else if (p) inner = `<span class="emo jg-${p.kind}">${p.kind === 'panther' ? '🐆' : '🐍'}</span>`;
+      else if (boat) inner = '<span class="emo">🛶</span>';
+      else if (kind === 'gold') inner = '<span class="emo">💰</span>';
+      else if (kind === 'rock') inner = '<span class="emo">🪨</span>';
+      else if (kind === 'jungle') inner = `<span class="emo">${['🌿', '🌴', '🌱'][(r * 7 + c * 3) % 3]}</span>`;
+      const cls = `jg-c ${kind}${kind === 'jungle' && (r * 5 + c * 3) % 3 === 0 ? ' alt' : ''}${boat ? ' boat' : ''}${p ? ' has-' + p.kind : ''}${canGo(r, c) ? ' can' : ''}`;
+      h += `<button class="${cls}" data-r="${r}" data-c="${c}" aria-label="Row ${r + 1}, column ${c + 1}">${inner}</button>`;
     }
     $('board').innerHTML = h;
     if (!busy && boxedIn()) msg('Boxed in! Tap yourself to hold your ground.');
@@ -136,14 +146,14 @@ function jungle(host, api){
         st.preds.push({kind:'anaconda', every:ev, r:H - 1, c:0}, {kind:'anaconda', every:ev, r:H - 1, c:W - 1});
         if (level >= 3) st.preds.push({kind:'anaconda', every:3, r:H - 1, c:BOAT + (Math.random() < .5 ? -2 : 2)});
         msg('You got the gold! Run back to the boat before the anacondas get you!');
-        backdrop('chase');
+        action('chase', 'Run!');
         busy = true;
         const o = $('over'); o.hidden = false;
         o.innerHTML = scene('gold', 'You found the gold!', 'Now run back to the boat. The anacondas are coming out of the river!', 'run', 'Run for the boat!');
         loadPics(o);
-      } else msg(stay ? 'You held your ground!' : st.has ? 'Keep going: back to the boat!' : 'Chop! Keep heading for the gold.');
+      } else { msg(stay ? 'You held your ground!' : st.has ? 'Keep going: back to the boat!' : 'Chop! Keep heading for the gold.'); action(stay ? 'hold' : st.has ? (st.turn % 2 ? 'run' : 'chase') : 'chop', stay ? 'Held it!' : st.has ? 'Run!' : 'Chop!'); }
       if (st.has && r === H - 1 && c === BOAT) { draw(); over(true); return; }
-    } else { api.sound('bad'); msg('Missed! They are getting closer.'); }
+    } else { api.sound('bad'); msg('Missed! They are getting closer.'); action('miss', 'Missed!'); }
     let who = caught();
     if (!who) {
       st.turn++;
