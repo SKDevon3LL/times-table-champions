@@ -239,13 +239,13 @@ function stage(host, api){
     sv.dress = pick.dress; sv.song = pick.song; api.save();
     let crowd = 15000, asked = 0, right = 0, cancelQ = null, ended = false, pose = 0;
     host.innerHTML = `<div class="stg">
-      <div class="stg-photos">${['a', 'd', 'a', 't'].map((p, i) => `<img class="${i === 0 ? 'on' : ''}" data-p="${pic(pick.dress, p)}" alt="">`).join('')}</div>
+      <div class="stg-photos"><img class="stg-fill" data-p="${pic(pick.dress, 'a')}" alt="">${['a', 'd', 'a', 't'].map((p, i) => `<img class="pose ${i === 0 ? 'on' : ''}" data-p="${pic(pick.dress, p)}" alt="">`).join('')}</div>
       <div class="stg-hud"><b>${esc(song.title)}</b><span>Fans: <b data-k="count">15,000</b></span><div class="meter"><span data-k="fill"></span></div></div>
       <div class="stg-pop" data-k="pop"></div>
       <div class="gq" data-k="q" hidden></div>
       <div class="jg-over" data-k="over" hidden></div></div>`;
-    const $ = k => host.querySelector(`[data-k="${k}"]`), imgs = [...host.querySelectorAll('.stg-photos img')], box = host.querySelector('.stg');
-    imgs.forEach(im => load(im, im.dataset.p));
+    const $ = k => host.querySelector(`[data-k="${k}"]`), imgs = [...host.querySelectorAll('.stg-photos img.pose')], box = host.querySelector('.stg');
+    host.querySelectorAll('.stg-photos img').forEach(im => load(im, im.dataset.p));
     const paint = () => { $('count').textContent = crowd.toLocaleString('en-GB'); $('fill').style.width = Math.min(100, crowd / CAPACITY * 100) + '%'; };
     paint();
     const t = tune(ac, song.title, song.bpm), bars = 24, endAt = Date.now() + t.barSec * bars * 1000;
