@@ -382,7 +382,8 @@ const logo = () => skinId() === 'eras'
   : skinId() === 'trail'
   ? `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21" fill="var(--sky)" stroke="var(--line)" stroke-width="3"/><path d="M6 36 L18 18 L25 27 L31 19 L42 36 Z" fill="var(--mint)" stroke="var(--line)" stroke-width="2.5" stroke-linejoin="round"/><path d="M31 19 V8 L39 11 L31 14" fill="var(--me)" stroke="var(--line)" stroke-width="2" stroke-linejoin="round"/></svg>`
   : `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21" fill="var(--sun)" stroke="var(--line)" stroke-width="3"/><path d="M15 15 L33 33 M33 15 L15 33" stroke="var(--on-accent)" stroke-width="6" stroke-linecap="round"/></svg>`;
-const avatar = (p, size = 48) => `<span class="avatar" style="--c:var(--${esc(p.color || 'sky')});--s:${size}px" aria-hidden="true">${esc((p.name || '?')[0].toUpperCase())}</span>`;
+const photoOk = s => typeof s === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(s);
+const avatar = (p, size = 48) => `<span class="avatar" style="--c:var(--${esc(p.color || 'sky')});--s:${size}px" aria-hidden="true">${photoOk(p.photo) ? `<img src="${p.photo}" alt="">` : esc((p.name || '?')[0].toUpperCase())}</span>`;
 const COLORS = [['tomato','Tomato'],['sky','Sky'],['mint','Mint'],['grape','Grape'],['sun','Sunshine'],['pink','Bubblegum']];
 
 /* ---------- sound + confetti ---------- */
