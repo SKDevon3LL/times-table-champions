@@ -658,7 +658,7 @@ function go(to){
 }
 function cfgFor(mode, tables){
   const saved = ls.get(`cfg.${mode}.${S.me.id}`) || {};
-  const c = Object.assign({tables:[2,5,10], count:20, miss:false, div:false}, saved);
+  const c = Object.assign({tables:[2,5,10], count: mode === 'practice' ? 30 : 20, miss:false, div:false}, saved);
   S.v.suggested = null;
   if (tables && tables.length) c.tables = tables.slice();
   else if (mode !== 'clock') { const t = focusTable(S.prog); if (t) { c.tables = [t]; S.v.suggested = t; } }
@@ -669,7 +669,7 @@ function openSetup(mode, tables){ S.v.mode = mode; S.v.cfg = cfgFor(mode, tables
 function startPlay(mode, cfg, pool){
   const kinds = mode === 'daily' ? dailyKinds() : ['mul', ...(cfg.miss ? ['miss'] : []), ...(cfg.div ? ['div'] : [])];
   const P = {mode, cfg: clone(cfg), tables: cfg.tables.slice().sort((a, b) => a - b), kinds, pool: pool || null,
-    total: mode === 'test' ? cfg.count : mode === 'daily' ? 15 : cfg.method ? METHOD_QS : null,
+    total: cfg.method ? METHOD_QS : mode === 'test' || mode === 'practice' ? (cfg.count || (mode === 'practice' ? 30 : 20)) : mode === 'daily' ? 15 : null,
     answers:[], correct:0, streak:0, best:0, input:'', start:Date.now(), fb:null, hint:null, retry:false, locked:false, done:false};
   if (mode === 'clock') P.bestKey = P.tables.join('-') + '|' + P.kinds.join('');
   if (mode === 'test') P.trophyOK = trophyTest(S.prog, P.tables);
@@ -764,6 +764,8 @@ function tick(){
   const t = document.getElementById('clock-t'), fg = document.getElementById('clock-fg');
   if (t) t.textContent = Math.ceil(left / 1000);
   if (fg) fg.setAttribute('stroke-dashoffset', (175.9 * (1 - left / 60000)).toFixed(1));
+  const pf = document.getElementById('pbar-fill'), pl = document.getElementById('pbar-label');
+  if (pf) pf.style.width = (left / 600).toFixed(1) + '%'; if (pl) pl.textContent = Math.ceil(left / 1000) + 's left';
 }
 function tickElapsed(){
   const P = S.play; if (!P) return;
@@ -1128,7 +1130,7 @@ function scrSetup(){
         <p class="muted small" style="margin-top:8px">\u2713 = strong already.</p>
         <p class="muted small" style="margin-top:4px">Harder tables earn more ${ptsName()}.</p>
         ${S.v.suggested && c.tables.length === 1 && c.tables[0] === S.v.suggested ? `<p class="muted small" style="margin-top:10px">We picked the ${S.v.suggested}s for you.</p>` : ''}</div>
-      ${m === 'test' ? `<div><h3>How many questions?</h3><div class="chips" style="margin-top:10px">${[10,20,30].map(n => `<button class="tchip ${c.count === n ? 'on' : ''}" data-act="set-count" data-n="${n}" aria-pressed="${c.count === n}">${n}</button>`).join('')}</div></div>` : ''}
+      ${m === 'test' || m === 'practice' ? `<div><h3>How many questions?</h3><div class="chips" style="margin-top:10px">${[10,20,30].map(n => `<button class="tchip ${c.count === n ? 'on' : ''}" data-act="set-count" data-n="${n}" aria-pressed="${c.count === n}">${n}</button>`).join('')}</div></div>` : ''}
       <div style="display:grid;gap:6px"><h3>Extra question types</h3>
         <button class="toggle" data-act="toggle-kind" data-k="miss" aria-pressed="${!!c.miss}"><span class="sw"></span>Missing numbers, like 6 × ? = 42</button>
         <button class="toggle" data-act="toggle-kind" data-k="div" aria-pressed="${!!c.div}"><span class="sw"></span>Division, like 42 ÷ 6 = ?</button></div>
@@ -1150,13 +1152,16 @@ function scrPlay(){
   } else {
     info = `<span class="num">${P.answers.length} answered · ${P.correct} right</span>${P.streak >= 3 ? `<span class="chip">${P.streak} in a row</span>` : ''}<span class="muted num" id="elapsed">${fmtDur(Date.now() - P.start)}</span>`;
   }
-  const dots = P.total ? `<div class="pdots" aria-hidden="true">${Array.from({length:P.total}, (_, i) => { const a = P.answers[i]; return `<i class="${a ? (a.ok ? 'y' : 'n') : (i === P.answers.length ? 'cur' : '')}"></i>`; }).join('')}</div>` : '';
+  // Every exercise shows how much is left: questions to go, or seconds left in Beat the Clock (moved by tick()).
+  const leftQ = P.total ? Math.max(0, P.total - P.answers.length) : 0, leftS = P.mode === 'clock' ? Math.max(0, P.endsAt - Date.now()) : 0;
+  const frac = P.mode === 'clock' ? leftS / 60000 : P.total ? P.answers.length / P.total : 0;
+  const dots = P.mode === 'clock' || P.total ? `<div class="pbar-wrap"><div class="pbar" role="progressbar" aria-label="How much is left"><span id="pbar-fill" style="width:${(frac * 100).toFixed(1)}%"></span></div><b id="pbar-label" class="num">${P.mode === 'clock' ? `${Math.ceil(leftS / 1000)}s left` : `${leftQ} to go`}</b></div>` : '';
   const qh = q.parts.map(x => x === '?' ? `<span class="slot" id="slot">${esc(P.input || '?')}</span>` : esc(x)).join(' ');
   const keys = [1,2,3,4,5,6,7,8,9].map(n => `<button data-act="key" data-k="${n}">${n}</button>`).join('');
   return `<header class="top"><div class="brand">${logo()}<span>${esc(skin().brand)}</span></div><div class="top-right"><span class="me-chip">${avatar(S.me, 34)}<span>${esc(S.me.name)}</span></span></div></header>
   <section class="play ${cls}">
     <div class="play-main">
-      <div class="play-top"><div class="info">${info}</div><button class="btn ghost small" data-act="quit">${P.mode === 'practice' ? 'Finish' : 'Stop'}</button></div>
+      <div class="play-top"><div class="info">${info}</div><button class="btn ghost small" data-act="quit">Stop</button></div>
       ${dots}
       ${P.cfg && P.cfg.method ? (m => m ? `<div class="callout" style="margin-bottom:12px"><b>${esc(m.name)}.</b> ${esc(m.kid)}${(m.ex || [])[0] ? `<br><span class="muted small">For example: ${esc(m.ex[0])}</span>` : ''}</div>` : '')(allMethods().find(x => x.id === P.cfg.method)) : ''}
       <div class="qcard sticker"><div class="q" aria-label="${esc(qText(q))}">${qh}</div><div class="fb" role="status">${P.fb ? esc(P.fb.text) : ''}</div>${P.hint ? `<p class="hint">${esc(P.hint)}</p>` : ''}</div>
@@ -1654,7 +1659,7 @@ const A = {
   hint: () => { const P = S.play; if (P) { P.hint = hint(P.q.a, P.q.b); render(); } },
   quit: () => quit(),
   again: () => { const r = S.result; if (r.mode === 'daily') startDaily(); else startPlay(r.mode, r.cfg, r.poolPairs); },
-  'practise-mistakes': () => { const r = S.result; const pairs = uniq(r.answers.filter(a => !a.ok).map(a => a.k)).map(k => k.split('x').map(Number)); startPlay('practice', {tables: uniq(pairs.flat()), miss:false, div:false}, pairs); },
+  'practise-mistakes': () => { const r = S.result; const pairs = uniq(r.answers.filter(a => !a.ok).map(a => a.k)).map(k => k.split('x').map(Number)); startPlay('practice', {tables: uniq(pairs.flat()), count:10, miss:false, div:false}, pairs); },
   rec: el => {
     const m = el.dataset.mode, t = (el.dataset.tables || '').split(',').filter(Boolean).map(Number);
     if (m === 'explore') go('explore'); else if (m === 'daily') startDaily(); else openSetup(m, t);
