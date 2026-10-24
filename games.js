@@ -54,7 +54,7 @@ function jungle(host, api){
     const far = goldAt.c < W / 2 ? W - 1 : 0;
     put('panther', level >= 5 ? 2 : level >= 3 ? 3 : 4, 0, far);
     for (let i = 0; i < Math.min(3, 1 + Math.floor(level / 2)); i++) put('snake', 3, 2 + rnd(3), i % 2 ? 0 : W - 1);
-    if (level >= 4) put('panther', 2, 1, W - 1 - far);
+    if (level >= 6) put('panther', 3, 1, W - 1 - far);
     st = {g, goldAt, pl, preds, has:false, turn:0};
     $('lvl').textContent = level;
     msg('Tap a square next to you to chop towards the gold.');
@@ -63,9 +63,16 @@ function jungle(host, api){
   const msg = t => { $('msg').textContent = t; };
   const near = (a, b) => Math.abs(a.r - b.r) + Math.abs(a.c - b.c) === 1;
   function canGo(r, c){
-    if (!st || busy || !near(st.pl, {r, c}) || !free(st.g, r, c) || at(st.preds, r, c)) return false;
+    if (!st || busy) return false;
+    if (r === st.pl.r && c === st.pl.c) return boxedIn();   // nowhere to go: stand your ground for a turn
+    if (!near(st.pl, {r, c}) || !free(st.g, r, c) || at(st.preds, r, c)) return false;
     if (st.g[r][c] === 'river') return st.has && r === H - 1 && c === BOAT;
     return true;
+  }
+  function boxedIn(){
+    const {r, c} = st.pl;
+    return ![[1,0],[-1,0],[0,1],[0,-1]].some(([dr, dc]) => { const nr = r + dr, nc = c + dc;
+      return free(st.g, nr, nc) && !at(st.preds, nr, nc) && (st.g[nr][nc] !== 'river' || (st.has && nr === H - 1 && nc === BOAT)); });
   }
   function draw(){
     const {g, pl, preds, has} = st;
@@ -82,6 +89,7 @@ function jungle(host, api){
       h += `<button class="jg-c ${kind}${boat ? ' boat' : ''}${canGo(r, c) ? ' can' : ''}" data-r="${r}" data-c="${c}" aria-label="Row ${r + 1}, column ${c + 1}">${inner}</button>`;
     }
     $('board').innerHTML = h;
+    if (!busy && boxedIn()) msg('Boxed in! Tap yourself to hold your ground.');
   }
   function stepPred(p){
     const opts = [[1,0],[-1,0],[0,1],[0,-1]].map(([dr, dc]) => ({r:p.r + dr, c:p.c + dc}))
@@ -110,6 +118,7 @@ function jungle(host, api){
   function turn(ok, r, c){
     if (ok) {
       api.sound('ok');
+      const stay = r === st.pl.r && c === st.pl.c;
       st.pl = {r, c};
       if (st.g[r][c] === 'jungle') st.g[r][c] = 'path';
       if (st.g[r][c] === 'gold' && !st.has) {
@@ -118,7 +127,7 @@ function jungle(host, api){
         st.preds.push({kind:'anaconda', every:ev, r:H - 1, c:0}, {kind:'anaconda', every:ev, r:H - 1, c:W - 1});
         if (level >= 3) st.preds.push({kind:'anaconda', every:3, r:H - 1, c:BOAT + (Math.random() < .5 ? -2 : 2)});
         msg('You got the gold! Run back to the boat before the anacondas get you!');
-      } else msg(st.has ? 'Keep going: back to the boat!' : 'Chop! Keep heading for the gold.');
+      } else msg(stay ? 'You held your ground!' : st.has ? 'Keep going: back to the boat!' : 'Chop! Keep heading for the gold.');
       if (st.has && r === H - 1 && c === BOAT) { draw(); over(true); return; }
     } else { api.sound('bad'); msg('Missed! They are getting closer.'); }
     let who = caught();
