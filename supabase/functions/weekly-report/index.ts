@@ -54,7 +54,7 @@ function activity(sessions: any[], prog: any, start: number, methodNames: Record
     r.times++; if (s.mode !== "daily") for (const t of s.tables || []) r.tables.add(t);
     rows.set(name, r);
   }
-  const explored = Object.values(prog.bonus || {}).filter((v: any) => (v.steps || {}).explore >= start).length;
+  const explored = Object.values(prog.bonus || {}).filter((v: any) => ((v.steps || {}).explore || v.explore) >= start).length;
   const out = [...rows.values()].map(r => ({name: r.name, times: r.times, tables: r.mixed ? "their trickiest facts, mixed" : tablesText([...r.tables].sort((a, b) => a - b))}));
   if (explored) out.push({name: "Explore (5 facts, in the Bonus Round)", times: explored, tables: ""});
   const order = ["Daily Challenge", "Beat the Clock", "Explore", "Way to learn", "Test", "Practise"];
