@@ -1,6 +1,6 @@
 // Keeps the whole app on the device so it opens with no internet.
 // Bump VERSION whenever any file below changes; the iPads pick up the new copy the next time they are online.
-const VERSION = 'ttc-2026-10-25u';
+const VERSION = 'ttc-2026-10-25v';
 const FILES = [
   './', './index.html', './app.js', './games.js', './manifest.webmanifest',
   './vendor/supabase.js', './vendor/fonts.css',

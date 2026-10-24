@@ -83,7 +83,20 @@ function jungle(host, api){
   const loadPics = el => el.querySelectorAll('img[data-p]').forEach(im => api.picture(im.dataset.p).then(u => { if (im.isConnected) im.src = u; }).catch(() => {}));
   const backdrop = name => { const im = host.querySelector('.jg-bd'); if (im) { im.dataset.p = `jungle/${name}.jpg`; loadPics(host); } };
   // The action panel beside the board (held sideways) and the blurred backdrop: what Hughie is doing this turn.
-  const action = (name, cap) => { const a = $('act'); if (a) { a.querySelector('img').dataset.p = `jungle/${name}.jpg`; a.querySelector('b').textContent = cap; } backdrop(name); };
+  // Each moment also has a 10-second video clip (clips/, made with Google's video model; jungle, creatures and his-eye
+  // views, never his face). It plays over the picture once it has loaded; until then, or offline, the picture shows.
+  const CLIP = {start:'start', chop:'chop', miss:'miss', hold:'hold', chase:'chase', run:'run', gold:'gold', win:'win', 'snake-attack':'snake', 'panther-attack':'panther'};
+  const clipUrls = new Map();
+  const clipUrl = c => clipUrls.get(c) || clipUrls.set(c, fetch(`clips/${c}.mp4`).then(r => r.ok ? r.blob() : Promise.reject()).then(b => URL.createObjectURL(b))).get(c);
+  const action = (name, cap) => {
+    const a = $('act'); if (!a) { backdrop(name); return; }
+    a.querySelector('img').dataset.p = `jungle/${name}.jpg`; a.querySelector('b').textContent = cap; backdrop(name);
+    const v = a.querySelector('video'), c = CLIP[name]; a.dataset.clip = c || '';
+    if (!c) { a.classList.remove('has-clip'); v.pause(); return; }
+    clipUrl(c).then(u => { if (a.dataset.clip !== c || !a.isConnected) return; if (v.src !== u) v.src = u; v.currentTime = 0; v.play().catch(() => {}); a.classList.add('has-clip'); }).catch(() => a.classList.remove('has-clip'));
+  };
+  setTimeout(() => Object.values(CLIP).forEach(c => clipUrl(c).catch(() => {})), 1500);   // fetch the rest in the background
+
   // The board's picture tiles: shown once every one is on the device, the emoji until then.
   const TILES = ['jungle1', 'jungle2', 'path', 'rock', 'gold', 'river', 'boat', 'snake', 'panther', 'anaconda'];
   Promise.all(TILES.map(t => api.picture(`jungle/tiles/${t}.jpg`).then(u => [t, u]))).then(pairs => {
@@ -91,7 +104,7 @@ function jungle(host, api){
     for (const [t, u] of pairs) host.style.setProperty('--t-' + t, `url("${u}")`);
     b.classList.add('tiles');
   }).catch(() => {});
-  host.innerHTML = `<img class="jg-bd" alt=""><div class="jg"><div class="jg-act" data-k="act"><img alt=""><b></b></div>
+  host.innerHTML = `<img class="jg-bd" alt=""><div class="jg"><div class="jg-act" data-k="act"><video muted playsinline loop preload="auto"></video><img alt=""><b></b></div>
     <div class="jg-bar"><b>Level <span data-k="lvl">1</span></b><span class="jg-msg" data-k="msg"></span><b>Gold <span data-k="gold">${api.state.gold || 0}</span></b></div>
     <div class="jg-board" data-k="board" style="--w:${W}"></div>
     <div class="gq" data-k="q" hidden></div>
@@ -182,11 +195,11 @@ function jungle(host, api){
     if (win) {
       api.state.gold = (api.state.gold || 0) + 1; api.save(); $('gold').textContent = api.state.gold;
       o.innerHTML = scene('win', 'You made it to the boat with the gold!', `Level ${level} done. The jungle gets wilder from here.`, 'next', 'Next level');
-      api.sound('win'); loadPics(o);
+      api.sound('win'); loadPics(o); action('win', 'Made it!');
     } else {
       if (who !== 'panther') hiss(.9, true); else roar(.8, true);
       o.innerHTML = scene(who === 'panther' ? 'panther-attack' : 'snake-attack', who === 'anaconda' ? 'An anaconda got you!' : who === 'panther' ? 'The panther got you!' : 'Snake attack!', `Right answers keep you ahead of them. Try level ${level} again.`, 'again', 'Try again');
-      api.sound('bad'); loadPics(o);
+      api.sound('bad'); loadPics(o); action(who === 'panther' ? 'panther-attack' : 'snake-attack', 'Look out!');
     }
   }
   function turn(ok, r, c){
@@ -241,7 +254,7 @@ function jungle(host, api){
     cancelQ = askBox($('q'), api, 10, ok => { cancelQ = null; busy = false; turn(ok, r, c); });
   };
   newLevel();
-  return {destroy(){ if (cancelQ) cancelQ(); music.pause(); host.onclick = null; host.innerHTML = ''; }};
+  return {destroy(){ if (cancelQ) cancelQ(); music.pause(); host.querySelectorAll('video').forEach(v => v.pause()); host.onclick = null; host.innerHTML = ''; }};
 }
 
 /* ---------- Jessica: the Eras Stadium Show ---------- */
