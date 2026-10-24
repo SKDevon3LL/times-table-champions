@@ -170,6 +170,7 @@ function performerSvg(api, dress, acc){
   const body = api.dressSvg(dress, 120).replace('<svg ', '<svg x="40" y="70" ');
   return `<svg viewBox="0 0 200 250" class="perf" aria-hidden="true">
     ${acc.cape ? `<path d="M70 95 Q100 85 130 95 L160 240 Q100 250 40 240 Z" fill="#26346E" stroke="var(--line)" stroke-width="2"/><g fill="#FFE98A">${[[60,200],[80,160],[120,180],[140,220],[100,225]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2.5"/>`).join('')}</g>` : ''}
+    <path d="M90 140 L86 238 M110 140 L114 238" stroke="#F1C7A5" stroke-width="9" stroke-linecap="round"/>
     <path d="M84 104 L66 150" stroke="#F1C7A5" stroke-width="8" stroke-linecap="round"/>
     <path d="M116 104 L136 76" stroke="#F1C7A5" stroke-width="8" stroke-linecap="round"/>
     ${body}
@@ -259,7 +260,7 @@ function stage(host, api){
     let crowd = 15000, asked = 0, right = 0, cancelQ = null, ended = false;
     host.innerHTML = `<div class="stg">
       <div class="stg-sky">${Array.from({length:6}, (_, i) => `<i class="beam" style="--d:${i * .7}s;left:${8 + i * 17}%;--c:${['#F5A3C7', '#7DB9E8', '#E8B923', '#A77BD6', '#7FE0C2', '#F07A1A'][i]}"></i>`).join('')}
-        <div class="stg-crowd" data-k="crowd">${Array.from({length:180}, () => `<i style="--h:${rnd(360)}"></i>`).join('')}</div></div>
+        <div class="stg-crowd" data-k="crowd">${Array.from({length:360}, () => `<i style="--h:${rnd(360)}"></i>`).join('')}</div></div>
       <div class="stg-floor"><div class="stg-perf">${performerSvg(api, pick.dress, pick.acc)}<span class="note">♪</span><span class="note n2">♫</span></div></div>
       <div class="stg-hud"><b>${esc(song.title)}</b><span>Crowd: <b data-k="count">15,000</b></span><div class="meter"><span data-k="fill"></span></div></div>
       <div class="gq" data-k="q" hidden></div>
@@ -268,7 +269,7 @@ function stage(host, api){
     const paint = () => {
       $('count').textContent = crowd.toLocaleString('en-GB');
       $('fill').style.width = Math.min(100, crowd / CAPACITY * 100) + '%';
-      const lit = Math.round(dots.length * crowd / CAPACITY); dots.forEach((d, k) => d.classList.toggle('on', k < lit));
+      const lit = Math.round(dots.length * crowd / CAPACITY); dots.forEach((d, k) => d.classList.toggle('on', k >= dots.length - lit));   // the front rows fill first
     };
     paint();
     const t = tune(ac, song.title, song.bpm), bars = 24, endAt = Date.now() + t.barSec * bars * 1000;

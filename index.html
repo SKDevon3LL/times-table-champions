@@ -282,13 +282,13 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webk
 .stg-sky{position:absolute;inset:0}
 .beam{position:absolute;top:-10%;width:90px;height:110%;background:linear-gradient(var(--c),transparent 80%);opacity:.35;transform-origin:top center;animation:beam 3.2s ease-in-out infinite alternate;animation-delay:var(--d);filter:blur(2px);clip-path:polygon(40% 0,60% 0,100% 100%,0 100%)}
 @keyframes beam{from{transform:rotate(-22deg)}to{transform:rotate(22deg)}}
-.stg-crowd{position:absolute;left:0;right:0;bottom:0;height:42%;display:grid;grid-template-columns:repeat(30,1fr);gap:4px;padding:10px;align-content:end}
+.stg-crowd{position:absolute;left:0;right:0;bottom:0;height:30%;display:grid;grid-template-columns:repeat(45,1fr);gap:3px;padding:8px;align-content:end}
 .stg-crowd i{aspect-ratio:1;border-radius:50%;background:#2A2550;transition:background .4s,box-shadow .4s}
 .stg-crowd i.on{background:hsl(var(--h) 90% 65%);box-shadow:0 0 8px hsl(var(--h) 90% 65%)}
 .stg.roar .stg-crowd i.on{animation:roar .35s 2}
 @keyframes roar{50%{transform:translateY(-6px)}}
-.stg-floor{position:absolute;left:0;right:0;bottom:30%;display:grid;place-items:center}
-.stg-perf{position:relative;width:min(220px,40%);animation:bob .9s ease-in-out infinite alternate}
+.stg-floor{position:absolute;left:0;right:0;bottom:31%;display:grid;place-items:center;border-bottom:10px solid #0B0B18;box-shadow:0 10px 30px rgba(255,255,255,.12)}
+.stg-perf{position:relative;width:min(260px,34vh);animation:bob .9s ease-in-out infinite alternate}
 .stg-perf .perf{width:100%;height:auto;filter:drop-shadow(0 0 18px rgba(255,255,255,.35))}
 @keyframes bob{to{transform:translateY(-6px) rotate(1deg)}}
 .note{position:absolute;right:-6px;top:10%;font-size:34px;color:#FFE36E;animation:note 1.6s linear infinite}
