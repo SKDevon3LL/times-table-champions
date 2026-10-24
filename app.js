@@ -77,7 +77,9 @@ function mergeDoc(path, a, b){
   }
   if (coll === 'progress') {
     const r = Object.assign({}, b, a), mx = k => Math.max(a[k] || 0, b[k] || 0);
-    ['xp', 'logins', 'lastLogin', '_t'].forEach(k => { r[k] = mx(k); });
+    ['xp', 'logins', 'lastLogin', '_t', 'trailReset'].forEach(k => { r[k] = mx(k); });
+    if ((a.gameTrail || 0) !== (b.gameTrail || 0)) { const w = (a.gameTrail || 0) > (b.gameTrail || 0) ? a : b; r.gameTrail = w.gameTrail; r.gameMs = w.gameMs || 0; }
+    else r.gameMs = Math.max(a.gameMs || 0, b.gameMs || 0);
     r.facts = {};
     for (const k of uniq([...Object.keys(a.facts || {}), ...Object.keys(b.facts || {})])) {
       const x = (a.facts || {})[k], y = (b.facts || {})[k];
@@ -505,7 +507,6 @@ function recommendations(p, sessions){
   const next = TEACH_ORDER.find(t => t !== 1 && tableStats(p, t).n === 0);
   if (next) out.push({text:`Ready for something new? Try the ${next}s next.`, mode:'practice', tables:[next], cta:`Start the ${next}s`});
   if (overallMastery(p) >= .85 && !p.prizes.diamond) out.push({text:'You are close to expert level. Go for a Diamond Crown: 100% on an all-tables test.', mode:'test', tables:ALL, cta:'All-tables test'});
-  if (skinId() === 'eras' && itemsOwned(p) >= 12 && !p.ball) out.unshift({text:'Your wardrobe is full! Score 100% on an all-tables test to win the Ultimate Eras Gown and go to the Ball.', mode:'test', tables:ALL, cta:'Go for the gown'});
   return out.slice(0, 3);
 }
 function weeklyGoals(p, sessions, player){
@@ -526,6 +527,8 @@ const focusTable = p => TEACH_ORDER.find(t => t !== 1 && strongCount(p, t) < 12)
 // The one thing to do next on the home screen: today's challenge first, then the next table, then a trophy on it.
 function nextStep(p){
   const d = p.daily[dayStr()], day = new Date().toLocaleDateString('en-GB', {weekday:'long'});
+  if (gameOpen(p)) return {eyebrow:'You completed the trail', title: skinId() === 'eras' ? 'Your stadium show is ready!' : 'The jungle gold is waiting!',
+    text:`${Math.ceil((GAME_MS - gameUsed(p)) / 60000)} minutes of play left. When they run out, a new trail starts.`, cta:'Play now', act:'game'};
   if (!d || d.pct < 80) return {eyebrow:`${skin().daily} · ${day}`, title: d ? 'Have another go?' : '15 questions on your trickiest facts',
     text: d ? `Your best today is ${d.pct}%. Score 80% or more to complete it.` : 'Score 80% or more to complete it and earn 50 bonus XP.', cta: d ? 'Try again' : 'Start the challenge', act:'start-daily'};
   const t = focusTable(p), done = `${skin().daily} done: ${d.pct}%.`;
@@ -547,6 +550,7 @@ function weakPairs(p, n){
 /* ---------- actions ---------- */
 function go(to){
   if (S.play && to !== 'play') { quit(); return; }
+  if (S.screen === 'game' && gameTimer) { stopGame(); saveProg().catch(saveFail); }
   if (to === 'parent' && isParentDevice() && !S.parentOK) { S.parentOK = true; setTimeout(loadParentData, 0); }
   S.screen = to; S.err = null; S.okMsg = null; render(); scrollTo(0, 0);
 }
@@ -674,8 +678,7 @@ async function finish(abandoned){
   if (!prog.days.includes(today)) { prog.days.push(today); if (prog.days.length > 400) prog.days.shift(); }
   if (prize) { prog.prizes[prize.id] = (prog.prizes[prize.id] || 0) + 1; prog.prizeLog.unshift({t:Date.now(), tier:prize.id, pct, mode:P.mode}); prog.prizeLog = prog.prizeLog.slice(0, 80); }
   const newItems = []; for (let k = itemsBefore; k < itemsOwned(prog); k++) newItems.push(k);
-  let ballNow = false;
-  if (skinId() === 'eras' && !prog.ball && itemsOwned(prog) >= 12 && !abandoned && P.mode === 'test' && P.tables.length === 12 && pct === 100) { prog.ball = {t: Date.now()}; ballNow = true; }
+  const unlocked = skinId() !== 'classic' && itemsBefore < TRAIL_STOPS && itemsOwned(prog) >= TRAIL_STOPS;
   const newBadges = masteredSet(prog).filter(t => !prog.badges['t' + t]);
   newBadges.forEach(t => { prog.badges['t' + t] = Date.now(); });
   const wrong = uniq(P.answers.filter(a => !a.ok).map(a => a.k)).slice(0, 12);
@@ -684,7 +687,7 @@ async function finish(abandoned){
   if (abandoned) entry.ab = true;
   S.sessions.push(entry); ensureLogCur(); S.logCur.sessions.push(entry);
   Promise.all([saveProg(), saveLog()]).catch(saveFail);
-  S.result = Object.assign({}, entry, {answers:P.answers, newBest, prevBest, newBadges, newItems, ballNow, dailyDone, cfg:P.cfg, poolPairs:P.pool, best:P.best});
+  S.result = Object.assign({}, entry, {answers:P.answers, newBest, prevBest, newBadges, newItems, unlocked, dailyDone, cfg:P.cfg, poolPairs:P.pool, best:P.best});
   S.play = null; S.screen = 'results'; render(); scrollTo(0, 0);
   if (prize) { confetti(prize.id); sound('win'); }
   else if (newBest) confetti('gold');
@@ -807,10 +810,22 @@ const TOOLS = [
   {name:'First-aid kit', camp:'Patch up a scraped knee', use:'Plasters and bandages for bumps and scrapes.'},
   {name:'Whistle', camp:'Signal to the team', use:'Three blasts means "help" anywhere in the world.'},
   {name:'Ice axe', camp:'Climb the icy summit', use:'Grips the ice on the final climb.'},
+  {name:'Machete', camp:'Reach the edge of the gold jungle', use:'Chops a path through the thickest jungle.'},
 ];
 const ERA_COLS = ERAS.map(e => e.hex);
 const ERA_TEXT = ERAS.map(e => e.text);
-const itemsOwned = p => Math.min(12, prizeTotal(p));
+// The weekly trail: 7 trophies since Monday open the reward game for 30 minutes of play. When the 30 minutes run out,
+// or a new week starts, a fresh trail begins (Sam, 24 Oct 2026).
+const TRAIL_STOPS = 7, GAME_MS = 30 * 60 * 1000;
+const trailStart = p => Math.max(weekStart(), p.trailReset || 0);
+const itemsOwned = p => Math.min(TRAIL_STOPS, (p.prizeLog || []).filter(x => x.t >= trailStart(p)).length);
+const gameUsed = p => p.gameTrail === trailStart(p) ? (p.gameMs || 0) : 0;
+const gameOpen = p => skinId() !== 'classic' && itemsOwned(p) >= TRAIL_STOPS && gameUsed(p) < GAME_MS;
+const gameName = () => skinId() === 'eras' ? 'Eras Stadium Show' : 'Jungle Gold Run';
+// Jessica's seven dresses change every trail; Hughie packs the same seven tools for the jungle.
+const trailDress = (p, i) => (Math.floor(trailStart(p) / (7 * 864e5)) * TRAIL_STOPS + i) % ERAS.length;
+const JUNGLE = [[0, 'Load the boat on the river'], [1, 'Find the jungle trail'], [2, 'Choose the right path'], [3, 'Fill up at the waterfall'],
+  [4, 'Walk through the dark forest'], [6, 'Swing across the ravine'], [12, 'Reach the edge of the gold jungle']].map(([tool, camp]) => ({tool, camp}));
 const allTablesTest = s => s.mode === 'test' && !s.ab && s.tables && s.tables.length === 12;
 const trophyLine = p => `<div class="trophy-line">${TIERS.map(t => `<span class="${p.prizes[t.id] ? '' : 'locked'}" title="${esc(t.name)}">${medal(t.id, 28)}<b class="num">${p.prizes[t.id] || 0}</b></span>`).join('')}<span class="muted small">Win a trophy in a test or a Daily Challenge (70% or more) to move on.</span></div>`;
 
@@ -859,17 +874,6 @@ function dressSvg(i, size, locked){
   }
   return `<svg viewBox="0 0 80 112" width="${size}" height="${Math.round(size * 1.4)}" aria-hidden="true">${g}</svg>`;
 }
-function gownSvg(size){
-  const bands = ERAS.map((e, k) => `<rect x="0" y="${48 + k * 5.4}" width="80" height="5.6" fill="${e.hex}"/>`).join('');
-  return `<svg viewBox="0 0 80 112" width="${size}" height="${Math.round(size * 1.4)}" aria-hidden="true">
-    <defs><clipPath id="gown-skirt"><path d="M28 46 Q40 50 52 46 Q68 72 76 110 Q40 116 4 110 Q12 72 28 46 Z"/></clipPath></defs>
-    <path d="M30 6 L34 12 L37 4 L40 11 L43 4 L46 12 L50 6 L48 15 L32 15 Z" fill="var(--diamond)" stroke="var(--line)" stroke-width="1.6" stroke-linejoin="round"/>
-    <path d="M31 22 L29 17 M49 22 L51 17" stroke="#F5A3C7" stroke-width="2.4" stroke-linecap="round"/>
-    <path d="M30 22 Q40 27 50 22 L52 46 Q40 49 28 46 Z" fill="#F4F1EA" stroke="var(--line)" stroke-width="2.2"/>
-    <g clip-path="url(#gown-skirt)">${bands}</g>
-    <path d="M28 46 Q40 50 52 46 Q68 72 76 110 Q40 116 4 110 Q12 72 28 46 Z" fill="none" stroke="var(--line)" stroke-width="2.4" stroke-linejoin="round"/>
-    ${[[36, 30], [45, 36], [20, 92], [60, 90], [40, 70], [30, 100], [52, 104]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.6" fill="#FFF"/>`).join('')}</svg>`;
-}
 function toolSvg(i, size, locked){
   const L = 'var(--line)', W = 2.4;
   let g;
@@ -885,6 +889,7 @@ function toolSvg(i, size, locked){
     case 8: g = `<path d="M14 54 L50 42 M14 42 L50 54" stroke="#8B5A2B" stroke-width="6" stroke-linecap="round"/><path d="M32 46 C18 36 26 24 30 10 C34 22 46 26 40 40 C44 34 46 30 44 26 C52 34 48 46 32 46 Z" fill="#F28A3C" stroke="${L}" stroke-width="2" stroke-linejoin="round"/><path d="M32 44 C26 38 30 32 32 26 C34 32 38 38 32 44 Z" fill="#FFD166"/>`; break;
     case 9: g = `<rect x="10" y="18" width="44" height="34" rx="6" fill="#3E9A5A" stroke="${L}" stroke-width="${W}"/><path d="M26 18 V12 H38 V18" fill="none" stroke="${L}" stroke-width="${W}"/><path d="M28 26 h8 v6 h6 v8 h-6 v6 h-8 v-6 h-6 v-8 h6 z" fill="#FFF" stroke="${L}" stroke-width="1.4"/>`; break;
     case 10: g = `<path d="M10 30 H40 A12 12 0 1 1 34 48 L18 40 H10 Z" fill="#F28A3C" stroke="${L}" stroke-width="${W}" stroke-linejoin="round"/><circle cx="44" cy="40" r="5" fill="#FFF" stroke="${L}" stroke-width="1.6"/><path d="M10 30 Q2 18 14 10 Q26 4 30 30" fill="none" stroke="#3B9BD9" stroke-width="2.4"/>`; break;
+    case 12: g = `<path d="M14 52 L24 42" stroke="#5B3A1E" stroke-width="7" stroke-linecap="round"/><path d="M24 42 L50 12 Q58 8 56 18 L30 48 Z" fill="#C9D1DA" stroke="${L}" stroke-width="2.2" stroke-linejoin="round"/><path d="M24 42 L30 48" stroke="${L}" stroke-width="3"/>`; break;
     case 11: g = `<path d="M30 58 L36 16" stroke="#8B5A2B" stroke-width="6" stroke-linecap="round"/><path d="M14 18 Q36 6 56 14 L52 20 Q38 14 18 24 Z" fill="#C9D1DA" stroke="${L}" stroke-width="2.2" stroke-linejoin="round"/><path d="M56 14 L60 22" stroke="${L}" stroke-width="2.4" stroke-linecap="round"/>`; break;
     default: g = `<rect x="10" y="10" width="44" height="44" rx="12" fill="var(--card2)" stroke="var(--muted)" stroke-width="2" stroke-dasharray="4 4"/><text x="32" y="41" text-anchor="middle" font-size="22" fill="var(--muted)">?</text>`;
   }
@@ -893,37 +898,36 @@ function toolSvg(i, size, locked){
 
 function collectionCard(p){
   const id = skinId(); if (id === 'classic') return '';
-  const n = itemsOwned(p), sel = S.v.item;
+  const n = itemsOwned(p), sel = S.v.item, open = gameOpen(p), mins = Math.ceil((GAME_MS - gameUsed(p)) / 60000);
+  const goal = open ? `<div class="callout mint unlock"><div><b>${id === 'eras' ? 'Your stadium show is open!' : 'The jungle gold is waiting!'}</b> ${mins} minutes of play left.</div><button class="btn" data-act="game">${id === 'eras' ? 'Go on stage' : 'Start the Gold Run'}</button></div>`
+    : `<p class="muted small">Win ${TRAIL_STOPS - n} more troph${TRAIL_STOPS - n === 1 ? 'y' : 'ies'} by Sunday to unlock ${id === 'eras' ? 'your stadium show' : 'the Jungle Gold Run'}: 30 minutes of play. A new trail starts every Monday.</p>`;
   if (id === 'eras') {
-    const ball = p.ball;
-    const goal = ball ? `<div class="ball"><div>${gownSvg(96)}</div><div><h3>You're going to the Ball!</h3><p>You won the <b>Ultimate Eras Gown</b>: every era's colour in one dress, with a diamond tiara.</p></div></div>`
-      : n >= 12 ? `<p class="callout"><b>Your wardrobe is full!</b> Score 100% on a test with all twelve tables to win the Ultimate Eras Gown and go to the Ball.</p>`
-      : `<p class="muted small">Every trophy you win adds the next era's tour dress, in album order. Collect all twelve, then score 100% on an all-tables test to win the Ultimate Eras Gown and go to the Ball.</p>`;
-    const e = sel !== undefined && ERAS[sel];
-    return `<div class="sticker"><div class="card-h"><h3>Your Eras Tour</h3><span class="muted small">${n} of 12 dresses</span></div>
-      <div class="rail">${ERAS.map((x, k) => `<button class="hanger ${k < n ? '' : 'locked'} ${sel === k ? 'on' : ''}" data-act="item" data-i="${k}" aria-label="${esc(x.album)}${k < n ? '' : ', not won yet'}">${dressSvg(k, 46, k >= n)}<span style="--era:${x.hex};--era-t:${x.text}">${esc(x.era)}</span></button>`).join('')}</div>
-      ${e ? `<div class="item-detail">${dressSvg(sel, 70, sel >= n)}<div><p class="eyebrow">${esc(e.album)} · ${esc(e.colour)}</p><p>${sel < n ? esc(e.look) : `Win ${sel + 1 - n} more troph${sel + 1 - n === 1 ? 'y' : 'ies'} to unlock this dress.`}</p></div></div>` : ''}
+    const ds = Array.from({length:TRAIL_STOPS}, (_, k) => trailDress(p, k)), e = sel !== undefined && sel < TRAIL_STOPS && ERAS[ds[sel]];
+    return `<div class="sticker"><div class="card-h"><h3>This week's Eras Tour</h3><span class="muted small">${n} of ${TRAIL_STOPS} dresses</span></div>
+      <div class="rail">${ds.map((d, k) => `<button class="hanger ${k < n ? '' : 'locked'} ${sel === k ? 'on' : ''}" data-act="item" data-i="${k}" aria-label="${esc(ERAS[d].album)}${k < n ? '' : ', not won yet'}">${dressSvg(d, 44, k >= n)}<span style="--era:${ERAS[d].hex};--era-t:${ERAS[d].text}">${esc(ERAS[d].era)}</span></button>`).join('')}</div>
+      ${e ? `<div class="item-detail">${dressSvg(ds[sel], 70, sel >= n)}<div><p class="eyebrow">${esc(e.album)} · ${esc(e.colour)}</p><p>${sel < n ? esc(e.look) : `Win ${sel + 1 - n} more troph${sel + 1 - n === 1 ? 'y' : 'ies'} to unlock this dress.`}</p></div></div>` : ''}
       ${goal}${trophyLine(p)}</div>`;
   }
-  const pts = [[44,236],[118,214],[188,228],[256,198],[204,164],[282,146],[362,160],[432,128],[372,98],[452,78],[530,62],[598,28]];
+  const pts = [[44,236],[188,228],[256,198],[282,146],[432,128],[452,78],[598,28]];
   let g = `<polygon points="0,270 110,150 200,205 330,85 420,160 520,30 640,130 640,270" fill="var(--mint)" fill-opacity=".22"/>
-    <polygon points="300,112 330,85 360,112 345,106 330,116 315,106" fill="var(--card)"/>
-    <polyline points="${pts.map(q => q.join(',')).join(' ')}" fill="none" stroke="var(--me)" stroke-width="4" stroke-dasharray="2 9" stroke-linecap="round"/>`;
+    <path d="M0 252 Q160 236 320 256 T640 246 V270 H0 Z" fill="var(--sky)" fill-opacity=".45"/>
+    <polyline points="${pts.map(q => q.join(',')).join(' ')}" fill="none" stroke="var(--me)" stroke-width="4" stroke-dasharray="2 9" stroke-linecap="round"/>
+    <text x="608" y="66" font-size="26" text-anchor="middle">💰</text>`;
   pts.forEach(([x, y], i) => {
     const got = n > i;
-    g += `<g><title>Camp ${i + 1}: ${esc(TOOLS[i].camp)}${got ? ' (reached)' : ''}</title>
+    g += `<g><title>Camp ${i + 1}: ${esc(JUNGLE[i].camp)}${got ? ' (reached)' : ''}</title>
       <circle cx="${x}" cy="${y}" r="17" fill="${got ? 'var(--mint)' : 'var(--card)'}" stroke="var(--line)" stroke-width="2.5"/>
       <text x="${x}" y="${y + 6}" text-anchor="middle" font-size="15" fill="var(--ink)">${i + 1}</text>
       ${got ? `<path d="M${x + 8} ${y - 14} V${y - 38} L${x + 26} ${y - 31} L${x + 8} ${y - 25}" fill="var(--me)" stroke="var(--line)" stroke-width="2" stroke-linejoin="round"/>` : ''}
       ${i === n ? `<path d="M${x} ${y - 22} c-9 -10 -13 -15 -13 -21 a13 13 0 0 1 26 0 c0 6 -4 11 -13 21z" fill="var(--me)" stroke="var(--line)" stroke-width="2"/><circle cx="${x}" cy="${y - 43}" r="4.5" fill="var(--card)"/>` : ''}</g>`;
   });
-  const tl = sel !== undefined && TOOLS[sel];
-  return `<div class="sticker journey"><div class="card-h"><h3>Your adventure</h3><span class="muted small">${n} of 12 camps</span></div>
-    <svg viewBox="0 0 640 270" role="img" aria-label="Trail map: ${n} of 12 camps reached">${g}</svg>
-    <p style="font-weight:800;margin:6px 0 4px">${n >= 12 ? 'You reached the summit with every tool packed. You are a real Times Table Explorer!' : `Next: camp ${n + 1}, ${esc(TOOLS[n].camp.toLowerCase())}. Win a trophy to pack the ${esc(TOOLS[n].name)} and get there.`}</p>
-    <div class="kit">${TOOLS.map((x, k) => `<button class="slot-btn ${k < n ? '' : 'locked'} ${sel === k ? 'on' : ''}" data-act="item" data-i="${k}" aria-label="${esc(x.name)}${k < n ? '' : ', not won yet'}">${toolSvg(k, 36, k >= n)}<span>${k < n ? esc(x.name) : '?'}</span></button>`).join('')}</div>
-    ${tl ? `<div class="item-detail">${toolSvg(sel, 60, sel >= n)}<div><p class="eyebrow">Camp ${sel + 1} · ${esc(tl.camp)}</p><p>${sel < n ? `<b>${esc(tl.name)}.</b> ${esc(tl.use)}` : `Win ${sel + 1 - n} more troph${sel + 1 - n === 1 ? 'y' : 'ies'} to get this tool.`}</p></div></div>` : ''}
-    ${trophyLine(p)}</div>`;
+  const tl = sel !== undefined && sel < TRAIL_STOPS && TOOLS[JUNGLE[sel].tool];
+  return `<div class="sticker journey"><div class="card-h"><h3>This week's jungle trail</h3><span class="muted small">${n} of ${TRAIL_STOPS} camps</span></div>
+    <svg viewBox="0 0 640 270" role="img" aria-label="Jungle trail: ${n} of ${TRAIL_STOPS} camps reached">${g}</svg>
+    ${n < TRAIL_STOPS ? `<p style="font-weight:800;margin:6px 0 4px">Next: camp ${n + 1}, ${esc(JUNGLE[n].camp.toLowerCase())}. Win a trophy to pack the ${esc(TOOLS[JUNGLE[n].tool].name)} and get there.</p>` : ''}
+    <div class="kit">${JUNGLE.map((j, k) => `<button class="slot-btn ${k < n ? '' : 'locked'} ${sel === k ? 'on' : ''}" data-act="item" data-i="${k}" aria-label="${esc(TOOLS[j.tool].name)}${k < n ? '' : ', not won yet'}">${toolSvg(j.tool, 36, k >= n)}<span>${k < n ? esc(TOOLS[j.tool].name) : '?'}</span></button>`).join('')}</div>
+    ${tl ? `<div class="item-detail">${toolSvg(JUNGLE[sel].tool, 60, sel >= n)}<div><p class="eyebrow">Camp ${sel + 1} · ${esc(JUNGLE[sel].camp)}</p><p>${sel < n ? `<b>${esc(tl.name)}.</b> ${esc(tl.use)}` : `Win ${sel + 1 - n} more troph${sel + 1 - n === 1 ? 'y' : 'ies'} to get this tool.`}</p></div></div>` : ''}
+    ${goal}${trophyLine(p)}</div>`;
 }
 // Home's one reward card: Jessica's Eras Tour or Hughie's adventure, and the plain trophy cabinet for the classic look.
 function journey(p){ return skinId() === 'classic' ? trophyShelf(p) : collectionCard(p); }
@@ -1020,11 +1024,11 @@ function scrPlay(){
 
 function resultItems(r){
   const id = skinId(); let h = '';
-  if (r.ballNow) h += `<div class="callout mint ball">${gownSvg(90)}<div><b>You won the Ultimate Eras Gown!</b> Every era in one dress. You're going to the Ball!</div></div>`;
   for (const k of r.newItems || []) {
-    if (id === 'eras') h += `<div class="callout item-new">${dressSvg(k, 54)}<div><b>New dress: ${esc(ERAS[k].album)}!</b> ${esc(ERAS[k].look)}</div></div>`;
-    else if (id === 'trail') h += `<div class="callout item-new">${toolSvg(k, 54)}<div><b>New tool: ${esc(TOOLS[k].name)}!</b> ${esc(TOOLS[k].use)} You need it at camp ${k + 1}: ${esc(TOOLS[k].camp.toLowerCase())}.</div></div>`;
+    if (id === 'eras') { const e = ERAS[trailDress(S.prog, k)]; h += `<div class="callout item-new">${dressSvg(trailDress(S.prog, k), 54)}<div><b>New dress: ${esc(e.album)}!</b> ${esc(e.look)}</div></div>`; }
+    else if (id === 'trail') { const j = JUNGLE[k], t = TOOLS[j.tool]; h += `<div class="callout item-new">${toolSvg(j.tool, 54)}<div><b>New tool: ${esc(t.name)}!</b> ${esc(t.use)} Camp ${k + 1} reached: ${esc(j.camp.toLowerCase())}.</div></div>`; }
   }
+  if (r.unlocked) h += `<div class="callout mint unlock"><div><b>You completed this week's trail!</b> The ${gameName()} is open: 30 minutes of play.</div><button class="btn" data-act="game">Play now</button></div>`;
   return h;
 }
 function scrResults(){
@@ -1302,8 +1306,44 @@ async function loadParentData(){
   if (S.screen === 'parent') render();
 }
 
+/* ---------- reward games (games.js) ---------- */
+let gameTimer = null, gameInst = null;
+function audioCtx(){ actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); return actx; }
+function gameQuestion(){
+  const pool = weakPairs(S.prog, 24), [a, b] = pool[Math.floor(Math.random() * pool.length)];
+  const [x, y] = Math.random() < .5 ? [a, b] : [b, a], ans = x * y, opts = new Set([ans]);
+  for (const d of [x, -x, y, -y, 1, -1, 10, -10, 2].sort(() => Math.random() - .5)) { if (opts.size >= 3) break; if (ans + d > 0) opts.add(ans + d); }
+  return {text:`${x} × ${y}`, ans, choices:[...opts].sort(() => Math.random() - .5)};
+}
+function scrGame(){
+  return `<header class="top"><div class="brand">${logo()}<span>${gameName()}</span></div>
+    <div class="top-right"><span class="sync" id="game-clock">${Math.ceil((GAME_MS - gameUsed(S.prog)) / 60000)} min left</span><button class="btn ghost small" data-act="go" data-to="home">Finish for now</button></div></header>
+    <div id="game-host" class="game-host"></div>`;
+}
+function startGame(){
+  const p = S.prog;
+  if (!gameOpen(p) || !window.TTCGames) { go('home'); return; }
+  if (p.gameTrail !== trailStart(p)) { p.gameTrail = trailStart(p); p.gameMs = 0; }
+  p.game = p.game || {};
+  S.screen = 'game'; render(); scrollTo(0, 0);
+  const api = {ask: gameQuestion, sound, audio: audioCtx, photo: photoOk(S.me.photo) ? S.me.photo : null, dressSvg, eras: ERAS, state: p.game, save: () => saveProg().catch(saveFail)};
+  gameInst = (skinId() === 'eras' ? window.TTCGames.stage : window.TTCGames.jungle)(document.getElementById('game-host'), api);
+  let ticks = 0;
+  gameTimer = setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    p.gameMs = (p.gameMs || 0) + 1000; ticks++;
+    const left = GAME_MS - p.gameMs, el = document.getElementById('game-clock');
+    if (el) el.textContent = `${Math.max(1, Math.ceil(left / 60000))} min left`;
+    if (left <= 0) {
+      stopGame(); p.trailReset = Date.now(); p.gameTrail = trailStart(p); p.gameMs = 0; saveProg().catch(saveFail);
+      go('home'); toast("That's your 30 minutes! A new trail starts now: win 7 trophies to play again.");
+    } else if (ticks % 15 === 0) saveProg().catch(saveFail);
+  }, 1000);
+}
+function stopGame(){ clearInterval(gameTimer); gameTimer = null; if (gameInst) { try { gameInst.destroy(); } catch {} gameInst = null; } }
+
 /* ---------- render ---------- */
-const SCREENS = {gate:scrGate, loading:scrLoading, login:scrLogin, home:scrHome, setup:scrSetup, play:scrPlay, results:scrResults, progress:scrProgress, explore:scrExplore, parent:scrParent};
+const SCREENS = {game:scrGame, gate:scrGate, loading:scrLoading, login:scrLogin, home:scrHome, setup:scrSetup, play:scrPlay, results:scrResults, progress:scrProgress, explore:scrExplore, parent:scrParent};
 let lastScreen = null;
 function render(){
   app.innerHTML = SCREENS[S.screen]();
@@ -1357,6 +1397,7 @@ const A = {
   'ex-hl': el => { const v = el.dataset.v === 'sq' ? 'sq' : +el.dataset.v; S.v.ex.hl = S.v.ex.hl === v ? null : v; render(); },
   'parent-lock': () => { S.parentOK = false; go(S.me ? 'home' : 'login'); },
   pp: el => { S.v.pp = el.dataset.id; render(); },
+  game: () => startGame(),
   method: async el => {
     const id = el.dataset.id, status = el.dataset.s, m = METHODS.find(x => x.id === id);
     if (!m || !['approved', 'rejected'].includes(status)) return;
