@@ -23,7 +23,7 @@ function askBox(box, api, seconds, done){
 // Chop a path to the gold (one right answer = one chop), then get back to the boat before the anacondas come out of the river.
 // Every answer is a turn: snakes, panthers and anacondas each close in on their own beat, so a wrong answer lets them gain.
 function jungle(host, api){
-  const W = 7, H = 9, BOAT = 3;
+  const W = 7, H = 9, BOAT = 3, SENSE = {snake:2, panther:4, anaconda:5};
   let level = 1, st = null, busy = false, cancelQ = null;
   host.innerHTML = `<div class="jg">
     <div class="jg-bar"><b>Level <span data-k="lvl">1</span></b><span class="jg-msg" data-k="msg"></span><b>Gold <span data-k="gold">${api.state.gold || 0}</span></b></div>
@@ -52,7 +52,7 @@ function jungle(host, api){
     const preds = [];
     const put = (kind, every, r, c) => { if (g[r][c] === 'rock' || g[r][c] === 'gold') g[r][c] = 'jungle'; preds.push({kind, every, r, c}); };
     const far = goldAt.c < W / 2 ? W - 1 : 0;
-    put('panther', level >= 3 ? 2 : 3, 0, far);
+    put('panther', level >= 4 ? 2 : 3, 0, far);
     for (let i = 0; i < Math.min(3, 1 + Math.floor(level / 2)); i++) put('snake', 3, 2 + rnd(3), i % 2 ? 0 : W - 1);
     if (level >= 4) put('panther', 2, 1, W - 1 - far);
     st = {g, goldAt, pl, preds, has:false, turn:0};
@@ -88,6 +88,7 @@ function jungle(host, api){
       .filter(o => o.r >= 0 && o.r < H && o.c >= 0 && o.c < W && st.g[o.r][o.c] !== 'rock' && (p.kind === 'anaconda' || st.g[o.r][o.c] !== 'river') && !at(st.preds, o.r, o.c));
     if (!opts.length) return;
     const d = o => Math.abs(o.r - st.pl.r) + Math.abs(o.c - st.pl.c), best = Math.min(...opts.map(d));
+    if (d(p) > SENSE[p.kind]) return;   // they only hunt when he comes close
     const pick = shuffle(opts.filter(o => d(o) === best))[0];
     if (best >= d(p)) return;   // never wander away
     p.r = pick.r; p.c = pick.c;
