@@ -264,7 +264,17 @@ function streakDays(p){
   let n = 0; while (set.has(dayStr(d))) { n++; d.setDate(d.getDate() - 1); }
   return n;
 }
-function weekStart(){ const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d.getTime(); }
+function weekStart(t = Date.now()){ const d = new Date(t); d.setHours(0,0,0,0); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d.getTime(); }
+// The 52-week challenge: week 1 began on Monday 19 October 2026 (Sam, 24 Oct 2026).
+const CHALLENGE_START = new Date(2026, 9, 19).getTime();
+const challengeWeek = (t = Date.now()) => Math.max(1, Math.min(52, Math.round((weekStart(t) - CHALLENGE_START) / (7 * 864e5)) + 1));
+// School year, set by a grown-up on a slider (Year 3 to 8). It decides which question types join the Daily Challenge:
+// missing numbers from Year 4, division from Year 5, then x10 and x100 facts (70 × 8, 300 × 4) from Year 6 and 7.
+const YEAR_KINDS = {3:[], 4:['miss'], 5:['miss','div'], 6:['miss','div','scale'], 7:['miss','div','scale','scale100'], 8:['miss','div','scale','scale100']};
+const yearOf = pl => (pl && pl.year) || Math.min(8, Math.max(3, ((pl && pl.age) || 9) - 4));
+// The weekly plan for each child, written every Sunday by the weekly report (plans/<id>): which tables to focus on, how
+// hard the Daily Challenge mixes, the week's targets and a line for the child. It only counts in the week it was written for.
+const planFor = pl => { const x = pl && S.plans[pl.id]; return x && x.week === challengeWeek() ? x : null; };
 const prizeTotal = p => TIERS.reduce((s, t) => s + (p.prizes[t.id] || 0), 0);
 const MODE_NAMES = {practice:'Practice', test:'Test', clock:'Beat the Clock', daily:'Daily Challenge'};
 const tablesLabel = (s) => s.mode === 'daily' || s.pool ? 'Trickiest facts' : (s.tables.length === 12 ? 'All tables' : s.tables.map(t => '×' + t).join(' '));
@@ -346,7 +356,7 @@ function methodsKids(){
 /* ---------- state ---------- */
 const S = {
   screen:'loading', players:[], family:{rewards:{}}, me:null, prog:null, sessions:[], logins:[], logCur:null,
-  play:null, result:null, v:{}, err:null, okMsg:null, parentOK:false, pdata:{}, methods:{}, sound: ls.get('sound') ?? true
+  play:null, result:null, v:{}, err:null, okMsg:null, parentOK:false, pdata:{}, methods:{}, plans:{}, sound: ls.get('sound') ?? true
 };
 const defaultProg = id => ({player:id, xp:0, facts:{}, prizes:{bronze:0,silver:0,gold:0,diamond:0}, prizeLog:[], bests:{}, days:[], daily:{}, badges:{}, totals:{q:0,c:0}, logins:0, lastLogin:0, created:Date.now()});
 function normProg(p, id){ const d = defaultProg(id); p = Object.assign(d, p || {}); p.prizes = Object.assign(defaultProg(id).prizes, p.prizes || {}); return p; }
@@ -356,6 +366,7 @@ async function loadPlayers(){
     S.players = (await Store.list('players')).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     S.family = Object.assign({rewards:{}}, (await Store.get('settings/family')) || {});
     S.methods = Object.fromEntries((await Store.list('methods')).map(m => [m.id, m]));
+    S.plans = Object.fromEntries((await Store.list('plans')).map(x => [x.id, x]));
   } catch { S.players = []; toast("Couldn't load players. Reload the page to try again."); }
 }
 async function loadPlayerData(id){
@@ -511,11 +522,11 @@ function recommendations(p, sessions){
 }
 function weeklyGoals(p, sessions, player){
   const ws = weekStart(), wk = sessions.filter(s => s.t >= ws);
-  const qGoal = (player && player.age >= 11) ? 250 : 150;
+  const plan = planFor(player), qGoal = (plan && plan.questions) || ((player && player.age >= 11) ? 250 : 150), dGoal = (plan && plan.days) || 5;
   const quest = TEACH_ORDER.find(t => strongCount(p, t) < 12);
   const goals = [
     {name:`Answer ${qGoal} questions`, cur: wk.reduce((s, x) => s + (x.n || 0), 0), goal:qGoal},
-    {name:'Play on 5 different days', cur: uniq(wk.map(s => dayStr(s.t))).length, goal:5},
+    {name:`Play on ${dGoal} different days`, cur: uniq(wk.map(s => dayStr(s.t))).length, goal:dGoal},
     {name:'Complete 3 Daily Challenges', cur: uniq(wk.filter(s => s.mode === 'daily' && s.pct >= 80).map(s => dayStr(s.t))).length, goal:3},
     {name:`Win a ${TIERS[2].name} (90% or more)`, cur: wk.some(s => (s.mode === 'test' || s.mode === 'daily') && s.pct >= 90 && !s.ab) ? 1 : 0, goal:1},
   ];
@@ -523,7 +534,7 @@ function weeklyGoals(p, sessions, player){
   return goals;
 }
 // The table to work on next: the first in teaching order that isn't fully strong (the 1s look after themselves).
-const focusTable = p => TEACH_ORDER.find(t => t !== 1 && strongCount(p, t) < 12) || null;
+const focusTable = p => { const plan = planFor(S.me); return (plan && (plan.focus || []).find(t => ALL.includes(t) && strongCount(p, t) < 12)) || TEACH_ORDER.find(t => t !== 1 && strongCount(p, t) < 12) || null; };
 // The one thing to do next on the home screen: today's challenge first, then the next table, then a trophy on it.
 function nextStep(p){
   const d = p.daily[dayStr()], day = new Date().toLocaleDateString('en-GB', {weekday:'long'});
@@ -565,7 +576,7 @@ function cfgFor(mode, tables){
 function openSetup(mode, tables){ S.v.mode = mode; S.v.cfg = cfgFor(mode, tables); go('setup'); }
 
 function startPlay(mode, cfg, pool){
-  const kinds = mode === 'daily' ? ['mul','mul','miss'] : ['mul', ...(cfg.miss ? ['miss'] : []), ...(cfg.div ? ['div'] : [])];
+  const kinds = mode === 'daily' ? dailyKinds() : ['mul', ...(cfg.miss ? ['miss'] : []), ...(cfg.div ? ['div'] : [])];
   const P = {mode, cfg: clone(cfg), tables: cfg.tables.slice().sort((a, b) => a - b), kinds, pool: pool || null,
     total: mode === 'test' ? cfg.count : mode === 'daily' ? 15 : (pool && mode === 'practice' ? null : null),
     answers:[], correct:0, streak:0, best:0, input:'', start:Date.now(), fb:null, hint:null, retry:false, locked:false, done:false};
@@ -576,7 +587,19 @@ function startPlay(mode, cfg, pool){
   else P.timer = setInterval(tickElapsed, 1000);
   nextQ(); scrollTo(0, 0);
 }
-function startDaily(){ startPlay('daily', {tables: ALL.slice(), count:15}, weakPairs(S.prog, 12)); }
+function dailyKinds(){
+  const allowed = YEAR_KINDS[yearOf(S.me)], plan = planFor(S.me), mix = plan && plan.mix;
+  return ['mul', 'mul', ...allowed.filter(k => !mix || mix[k] !== false)];
+}
+function startDaily(){
+  const plan = planFor(S.me), focus = plan && (plan.focus || []).filter(t => ALL.includes(t));
+  let pool = weakPairs(S.prog, 12);
+  if (focus && focus.length) {
+    const f = weakPairs(S.prog, 144).filter(([a, b]) => focus.includes(a) || focus.includes(b)).slice(0, 6);
+    pool = [...f, ...pool.filter(([a, b]) => !f.some(([x, y]) => x === a && y === b))].slice(0, 12);
+  }
+  startPlay('daily', {tables: ALL.slice(), count:15}, pool);
+}
 
 function pickPair(P){
   const pool = P.pool || P.tables.flatMap(t => ALL.map(k => [t, k]));
@@ -590,6 +613,8 @@ function buildQ(a, b, kind){
   const p = a * b, key = fkey(a, b);
   if (kind === 'miss') return {a, b, kind, parts:[a, '×', '?', '=', p], answer:b, key};
   if (kind === 'div')  return {a, b, kind, parts:[p, '÷', a, '=', '?'], answer:b, key};
+  if (kind === 'scale') return {a, b, kind, parts:[a * 10, '×', b, '=', '?'], answer:p * 10, key};
+  if (kind === 'scale100') return {a, b, kind, parts:[a * 100, '×', b, '=', '?'], answer:p * 100, key};
   return {a, b, kind:'mul', parts:[a, '×', b, '=', '?'], answer:p, key};
 }
 const qText = (q, fill) => q.parts.map(x => x === '?' ? (fill ?? '?') : x).join(' ');
@@ -610,7 +635,7 @@ function press(k){
   const P = S.play; if (!P || P.locked || P.done) return;
   if (k === 'back') P.input = P.input.slice(0, -1);
   else if (k === 'ok') { submit(); return; }
-  else if (P.input.length < 3) P.input += k;
+  else if (P.input.length < 4) P.input += k;
   const slot = document.getElementById('slot'); if (slot) slot.textContent = P.input || '?';
   if (P.mode === 'clock' && P.input.length === String(P.q.answer).length) submit();
 }
@@ -754,7 +779,7 @@ function scrHome(){
   const n = nextStep(p);
   return `${topbar('home')}
   <section class="hero-home">
-    <div class="hello"><p class="eyebrow">Level ${L.n} · ${esc(L.title)}</p><h1 class="mega">Hi ${esc(me.name)}!</h1>
+    <div class="hello"><p class="eyebrow">Week ${challengeWeek()} of 52 · Level ${L.n} · ${esc(L.title)}</p><h1 class="mega">Hi ${esc(me.name)}!</h1>
       <div class="xpbar" role="progressbar" aria-label="Progress to next level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(L.frac*100)}"><span style="width:${(L.frac*100).toFixed(1)}%"></span></div>
       <p class="muted small">${p.xp} XP${L.next ? ` · ${L.next - p.xp} XP until you become a ${esc(L.nextTitle)}` : ' · You reached the top level!'}</p></div>
     <div class="stats">${stat(streak, streak === 1 ? 'day in a row' : 'days in a row')}${stat(om + '%', 'tables mastered')}${stat(prizeTotal(p), 'prizes won')}</div>
@@ -769,7 +794,7 @@ function scrHome(){
         ${modeTile('clock', '60s', 'Beat the Clock', 'How many can you get in a minute?', 'tomato')}
         ${modeTile('explore', '12²', 'Explore', 'See the patterns in every table.', 'sky')}
       </div>
-      <div class="sticker"><p class="eyebrow">Coach's tips for you</p><ul class="recs">${recommendations(p, S.sessions).map(recItem).join('')}</ul></div>
+      <div class="sticker"><p class="eyebrow">Coach's tips for you</p>${planFor(me) && planFor(me).note ? `<p class="callout" style="margin-top:10px">${esc(planFor(me).note)}</p>` : ''}<ul class="recs">${recommendations(p, S.sessions).map(recItem).join('')}</ul></div>
     </div>
     <div class="col">
       ${journey(p)}
@@ -1197,7 +1222,9 @@ function scrExplore(){
 }
 
 function parentRecs(pl, d){
-  const out = [], p = d.prog, last = Math.max(0, ...d.logins, ...d.sessions.map(s => s.t));
+  const out = [], p = d.prog, last = Math.max(0, ...d.logins, ...d.sessions.map(s => s.t)), plan = planFor(pl);
+  out.push(`Week ${challengeWeek()} of 52 · Year ${yearOf(pl)} · ${itemsOwned(p)} of ${TRAIL_STOPS} trophies on this week's trail.`);
+  if (plan) out.push(`This week's plan${plan.focus && plan.focus.length ? `: the ${plan.focus.join('s, ')}s` : ''}. ${plan.why || ''}`.trim());
   if (!last) { out.push(`${pl.name} hasn't signed in yet.${pl.pinHash ? '' : ' They will choose a PIN the first time.'}`); return out; }
   const days = Math.floor((Date.now() - last) / 864e5);
   if (days >= 3) out.push(`${pl.name} hasn't played for ${days} days. Ten minutes a day works better than one long session.`);
@@ -1264,6 +1291,9 @@ function scrParent(){
         <div class="ov-head">${avatar(pl, 44)}<h3>${esc(pl.name)}</h3></div>
         <label for="ep-n-${esc(pl.id)}">Name</label><input id="ep-n-${esc(pl.id)}" name="name" value="${esc(pl.name)}" required>
         <label for="ep-a-${esc(pl.id)}">Age</label><input id="ep-a-${esc(pl.id)}" name="age" type="number" min="4" max="16" value="${esc(pl.age || '')}">
+        <label for="ep-y-${esc(pl.id)}">School year: <b>Year ${yearOf(pl)}</b></label>
+        <input id="ep-y-${esc(pl.id)}" name="year" type="range" min="3" max="8" step="1" value="${yearOf(pl)}" oninput="this.previousElementSibling.querySelector('b').textContent = 'Year ' + this.value">
+        <p class="muted small">Sets the Daily Challenge mix: Year 4 adds missing numbers, Year 5 division, Year 6 ×10 facts like 70 × 8, Year 7 and 8 ×100 facts. The weekly plan builds on it.</p>
         <label for="ep-e-${esc(pl.id)}">Google account</label><input id="ep-e-${esc(pl.id)}" name="email" type="email" value="${esc(pl.email || '')}" placeholder="Their iPad opens on their name">
         <label for="ep-t-${esc(pl.id)}">App theme</label><select id="ep-t-${esc(pl.id)}" name="theme">${Object.entries(SKINS).map(([k, v]) => `<option value="${k}" ${(pl.theme || 'classic') === k ? 'selected' : ''}>${esc(v.label || 'Classic exercise book')}</option>`).join('')}</select>
         <label>Colour</label>${swatches('ep-c-' + pl.id, pl.color)}
@@ -1456,7 +1486,7 @@ const F = {
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast("That email doesn't look right."); return; }
     pl.name = f.name.value.trim() || pl.name; pl.age = +f.age.value || null; pl.email = email || null;
     const c = f.querySelector('input[name=color]:checked'); if (c) pl.color = c.value;
-    pl.theme = f.theme.value;
+    pl.theme = f.theme.value; pl.year = +f.year.value || null;
     try { await savePlayer(pl); S.okMsg = `Saved ${pl.name}.`; } catch { saveFail(); }
     if (S.me && S.me.id === pl.id) { S.me = pl; applySkin(pl); }
     render();
