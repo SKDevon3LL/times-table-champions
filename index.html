@@ -120,9 +120,22 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webk
 .stat span{font-size:13px;font-weight:800;color:var(--muted)}
 .grid-home{display:grid;grid-template-columns:1.3fr 1fr;gap:26px;align-items:start}
 .col{display:flex;flex-direction:column;gap:26px;min-width:0}
-.daily{display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:color-mix(in srgb,var(--sun) 40%,var(--card))}
-.daily > div{flex:1 1 260px;min-width:0;display:grid;gap:6px}
-.daily .eyebrow{color:var(--ink);opacity:.75}
+.today{display:grid;gap:14px;background:color-mix(in srgb,var(--sun) 40%,var(--card))}
+.today > div:first-child{display:grid;gap:6px}
+.today .eyebrow{color:var(--ink);opacity:.75}
+.today.game-ready{display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:color-mix(in srgb,var(--mint) 45%,var(--card))}
+.today.game-ready > div{flex:1 1 260px;min-width:0}
+.todo{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.todo li{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 12px;border:2.5px solid var(--line);border-radius:14px;background:var(--card)}
+.todo li.now{box-shadow:4px 4px 0 var(--shadow);background:color-mix(in srgb,var(--sun) 70%,var(--card))}
+.todo li.done{background:color-mix(in srgb,var(--mint) 40%,var(--card))}
+.todo li.locked{opacity:.6;border-style:dashed}
+.todo li.sep{display:block;padding:6px 0 0;border:0;background:none;font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:900;color:var(--ink);opacity:.75}
+.todo .n{width:42px;height:42px;border-radius:50%;border:2.5px solid var(--line);display:grid;place-items:center;font-family:var(--display);font-size:20px;background:var(--sun);color:var(--ink)}
+.todo li.done .n{background:var(--mint)}
+.todo li.locked .n{background:var(--card)}
+.todo b{display:block;font-size:19px;line-height:1.15}
+.todo small{display:block;font-size:14px;color:var(--muted);font-weight:700;margin-top:2px;line-height:1.3}
 .modes{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .mode{display:grid;gap:4px;text-align:left;background:color-mix(in srgb,var(--c) 26%,var(--card));border:2.5px solid var(--line);border-radius:18px;box-shadow:4px 4px 0 var(--shadow);padding:16px;transition:transform .12s}
 .mode:hover{transform:translateY(-3px) rotate(.6deg)}
@@ -467,6 +480,7 @@ body:has(.jg-bd) .top .brand, body:has(.jg-bd) .top .sync{color:#FFFFFF;text-sha
   .brand span{font-size:19px}
 }
 @media (max-width:400px){ .modes{grid-template-columns:1fr} }
+@media (max-width:520px){ .todo li{grid-template-columns:42px minmax(0,1fr)} .todo li .btn{grid-column:2;justify-self:start} }
 @media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
 </style>
 </head>

@@ -10,7 +10,7 @@ import Anthropic from "npm:@anthropic-ai/sdk";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const APP = "https://kirkwoodfamilytimestablechampionsapp.com/";
-const FROM = "Times Table Champions <coach@kirkwoodfamilytimestablechampionsapp.com>";
+const FROM = "Kirkwood Family Times Table Champions <coach@kirkwoodfamilytimestablechampionsapp.com>";
 const DEFAULT_TO = ["sam@myfirstjobinfilm.com", "abbey@myfirstjobinfilm.com"];
 const START = Date.UTC(2026, 9, 19);   // Monday 19 October 2026, week 1
 const YEAR_KINDS: Record<number, string[]> = {3: [], 4: ["miss"], 5: ["miss", "div"], 6: ["miss", "div", "scale"], 7: ["miss", "div", "scale", "scale100"], 8: ["miss", "div", "scale", "scale100"]};
@@ -58,6 +58,7 @@ function weekStats(pl: any, prog: any, sessions: any[], plan: any, start: number
     dailyDone: new Set(wk.filter(s => s.mode === "daily" && s.pct >= 80).map(s => new Date(s.t + 3600e3).toISOString().slice(0, 10))).size,
     tests, trophies: trophies.length, trailDone: trophies.length >= 7,
     gameMinutes: prog.gameTrail >= start ? Math.round((prog.gameMs || 0) / 60000) : 0,
+    bonusRounds: Object.values(prog.bonus || {}).filter((v: any) => v.done >= start).length,
     mastered, of: 78, tables, weakest,
     lastPlan: plan ? {focus: plan.focus, questions: plan.questions, days: plan.days, mix: plan.mix} : null,
     metTargets: plan ? q >= (plan.questions || 0) && days >= (plan.days || 0) : null,
@@ -88,14 +89,14 @@ const PLAN_SCHEMA = {
   },
 };
 
-const SYSTEM = `You are the coach for a family's 52-week times-tables challenge in the UK. Two children, Hughie (about 9) and Jessica (about 11), use an iPad app: a Daily Challenge on their trickiest facts, Practise, Tests (Bronze 70%, Silver 80%, Gold 90%, Diamond 100%), Beat the Clock and Explore. Seven trophies in a week complete their weekly trail and unlock 30 minutes of a reward game (Hughie: a jungle gold run; Jessica: a stadium show where she can win an MTV Award).
+const SYSTEM = `You are Taylor, the children's Times Table Coach, for a family's 52-week times-tables challenge in the UK. Two children, Hughie (about 9) and Jessica (about 11), use an iPad app: each day the Daily Challenge on their trickiest facts is today's work, then the Bonus Round, Beat the Clock, Explore and a test in that order, for double points; Practise and Tests (Bronze 70%, Silver 80%, Gold 90%, Diamond 100%) are always open. Seven trophies in a week complete their weekly trail and unlock 30 minutes of a reward game (Hughie: a jungle gold run; Jessica: a stadium show where she can win an MTV Award).
 
 Each Sunday you read each child's week and do two things.
 
 1. Set next week's plan, matched to what they actually did. Make it a step harder when they met this week's targets with good accuracy (85% or more): more questions, the next table that is not yet strong, or the next question type their school year allows. Hold it, or ease it slightly, when they missed the targets, so the challenge stays reachable. Over 52 weeks every table should become strong and quick (the national Multiplication Tables Check allows 6 seconds a question). Focus on two or three tables at most. Question types: miss = missing numbers (6 × ? = 42), div = division, scale = ×10 facts (70 × 8), scale100 = ×100 facts; only use the ones their school year allows (given). questions = the week's question target (100 to 600), days = days to play (3 to 7).
 The note is for the child: one or two short, encouraging sentences, no more than 25 words. The why is one sentence for the grown-ups.
 
-2. Write the weekly email to the grown-ups it is going to, who are named in the message: Sam and Abbey are the parents; Hayley is the children's maths tutor and is only among them when named. Greet only the people it goes to. British English. Warm, plain and specific; use the numbers given, never invent any. The summary is three to five sentences per child. Wins and watch are short points (up to three each). Tutor is one to three concrete suggestions Hayley could use in a session, such as a method or a game for a specific fact. No markdown, no dashes as punctuation.`;
+2. Write the weekly email to the grown-ups it is going to, who are named in the message: Sam and Abbey are the parents; Hayley is the children's maths tutor and is only among them when named. Greet only the people it goes to. Write as Taylor in the first person: the intro opens as Taylor, your Times Table Coach, and the signoff is signed "Taylor, your Times Table Coach". British English. Warm, plain and specific; use the numbers given, never invent any. The summary is three to five sentences per child. Wins and watch are short points (up to three each). Tutor is one to three concrete suggestions Hayley could use in a session, such as a method or a game for a specific fact. No markdown, no dashes as punctuation.`;
 
 function clampPlan(p: any, year: number, prev: any, stats: any) {
   const allowed = YEAR_KINDS[year] || [];
@@ -119,7 +120,7 @@ function emailHtml(week: number, ai: any, rows: any[]) {
     const c = (ai.children || []).find((x: any) => x.id === id) || {};
     const strong = stats.tables.filter((t: any) => t.strong === 12).map((t: any) => t.t);
     const facts = [["Played", `${stats.days} day${stats.days === 1 ? "" : "s"}, ${stats.sessions} activities`], ["Questions", `${stats.questions}${stats.accuracy !== null ? `, ${stats.accuracy}% right` : ""}`],
-      ["Daily Challenges done", stats.dailyDone], ["Trophies this week", `${stats.trophies} of 7${stats.trailDone ? " (trail complete)" : ""}`],
+      ["Daily Challenges done", stats.dailyDone], ["Bonus Rounds done", stats.bonusRounds], ["Trophies this week", `${stats.trophies} of 7${stats.trailDone ? " (trail complete)" : ""}`],
       ["Tests", stats.tests.length ? stats.tests.map((t: any) => t.pct + "%").join(", ") : "none"], ["Facts strong", `${stats.mastered} of 78`],
       ["Tables fully strong", strong.length ? strong.map((t: number) => "×" + t).join(" ") : "none yet"], ["School year", `Year ${stats.year}`]];
     return `<div style="border:2px solid #1B2140;border-radius:14px;padding:16px 18px;margin:18px 0;background:#FFFFFF">
@@ -134,7 +135,7 @@ function emailHtml(week: number, ai: any, rows: any[]) {
   }).join("");
   return `<!doctype html><html><body style="margin:0;background:#F4F1EA;font-family:Helvetica,Arial,sans-serif;color:#1B2140">
     <div style="max-width:620px;margin:0 auto;padding:20px 16px">
-      <p style="margin:0;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#555">Times Table Champions · Week ${week} of 52</p>
+      <p style="margin:0;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#555">Kirkwood Family Times Table Champions · Week ${week} of 52</p>
       <p style="margin:12px 0 0;font-size:16px;line-height:1.5">${esc(ai.intro)}</p>${kids}
       <p style="font-size:16px;line-height:1.5">${esc(ai.signoff)}</p>
       <p style="font-size:13px;color:#555">The full reports are in the Grown-ups area of the app: <a href="${APP}">${APP}</a></p>
@@ -181,7 +182,7 @@ Deno.serve(async (req) => {
     const c = (ai.children || []).find((x: any) => x.id === r.id) || {plan: {}};
     return {id: r.id, stats: r.stats, plan: {...clampPlan(c.plan, r.stats.year, r.prevPlan, r.stats), week: week + 1, set: Date.now()}};
   });
-  const html = emailHtml(week, ai, plansOut), subject = String(ai.subject || `Times Table Champions: week ${week} of 52`);
+  const html = emailHtml(week, ai, plansOut), subject = String(ai.subject || `Kirkwood Family Times Table Champions: week ${week} of 52`);
   if (dry) return Response.json({week, subject, html, plans: plansOut.map(p => ({id: p.id, plan: p.plan})), stats: rows.map(r => r.stats)});
 
   if (!to) {

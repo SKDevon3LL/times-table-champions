@@ -90,6 +90,9 @@ function mergeDoc(path, a, b){
     r.bests = Object.assign({}, b.bests); for (const [k, v] of Object.entries(a.bests || {})) if (!r.bests[k] || v.score > r.bests[k].score) r.bests[k] = v;
     r.days = uniq([...(a.days || []), ...(b.days || [])]).sort().slice(-400);
     r.daily = Object.assign({}, b.daily); for (const [k, v] of Object.entries(a.daily || {})) if (!r.daily[k] || v.pct > r.daily[k].pct) r.daily[k] = v;
+    // The Bonus Round: the copy that got further through the day's steps wins; same steps, the one with more facts looked at.
+    const stepsOf = v => !v.clock ? 0 : !v.explore ? 1 : !v.test ? 2 : 3;
+    r.bonus = Object.assign({}, b.bonus); for (const [k, v] of Object.entries(a.bonus || {})) { const o = r.bonus[k]; if (!o || stepsOf(v) > stepsOf(o) || (stepsOf(v) === stepsOf(o) && (v.ex || []).length >= (o.ex || []).length)) r.bonus[k] = v; }
     r.badges = Object.assign({}, b.badges); for (const [k, v] of Object.entries(a.badges || {})) if (!r.badges[k] || v < r.badges[k]) r.badges[k] = v;
     const seen = new Set();
     r.prizeLog = [...(a.prizeLog || []), ...(b.prizeLog || [])].filter(x => { const k = x.t + x.tier; if (seen.has(k)) return false; seen.add(k); return true; }).sort((x, y) => y.t - x.t).slice(0, 80);
@@ -361,7 +364,7 @@ const S = {
   screen:'loading', players:[], family:{rewards:{}}, me:null, prog:null, sessions:[], logins:[], logCur:null,
   play:null, result:null, v:{}, err:null, okMsg:null, parentOK:false, pdata:{}, methods:{}, plans:{}, gameOK:{}, demo:null, sound: ls.get('sound') ?? true
 };
-const defaultProg = id => ({player:id, xp:0, facts:{}, prizes:{bronze:0,silver:0,gold:0,diamond:0}, prizeLog:[], bests:{}, days:[], daily:{}, badges:{}, totals:{q:0,c:0}, logins:0, lastLogin:0, created:Date.now()});
+const defaultProg = id => ({player:id, xp:0, facts:{}, prizes:{bronze:0,silver:0,gold:0,diamond:0}, prizeLog:[], bests:{}, days:[], daily:{}, bonus:{}, badges:{}, totals:{q:0,c:0}, logins:0, lastLogin:0, created:Date.now()});
 function normProg(p, id){ const d = defaultProg(id); p = Object.assign(d, p || {}); p.prizes = Object.assign(defaultProg(id).prizes, p.prizes || {}); return p; }
 
 async function loadPlayers(){
@@ -539,18 +542,60 @@ function weeklyGoals(p, sessions, player){
 }
 // The table to work on next: the first in teaching order that isn't fully strong (the 1s look after themselves).
 const focusTable = p => { const plan = planFor(S.me); return (plan && (plan.focus || []).find(t => ALL.includes(t) && strongCount(p, t) < 12)) || TEACH_ORDER.find(t => t !== 1 && strongCount(p, t) < 12) || null; };
-// The one thing to do next on the home screen: today's challenge first, then the next table, then a trophy on it.
-function nextStep(p){
-  const d = p.daily[dayStr()], day = new Date().toLocaleDateString('en-GB', {weekday:'long'});
-  if (gameOpen(p)) return {eyebrow:'You completed the trail', title: skinId() === 'eras' ? 'Your stadium show is ready!' : 'The jungle gold is waiting!',
-    text:`${Math.ceil((GAME_MS - gameUsed(p)) / 60000)} minutes of play left. When they run out, a new trail starts.`, cta:'Play now', act:'game'};
-  if (!d || d.pct < 80) return {eyebrow:`${skin().daily} · ${day}`, title: d ? 'Have another go?' : '15 questions on your trickiest facts',
-    text: d ? `Your best today is ${d.pct}%. Score 80% or more to complete it.` : `Score 80% or more to complete it and earn 50 bonus ${ptsName()}.`, cta: d ? 'Try again' : 'Start the challenge', act:'start-daily'};
-  const t = focusTable(p), done = `${skin().daily} done: ${d.pct}%.`;
-  if (!t) return {eyebrow:'Do this next', title:'Go for the Diamond Crown', text:`${done} Every table is strong. Score 100% on a test with all twelve tables.`, cta:'All-tables test', act:'rec', mode:'test', tables:ALL};
-  const k = strongCount(p, t);
-  if (k < 9) return {eyebrow:'Do this next', title:`Practise the ${t}s`, text:`${done} Next up: the ${t}s. ${k} of 12 facts are strong so far.`, cta:`Practise the ${t}s`, act:'rec', mode:'practice', tables:[t]};
-  return {eyebrow:'Do this next', title:`Win a trophy on the ${t}s`, text:`${done} Your ${t}s are nearly there: ${k} of 12 strong. Score 70% or more in a test to win a trophy.`, cta:`Test the ${t}s`, act:'rec', mode:'test', tables:[t]};
+// Today's order (Sam, 24 Oct 2026): the Daily Challenge is today's work. Once it is done, the Bonus Round: Beat the Clock,
+// then Explore (look closely at five facts), then a test, in that order. Finish all three and the points won in them are
+// paid again, so the round is worth double. Each step opens only when the one before it is done; anything played out of
+// order still earns points, just not for the round.
+const BONUS_STEPS = [
+  {k:'clock', name:'Beat the Clock', sub:'How many can you get in 60 seconds?', act:'setup', mode:'clock'},
+  {k:'explore', name:'Explore', sub:'Look closely at 5 facts in the grid.', act:'go', mode:'explore'},
+  {k:'test', name:'Take a test', sub:'20 questions. Finish it and every point from the round is doubled.', act:'setup', mode:'test'},
+];
+const EXPLORE_FACTS = 5;
+const todayDone = p => { const d = (p.daily || {})[dayStr()]; return !!(d && d.pct >= 80); };
+const bonusToday = p => (p.bonus || {})[dayStr()] || null;
+function bonusRound(p){
+  const b = p.bonus || (p.bonus = {}), k = dayStr();
+  if (!b[k]) { b[k] = {xp:0, ex:[]}; const keys = Object.keys(b).sort(); while (keys.length > 60) delete b[keys.shift()]; }
+  return b[k];
+}
+// How many steps of today's round are done, in order: a test before Beat the Clock does not count.
+const bonusStep = p => { const r = bonusToday(p); return !r || !r.clock ? 0 : !r.explore ? 1 : !r.test ? 2 : 3; };
+// Explore counts once five different facts have been looked at, while Explore is the step they are on.
+function exploreLooked(k){
+  const p = S.prog; if (!p || S.demo || !todayDone(p) || bonusStep(p) !== 1) return;
+  const r = bonusRound(p); if (r.ex.includes(k)) return;
+  r.ex.push(k);
+  if (r.ex.length >= EXPLORE_FACTS) {
+    const got = EXPLORE_FACTS * 10; r.explore = Date.now(); r.xp += got; p.xp += got;
+    toast(`Explore complete! +${got} ${ptsName()}. Next: take a test, and every point from the round is doubled.`); sound('win');
+  }
+  saveProg().catch(saveFail);
+}
+function gameBanner(p){
+  if (!gameOpen(p)) return '';
+  return `<div class="today sticker game-ready"><div><p class="eyebrow">You completed the trail</p><h2>${skinId() === 'eras' ? 'Your stadium show is ready!' : 'The jungle gold is waiting!'}</h2>
+    <p>${Math.ceil((GAME_MS - gameUsed(p)) / 60000)} minutes of play left. When they run out, a new trail starts.</p></div><button class="btn big" data-act="game">Play now</button></div>`;
+}
+// The home screen's card: today's work, then the Bonus Round as a numbered list, the current step with its button and the
+// later ones locked until it is done.
+function todayCard(p){
+  const d = (p.daily || {})[dayStr()], done = todayDone(p), st = bonusStep(p), r = bonusToday(p) || {ex:[], xp:0};
+  const day = new Date().toLocaleDateString('en-GB', {weekday:'long'}), pts = ptsName(), dn = skin().daily;
+  const head = !done ? {title:"Today's work", text:`Start with ${dn}. Then the Bonus Round, in this order: finish all three and every point you win in them is doubled.`}
+    : st < 3 ? {title:"Today's work complete!", text:`Want more ${pts}? Do the Bonus Round, in this order. Finish all three and every point you win in them is doubled.`}
+    : {title:'Bonus Round complete!', text:`Everything done today, with ${r.bonusXp || r.xp} extra ${pts} for finishing the round. Play anything you like for more.`};
+  const row = (n, name, sub, state, btn) => `<li class="${state}"><span class="n" aria-hidden="true">${state === 'done' ? '✓' : n}</span><div><b>${esc(name)}</b><small>${esc(sub)}</small></div>${btn}</li>`;
+  const btn = (act, mode, label) => `<button class="btn" data-act="${act}" data-to="${mode}" data-mode="${mode}">${label}</button>`;
+  const rows = [row(1, dn, done ? `Done today: ${d.pct}%.` : d ? `Best today ${d.pct}%. Score 80% or more to complete it.` : `15 questions on your trickiest facts. Score 80% or more: +50 ${pts}.`, done ? 'done' : 'now', done ? '' : btn('start-daily', '', d ? 'Try again' : 'Start'))];
+  BONUS_STEPS.forEach((s, i) => {
+    const isDone = done && st > i, isNow = done && st === i;
+    const sub = isDone ? (s.k === 'explore' ? `Done: ${EXPLORE_FACTS} facts looked at.` : s.k === 'test' ? `Done. Round complete: +${r.bonusXp || 0} ${pts}.` : 'Done.')
+      : isNow && s.k === 'explore' && r.ex.length ? `${r.ex.length} of ${EXPLORE_FACTS} facts looked at so far.` : s.sub;
+    rows.push(row(i + 2, s.name, sub, isDone ? 'done' : isNow ? 'now' : 'locked', isNow ? btn(s.act, s.mode, 'Start') : ''));
+  });
+  return `<div class="today sticker"><div><p class="eyebrow">Today · ${day}</p><h2>${head.title}</h2><p>${head.text}</p></div>
+    <ol class="todo" aria-label="Today's order">${rows[0]}<li class="sep" aria-hidden="true"><span>Bonus Round · double ${pts}</span></li>${rows.slice(1).join('')}</ol></div>`;
 }
 function weakPairs(p, n){
   const keys = ALLKEYS.filter(k => !k.startsWith('1x')).map(k => {
@@ -703,6 +748,14 @@ async function finish(abandoned){
     const b = prog.bests[P.bestKey]; prevBest = b ? b.score : null;
     if (!b || c > b.score) { prog.bests[P.bestKey] = {score:c, t:Date.now()}; newBest = true; }
   }
+  // The Bonus Round: after today's work, Beat the Clock, then Explore, then a test; the test completes it and the round's points are paid again.
+  let bonus = null;
+  if (!abandoned && !S.demo && todayDone(prog) && (P.mode === 'clock' || P.mode === 'test')) {
+    const st = bonusStep(prog);
+    if (P.mode === 'clock' && st === 0) { const r = bonusRound(prog); r.clock = Date.now(); r.xp += xp; bonus = {step:1}; }
+    else if (P.mode === 'test' && st === 2) { const r = bonusRound(prog); r.test = Date.now(); r.xp += xp; r.bonusXp = r.xp; r.done = Date.now(); xp += r.bonusXp; bonus = {done:true, base:r.xp, extra:r.bonusXp}; }
+    else if (P.mode === 'test' && st < 2) bonus = {hint:true};
+  }
   const itemsBefore = itemsOwned(prog);
   prog.xp += xp; prog.totals.q += n; prog.totals.c += c;
   if (!prog.days.includes(today)) { prog.days.push(today); if (prog.days.length > 400) prog.days.shift(); }
@@ -717,7 +770,7 @@ async function finish(abandoned){
   if (abandoned) entry.ab = true;
   S.sessions.push(entry); ensureLogCur(); S.logCur.sessions.push(entry);
   if (!S.demo) Promise.all([saveProg(), saveLog()]).catch(saveFail);
-  S.result = Object.assign({}, entry, {answers:P.answers, newBest, prevBest, newBadges, newItems, unlocked, dailyDone, cfg:P.cfg, poolPairs:P.pool, best:P.best});
+  S.result = Object.assign({}, entry, {answers:P.answers, newBest, prevBest, newBadges, newItems, unlocked, dailyDone, bonus, cfg:P.cfg, poolPairs:P.pool, best:P.best});
   S.play = null; S.screen = 'results'; render(); scrollTo(0, 0);
   if (prize) { confetti(prize.id); sound('win'); }
   else if (newBest) confetti('gold');
@@ -781,7 +834,6 @@ function scrGate(){
 
 function scrHome(){
   const p = S.prog, me = S.me, L = lvlInfo(p.xp), streak = streakDays(p), om = Math.round(overallMastery(p) * 100);
-  const n = nextStep(p);
   return `${topbar('home')}
   <section class="hero-home">
     <div class="hello"><p class="eyebrow">Week ${challengeWeek()} of 52 · Level ${L.n} · ${esc(L.title)}</p><h1 class="mega">Hi ${esc(me.name)}!</h1>
@@ -791,15 +843,14 @@ function scrHome(){
   </section>
   <div class="grid-home">
     <div class="col">
-      <div class="daily sticker"><div><p class="eyebrow">${esc(n.eyebrow)}</p><h2>${esc(n.title)}</h2><p>${esc(n.text)}</p></div>
-        <button class="btn big" data-act="${n.act}"${n.mode ? ` data-mode="${n.mode}" data-tables="${n.tables.join(',')}"` : ''}>${esc(n.cta)}</button></div>
+      ${gameBanner(p)}${todayCard(p)}
       <div class="modes">
         ${modeTile('practice', '7×8', 'Practise', 'No timer. Tricks when you get stuck.', 'mint')}
         ${modeTile('test', '90%', 'Take a test', 'Win medals at 70, 80, 90 and 100%.', 'sun')}
         ${modeTile('clock', '60s', 'Beat the Clock', 'How many can you get in a minute?', 'tomato')}
         ${modeTile('explore', '12²', 'Explore', 'See the patterns in every table.', 'sky')}
       </div>
-      <div class="sticker"><p class="eyebrow">Coach's tips for you</p>${planFor(me) && planFor(me).note ? `<p class="callout" style="margin-top:10px">${esc(planFor(me).note)}</p>` : ''}<ul class="recs">${recommendations(p, S.sessions).map(recItem).join('')}</ul></div>
+      <div class="sticker"><p class="eyebrow">From Taylor, your Times Table Coach</p>${planFor(me) && planFor(me).note ? `<p class="callout" style="margin-top:10px">${esc(planFor(me).note)}</p>` : ''}<ul class="recs">${recommendations(p, S.sessions).map(recItem).join('')}</ul></div>
     </div>
     <div class="col">
       ${journey(p)}
@@ -1083,6 +1134,9 @@ function scrResults(){
       <h1 class="mega sm">${headline}</h1>
       <div><span class="score num">${big}</span> <span class="muted" style="font-weight:800">${sub}</span></div>
       <p class="callout mint">+${r.xp} ${ptsName()}${r.dailyDone ? ` (including 50 bonus ${ptsName()} for completing the Daily Challenge)` : ''}</p>
+      ${r.bonus && r.bonus.done ? `<p class="callout mint">Bonus Round complete! The ${r.bonus.base} ${ptsName()} you won in Beat the Clock, Explore and this test are doubled: +${r.bonus.extra} extra.</p>`
+        : r.bonus && r.bonus.step === 1 ? `<p class="callout">Bonus Round: 1 of 3 done. Next: Explore, then a test, and every point from the round is doubled.</p>`
+        : r.bonus && r.bonus.hint ? `<p class="callout">Bonus Round: do Beat the Clock first, then Explore, then a test, and the points from all three are doubled.</p>` : ''}
       ${reward ? `<p class="callout">Your reward for a ${prize.name}: <b>${esc(reward)}</b></p>` : ''}
       ${nt ? `<p class="callout">${r.pct < 70 ? 'So close to a prize.' : 'Brilliant work.'} Score ${nt.min}% next time to win a ${nt.name}.</p>` : ''}
       ${resultItems(r)}
@@ -1209,7 +1263,10 @@ function scrExplore(){
   }
   board += `</div></div>`;
   const lv = level(S.prog.facts[fkey(a, b)]);
-  return `${topbar('explore')}<div class="parent-head"><div><p class="eyebrow">Explore</p><h1 class="mega sm">Tap any square</h1><p class="lede">Every answer in the grid is a rectangle of dots. Find the patterns.</p></div></div>
+  const p0 = S.prog, onStep = !S.demo && todayDone(p0) ? bonusStep(p0) : -1;
+  const roundLine = onStep === 1 ? `<p class="callout" style="margin-top:10px">Bonus Round, step 2: look closely at ${EXPLORE_FACTS} different facts. ${bonusRound(p0).ex.length} of ${EXPLORE_FACTS} so far.</p>`
+    : onStep === 2 ? `<p class="callout mint" style="margin-top:10px">Explore done. Next: take a test, and every point from the round is doubled. <button class="btn small" data-act="setup" data-mode="test">Take a test</button></p>` : '';
+  return `${topbar('explore')}<div class="parent-head"><div><p class="eyebrow">Explore</p><h1 class="mega sm">Tap any square</h1><p class="lede">Every answer in the grid is a rectangle of dots. Find the patterns.</p>${roundLine}</div></div>
   <div class="explore">
     <div class="sticker" style="display:grid;gap:14px">
       ${board}
@@ -1520,7 +1577,7 @@ const A = {
   },
   sound: () => { S.sound = !S.sound; ls.set('sound', S.sound); render(); },
   logout: () => { if (S.demo) { go('home'); return; } if (S.play) { clearInterval(S.play.timer); S.play = null; } S.me = null; S.prog = null; S.parentOK = false; ss.del('me'); S.v = {}; applySkin(null); go('login'); },
-  'ex-cell': el => { S.v.ex.a = +el.dataset.a; S.v.ex.b = +el.dataset.b; render(); },
+  'ex-cell': el => { S.v.ex.a = +el.dataset.a; S.v.ex.b = +el.dataset.b; exploreLooked(fkey(S.v.ex.a, S.v.ex.b)); render(); },
   'ex-hl': el => { const v = el.dataset.v === 'sq' ? 'sq' : +el.dataset.v; S.v.ex.hl = S.v.ex.hl === v ? null : v; render(); },
   'parent-lock': () => { S.parentOK = false; go(S.me ? 'home' : 'login'); },
   pp: el => { S.v.pp = el.dataset.id; render(); },
