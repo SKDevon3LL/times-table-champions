@@ -545,7 +545,7 @@ const focusTable = p => { const plan = planFor(S.me); return (plan && (plan.focu
 // Today's order (Sam, 24 Oct 2026): the Daily Challenge is today's work. Once it is done, the Bonus Round: Beat the Clock,
 // then Explore (look closely at five facts), then a test, in that order. Finish all three and the points won in them are
 // paid again, so the round is worth double. Each step opens only when the one before it is done; anything played out of
-// order still earns points, just not for the round.
+// order still earns points, just not for the round. A Grown-ups demo runs the round too, on its copy, and saves nothing.
 const BONUS_STEPS = [
   {k:'clock', name:'Beat the Clock', sub:'How many can you get in 60 seconds?', act:'setup', mode:'clock'},
   {k:'explore', name:'Explore', sub:'Look closely at 5 facts in the grid.', act:'go', mode:'explore'},
@@ -563,14 +563,14 @@ function bonusRound(p){
 const bonusStep = p => { const r = bonusToday(p); return !r || !r.clock ? 0 : !r.explore ? 1 : !r.test ? 2 : 3; };
 // Explore counts once five different facts have been looked at, while Explore is the step they are on.
 function exploreLooked(k){
-  const p = S.prog; if (!p || S.demo || !todayDone(p) || bonusStep(p) !== 1) return;
+  const p = S.prog; if (!p || !todayDone(p) || bonusStep(p) !== 1) return;
   const r = bonusRound(p); if (r.ex.includes(k)) return;
   r.ex.push(k);
   if (r.ex.length >= EXPLORE_FACTS) {
     const got = EXPLORE_FACTS * 10; r.explore = Date.now(); r.xp += got; p.xp += got;
     toast(`Explore complete! +${got} ${ptsName()}. Next: take a test, and every point from the round is doubled.`); sound('win');
   }
-  saveProg().catch(saveFail);
+  if (!S.demo) saveProg().catch(saveFail);
 }
 function gameBanner(p){
   if (!gameOpen(p)) return '';
@@ -750,11 +750,11 @@ async function finish(abandoned){
   }
   // The Bonus Round: after today's work, Beat the Clock, then Explore, then a test; the test completes it and the round's points are paid again.
   let bonus = null;
-  if (!abandoned && !S.demo && todayDone(prog) && (P.mode === 'clock' || P.mode === 'test')) {
+  if (!abandoned && todayDone(prog) && (P.mode === 'clock' || P.mode === 'test')) {
     const st = bonusStep(prog);
     if (P.mode === 'clock' && st === 0) { const r = bonusRound(prog); r.clock = Date.now(); r.xp += xp; bonus = {step:1}; }
     else if (P.mode === 'test' && st === 2) { const r = bonusRound(prog); r.test = Date.now(); r.xp += xp; r.bonusXp = r.xp; r.done = Date.now(); xp += r.bonusXp; bonus = {done:true, base:r.xp, extra:r.bonusXp}; }
-    else if (P.mode === 'test' && st < 2) bonus = {hint:true};
+    else if (P.mode === 'test' && st < 2) bonus = {hint:true, next: st === 0 ? 'clock' : 'explore'};
   }
   const itemsBefore = itemsOwned(prog);
   prog.xp += xp; prog.totals.q += n; prog.totals.c += c;
@@ -1125,6 +1125,7 @@ function scrResults(){
   const nt = (r.mode === 'test' || r.mode === 'daily') && !r.ab ? nextTier(r.pct) : null;
   const wrongA = r.answers.filter(a => !a.ok);
   const reward = prize && S.family.rewards && S.family.rewards[prize.id];
+  const nextBtn = k => k === 'clock' ? '<button class="btn small" data-act="setup" data-mode="clock">Next: Beat the Clock</button>' : '<button class="btn small" data-act="go" data-to="explore">Next: Explore</button>';
   const art = prize ? `<div class="res-medal pop">${medal(prize.id, 170)}<b>${prize.name}</b></div>`
     : `<div class="res-medal"><svg viewBox="0 0 64 64" width="150" height="150" aria-hidden="true"><circle cx="32" cy="32" r="28" fill="color-mix(in srgb, var(--me) 30%, var(--card))" stroke="var(--line)" stroke-width="3"/><path d="${starPath(32, 32, 16, 7)}" fill="var(--me)" stroke="var(--line)" stroke-width="2.5" stroke-linejoin="round"/></svg></div>`;
   return `${topbar('')}<section class="results">
@@ -1135,8 +1136,9 @@ function scrResults(){
       <div><span class="score num">${big}</span> <span class="muted" style="font-weight:800">${sub}</span></div>
       <p class="callout mint">+${r.xp} ${ptsName()}${r.dailyDone ? ` (including 50 bonus ${ptsName()} for completing the Daily Challenge)` : ''}</p>
       ${r.bonus && r.bonus.done ? `<p class="callout mint">Bonus Round complete! The ${r.bonus.base} ${ptsName()} you won in Beat the Clock, Explore and this test are doubled: +${r.bonus.extra} extra.</p>`
-        : r.bonus && r.bonus.step === 1 ? `<p class="callout">Bonus Round: 1 of 3 done. Next: Explore, then a test, and every point from the round is doubled.</p>`
-        : r.bonus && r.bonus.hint ? `<p class="callout">Bonus Round: do Beat the Clock first, then Explore, then a test, and the points from all three are doubled.</p>` : ''}
+        : r.bonus && r.bonus.step === 1 ? `<p class="callout">Bonus Round: 1 of 3 done. Next: Explore, then a test, and every point from the round is doubled. ${nextBtn('explore')}</p>`
+        : r.bonus && r.bonus.hint ? `<p class="callout">Bonus Round: do Beat the Clock first, then Explore, then a test, and the points from all three are doubled. ${nextBtn(r.bonus.next)}</p>`
+        : r.dailyDone ? `<p class="callout">Today's work complete! Want more ${ptsName()}? Do the Bonus Round, in this order: Beat the Clock, Explore, then a test. Finish all three and every point you win in them is doubled. ${nextBtn('clock')}</p>` : ''}
       ${reward ? `<p class="callout">Your reward for a ${prize.name}: <b>${esc(reward)}</b></p>` : ''}
       ${nt ? `<p class="callout">${r.pct < 70 ? 'So close to a prize.' : 'Brilliant work.'} Score ${nt.min}% next time to win a ${nt.name}.</p>` : ''}
       ${resultItems(r)}
@@ -1263,7 +1265,7 @@ function scrExplore(){
   }
   board += `</div></div>`;
   const lv = level(S.prog.facts[fkey(a, b)]);
-  const p0 = S.prog, onStep = !S.demo && todayDone(p0) ? bonusStep(p0) : -1;
+  const p0 = S.prog, onStep = todayDone(p0) ? bonusStep(p0) : -1;
   const roundLine = onStep === 1 ? `<p class="callout" style="margin-top:10px">Bonus Round, step 2: look closely at ${EXPLORE_FACTS} different facts. ${bonusRound(p0).ex.length} of ${EXPLORE_FACTS} so far.</p>`
     : onStep === 2 ? `<p class="callout mint" style="margin-top:10px">Explore done. Next: take a test, and every point from the round is doubled. <button class="btn small" data-act="setup" data-mode="test">Take a test</button></p>` : '';
   return `${topbar('explore')}<div class="parent-head"><div><p class="eyebrow">Explore</p><h1 class="mega sm">Tap any square</h1><p class="lede">Every answer in the grid is a rectangle of dots. Find the patterns.</p>${roundLine}</div></div>
