@@ -855,12 +855,12 @@ function scrHome(){
   <div class="grid-home">
     <div class="col">
       ${gameBanner(p)}${todayCard(p)}
-      <p class="eyebrow" style="margin:6px 0 -8px">Free play: any time, for more ${ptsName()}</p>
+      <div class="extra-h"><h2>Extra practice</h2><p>Not part of today's work or the weekly plan: play any of these whenever you like. Every right answer earns 10 ${ptsName()}, and a test at 70% or more also wins a trophy for your ${skinId() === 'eras' ? 'Eras Tour' : skinId() === 'trail' ? 'jungle trail' : 'weekly trail'}.</p></div>
       <div class="modes">
-        ${modeTile('practice', '7×8', 'Practise', 'No timer. Tricks when you get stuck.', 'mint')}
-        ${modeTile('test', '90%', 'Take a test', 'Win medals at 70, 80, 90 and 100%.', 'sun')}
-        ${modeTile('clock', '60s', 'Beat the Clock', 'How many can you get in a minute?', 'tomato')}
-        ${modeTile('explore', '12²', 'Explore', 'See the patterns in every table.', 'sky')}
+        ${modeTile('practice', '7×8', 'Practise', `No timer, tricks when you get stuck. 10 ${ptsName()} a right answer.`, 'mint')}
+        ${modeTile('test', '90%', 'Take a test', '70% or more wins a trophy for your trail.', 'sun')}
+        ${modeTile('clock', '60s', 'Beat the Clock', `Beat your best in 60 seconds. 10 ${ptsName()} a right answer.`, 'tomato')}
+        ${modeTile('explore', '12²', 'Explore', 'See the patterns in every table, just for fun.', 'sky')}
       </div>
       <div class="sticker"><p class="eyebrow">From Taylor, your Times Table Coach</p>${planFor(me) && planFor(me).note ? `<p class="callout" style="margin-top:10px">${esc(planFor(me).note)}</p>` : ''}<ul class="recs">${recommendations(p, S.sessions).map(recItem).join('')}</ul></div>
     </div>
