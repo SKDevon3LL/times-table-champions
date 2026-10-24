@@ -289,10 +289,62 @@ function hint(a, b){
   return `${a} × ${b} = ${p}.`;
 }
 
+/* ---------- new ways to learn: suggested to the grown-ups, shown to the children once approved ---------- */
+// One document per method, methods/<id> {status:'approved'|'rejected', by, at}, so two grown-ups deciding at once never clash.
+const METHODS = [
+  {id:'factor-pairs', name:'Factor pairs', why:'Start from the answer and find every pair that makes it. It ties multiplication to division and shows why 24 turns up in four different tables.',
+    kid:'Pick a number and hunt for all the pairs that multiply to make it. Each pair is two facts for the price of one.', ex:['24 = 1 × 24 = 2 × 12 = 3 × 8 = 4 × 6', '36 = 1 × 36 = 2 × 18 = 3 × 12 = 4 × 9 = 6 × 6', '48 = 4 × 12 = 6 × 8']},
+  {id:'turnarounds', name:'Turnaround facts', why:'Multiplying works both ways round, so 144 facts are really only 78. Knowing that halves the job and takes the fear out of the big grid.',
+    kid:'Learn one fact and you get its twin free. Turn the dots on their side and the answer stays the same.', ex:['7 × 8 = 56, so 8 × 7 = 56', '3 × 12 = 36, so 12 × 3 = 36', '9 × 6 = 54, so 6 × 9 = 54']},
+  {id:'doubling', name:'Doubling and halving', why:'The 2s, 4s and 8s are the same table doubled again and again. Children who can double fast can rebuild those tables from the 2s.',
+    kid:'Times 2 is double. Times 4 is double, double. Times 8 is double, double, double.', ex:['6 × 4: 6 → 12 → 24', '7 × 8: 7 → 14 → 28 → 56', '5 × 16 is the same as 10 × 8 = 80 (halve one, double the other)']},
+  {id:'split-it', name:'Split it up', why:'Break a hard fact into two easy ones (the distributive law). It is how most adults work out 7 × 8 when memory fails, and it never runs out.',
+    kid:'Stuck on a hard one? Split it into two you know, then add them together.', ex:['7 × 8 = 7 × 5 + 7 × 3 = 35 + 21 = 56', '12 × 7 = 10 × 7 + 2 × 7 = 70 + 14 = 84', '6 × 9 = 6 × 10 − 6 = 54']},
+  {id:'anchor-facts', name:'Build from a fact you know', why:'Use the 2s, 5s and 10s as anchors and step one group up or down. It turns a guess into a quick calculation.',
+    kid:'Start from an easy fact nearby and add or take away one more group.', ex:['6 × 7: 5 × 7 = 35, add one more 7 = 42', '9 × 8: 10 × 8 = 80, take away 8 = 72', '11 × 6: 10 × 6 = 60, add 6 = 66']},
+  {id:'squares', name:'Square numbers as stepping stones', why:'The squares (4, 9, 16 … 144) sit on the diagonal of the grid and are easy to picture. The facts beside them are one group away.',
+    kid:'Learn the squares first, then hop one step from them.', ex:['7 × 7 = 49, so 7 × 8 = 49 + 7 = 56', '6 × 6 = 36, so 6 × 7 = 36 + 6 = 42', '8 × 8 = 64, so 8 × 9 = 64 + 8 = 72']},
+  {id:'fact-families', name:'Fact families', why:'Every multiplication fact comes with two division facts. Practising them together is what the Year 4 check and secondary maths both lean on.',
+    kid:'Three numbers, four facts. If you know one, you know the whole family.', ex:['6 × 7 = 42, 7 × 6 = 42, 42 ÷ 6 = 7, 42 ÷ 7 = 6', '8 × 3 = 24, 3 × 8 = 24, 24 ÷ 8 = 3, 24 ÷ 3 = 8']},
+  {id:'nines-fingers', name:'The nines finger trick', why:'A hands-on trick for 9 × 1 to 9 × 10 that children love and can check themselves with. It also shows that the digits of a nines answer add to 9.',
+    kid:'Hold up 10 fingers. For 9 × 4, fold down your 4th finger. Fingers before it are tens, fingers after it are ones.', ex:['9 × 4: 3 fingers, then 6 fingers = 36', '9 × 7: 6 fingers, then 3 fingers = 63', 'The digits always add up to 9: 3 + 6, 6 + 3']},
+  {id:'patterns', name:'Spot the patterns', why:'Each table has a pattern: 5s end in 5 or 0, 10s end in 0, 11s repeat the digit, even tables give even answers. Patterns let children check an answer is possible.',
+    kid:'Every table has a secret pattern. Use it to check your answer could be right.', ex:['5s always end in 5 or 0: 35, 40, 45', '11s up to 9 repeat the digit: 11 × 7 = 77', 'Any number times an even number is even: 7 × 6 = 42']},
+  {id:'rhymes', name:'Rhymes for the tricky ones', why:'A silly line sticks where drilling does not, and it works best for the handful of facts a child keeps missing.',
+    kid:'Some facts come with a rhyme. Say it out loud a few times and it sticks.', ex:['5, 6, 7, 8: 56 = 7 × 8', 'I ate and I ate till I was sick on the floor: 8 × 8 = 64', '6 × 8 is 48, don’t be late!']},
+  {id:'skip-counting', name:'Count in steps', why:'Chanting or clapping in 3s, 4s, 6s and 7s builds the sequences that recall comes from. Good in the car or on a walk, no screen needed.',
+    kid:'Count out loud in steps and clap on each one. Then try it faster, then backwards.', ex:['3, 6, 9, 12, 15, 18, 21, 24 …', '7, 14, 21, 28, 35, 42, 49, 56 …', 'Backwards: 48, 42, 36, 30 …']},
+  {id:'card-game', name:'Times-table snap', why:'Two players turn over a card each and race to say the product. Quick, competitive and good for the facts that need speed under the 6-second limit.',
+    kid:'Play with a grown-up or each other: turn over two cards and be first to shout the answer.', ex:['Turn over 6 and 7: shout 42!', 'Picture cards count as 10, aces as 1', 'Keep the cards you win. Most cards wins.']}
+];
+const methodState = id => (S.methods[id] || {}).status || 'new';
+function methodsParent(){
+  const order = {new:0, approved:1, rejected:2};
+  const list = METHODS.slice().sort((a, b) => order[methodState(a.id)] - order[methodState(b.id)]);
+  const kids = S.players.map(p => p.name).join(' and ') || 'the children';
+  return `<h2 class="sec">New ways to learn</h2>
+    <p class="muted" style="margin:-6px 0 16px">Suggested methods. Approve one and it appears for ${esc(kids)} in Explore; reject it and they never see it.</p>
+    <div class="settings">${list.map(m => {
+      const st = methodState(m.id), d = S.methods[m.id] || {};
+      return `<div class="sticker"><div class="card-h"><h3>${esc(m.name)}</h3>${st === 'new' ? '' : `<span class="pill ${st}">${st === 'approved' ? 'Approved' : 'Rejected'}</span>`}</div>
+        <p>${esc(m.why)}</p>
+        <div class="mistakes" style="margin:12px 0"><span>${esc(m.ex[0])}</span></div>
+        ${st === 'new' ? '' : `<p class="muted small">${st === 'approved' ? 'Approved' : 'Rejected'}${d.by ? ' by ' + esc(d.by) : ''}${d.at ? ' ' + ago(d.at) : ''}.</p>`}
+        <div class="row">${st !== 'approved' ? `<button class="btn small" data-act="method" data-id="${m.id}" data-s="approved">Approve</button>` : ''}${st !== 'rejected' ? `<button class="btn small ghost" data-act="method" data-id="${m.id}" data-s="rejected">Reject</button>` : ''}</div>
+      </div>`;
+    }).join('')}</div>`;
+}
+function methodsKids(){
+  const ok = METHODS.filter(m => methodState(m.id) === 'approved');
+  if (!ok.length) return '';
+  return `<h2 class="sec">New ways to learn</h2><div class="settings">${ok.map(m => `<div class="sticker"><h3>${esc(m.name)}</h3><p style="font-weight:800">${esc(m.kid)}</p>
+    <div class="mistakes" style="margin-top:12px;flex-direction:column;align-items:flex-start">${m.ex.map(x => `<span>${esc(x)}</span>`).join('')}</div></div>`).join('')}</div>`;
+}
+
 /* ---------- state ---------- */
 const S = {
   screen:'loading', players:[], family:{rewards:{}}, me:null, prog:null, sessions:[], logins:[], logCur:null,
-  play:null, result:null, v:{}, err:null, okMsg:null, parentOK:false, pdata:{}, sound: ls.get('sound') ?? true
+  play:null, result:null, v:{}, err:null, okMsg:null, parentOK:false, pdata:{}, methods:{}, sound: ls.get('sound') ?? true
 };
 const defaultProg = id => ({player:id, xp:0, facts:{}, prizes:{bronze:0,silver:0,gold:0,diamond:0}, prizeLog:[], bests:{}, days:[], daily:{}, badges:{}, totals:{q:0,c:0}, logins:0, lastLogin:0, created:Date.now()});
 function normProg(p, id){ const d = defaultProg(id); p = Object.assign(d, p || {}); p.prizes = Object.assign(defaultProg(id).prizes, p.prizes || {}); return p; }
@@ -301,6 +353,7 @@ async function loadPlayers(){
   try {
     S.players = (await Store.list('players')).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     S.family = Object.assign({rewards:{}}, (await Store.get('settings/family')) || {});
+    S.methods = Object.fromEntries((await Store.list('methods')).map(m => [m.id, m]));
   } catch { S.players = []; toast("Couldn't load players. Reload the page to try again."); }
 }
 async function loadPlayerData(id){
@@ -1128,7 +1181,7 @@ function scrExplore(){
       <p class="hint" style="margin:0 0 16px">${esc(hint(a, b))}</p>
       <div class="row"><button class="btn" data-act="rec" data-mode="practice" data-tables="${uniq([a, b]).join(',')}">Practise the ${a === b ? a + 's' : a + 's and ' + b + 's'}</button></div>
     </div>
-  </div>`;
+  </div>${methodsKids()}`;
 }
 
 function parentRecs(pl, d){
@@ -1191,6 +1244,7 @@ function scrParent(){
       <div class="row">${isParentDevice() ? '' : '<button class="btn ghost" data-act="parent-lock">Lock</button>'}<button class="btn ghost" data-act="go" data-to="${back}">Back to the app</button></div></div>
     ${S.okMsg ? `<p class="callout mint" role="status" style="margin-bottom:18px">${esc(S.okMsg)}</p>` : ''}
     ${pls.length ? `<div class="overview">${overview}</div>${detail}` : '<p class="callout" style="margin-bottom:18px">Add the first player below to get started.</p>'}
+    ${methodsParent()}
     <h2 class="sec">Settings</h2>
     <div class="settings">
       ${pls.map(pl => `<form class="sticker form" data-form="edit-player" data-id="${esc(pl.id)}">
@@ -1294,6 +1348,13 @@ const A = {
   'ex-hl': el => { const v = el.dataset.v === 'sq' ? 'sq' : +el.dataset.v; S.v.ex.hl = S.v.ex.hl === v ? null : v; render(); },
   'parent-lock': () => { S.parentOK = false; go(S.me ? 'home' : 'login'); },
   pp: el => { S.v.pp = el.dataset.id; render(); },
+  method: async el => {
+    const id = el.dataset.id, status = el.dataset.s, m = METHODS.find(x => x.id === id);
+    if (!m || !['approved', 'rejected'].includes(status)) return;
+    const doc = {status, by: (Device.get() || {}).name || '', at: Date.now()};
+    try { await Store.set('methods/' + id, doc); S.methods[id] = doc; toast(status === 'approved' ? `${m.name} approved: it shows in Explore for the children.` : `${m.name} rejected: the children won't see it.`); } catch { saveFail(); }
+    render();
+  },
   'reset-pin': async el => {
     const id = el.dataset.id;
     if (S.v.confirmReset !== id) { S.v.confirmReset = id; render(); return; }
