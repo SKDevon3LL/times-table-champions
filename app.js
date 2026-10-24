@@ -310,30 +310,30 @@ function hint(a, b){
 /* ---------- new ways to learn: suggested to the grown-ups, shown to the children once approved ---------- */
 // One document per method, methods/<id> {status:'approved'|'rejected', by, at}, so two grown-ups deciding at once never clash.
 const METHODS = [
-  {id:'factor-pairs', name:'Factor pairs', why:'Start from the answer and find every pair that makes it. It ties multiplication to division and shows why 24 turns up in four different tables.',
-    kid:'Pick a number and hunt for all the pairs that multiply to make it. Each pair is two facts for the price of one.', ex:['24 = 1 × 24 = 2 × 12 = 3 × 8 = 4 × 6', '36 = 1 × 36 = 2 × 18 = 3 × 12 = 4 × 9 = 6 × 6', '48 = 4 × 12 = 6 × 8']},
-  {id:'turnarounds', name:'Turnaround facts', why:'Multiplying works both ways round, so 144 facts are really only 78. Knowing that halves the job and takes the fear out of the big grid.',
-    kid:'Learn one fact and you get its twin free. Turn the dots on their side and the answer stays the same.', ex:['7 × 8 = 56, so 8 × 7 = 56', '3 × 12 = 36, so 12 × 3 = 36', '9 × 6 = 54, so 6 × 9 = 54']},
-  {id:'doubling', name:'Doubling and halving', why:'The 2s, 4s and 8s are the same table doubled again and again. Children who can double fast can rebuild those tables from the 2s.',
-    kid:'Times 2 is double. Times 4 is double, double. Times 8 is double, double, double.', ex:['6 × 4: 6 → 12 → 24', '7 × 8: 7 → 14 → 28 → 56', '5 × 16 is the same as 10 × 8 = 80 (halve one, double the other)']},
-  {id:'split-it', name:'Split it up', why:'Break a hard fact into two easy ones (the distributive law). It is how most adults work out 7 × 8 when memory fails, and it never runs out.',
-    kid:'Stuck on a hard one? Split it into two you know, then add them together.', ex:['7 × 8 = 7 × 5 + 7 × 3 = 35 + 21 = 56', '12 × 7 = 10 × 7 + 2 × 7 = 70 + 14 = 84', '6 × 9 = 6 × 10 − 6 = 54']},
-  {id:'anchor-facts', name:'Build from a fact you know', why:'Use the 2s, 5s and 10s as anchors and step one group up or down. It turns a guess into a quick calculation.',
-    kid:'Start from an easy fact nearby and add or take away one more group.', ex:['6 × 7: 5 × 7 = 35, add one more 7 = 42', '9 × 8: 10 × 8 = 80, take away 8 = 72', '11 × 6: 10 × 6 = 60, add 6 = 66']},
-  {id:'squares', name:'Square numbers as stepping stones', why:'The squares (4, 9, 16 … 144) sit on the diagonal of the grid and are easy to picture. The facts beside them are one group away.',
-    kid:'Learn the squares first, then hop one step from them.', ex:['7 × 7 = 49, so 7 × 8 = 49 + 7 = 56', '6 × 6 = 36, so 6 × 7 = 36 + 6 = 42', '8 × 8 = 64, so 8 × 9 = 64 + 8 = 72']},
-  {id:'fact-families', name:'Fact families', why:'Every multiplication fact comes with two division facts. Practising them together is what the Year 4 check and secondary maths both lean on.',
-    kid:'Three numbers, four facts. If you know one, you know the whole family.', ex:['6 × 7 = 42, 7 × 6 = 42, 42 ÷ 6 = 7, 42 ÷ 7 = 6', '8 × 3 = 24, 3 × 8 = 24, 24 ÷ 8 = 3, 24 ÷ 3 = 8']},
-  {id:'nines-fingers', name:'The nines finger trick', why:'A hands-on trick for 9 × 1 to 9 × 10 that children love and can check themselves with. It also shows that the digits of a nines answer add to 9.',
-    kid:'Hold up 10 fingers. For 9 × 4, fold down your 4th finger. Fingers before it are tens, fingers after it are ones.', ex:['9 × 4: 3 fingers, then 6 fingers = 36', '9 × 7: 6 fingers, then 3 fingers = 63', 'The digits always add up to 9: 3 + 6, 6 + 3']},
-  {id:'patterns', name:'Spot the patterns', why:'Each table has a pattern: 5s end in 5 or 0, 10s end in 0, 11s repeat the digit, even tables give even answers. Patterns let children check an answer is possible.',
-    kid:'Every table has a secret pattern. Use it to check your answer could be right.', ex:['5s always end in 5 or 0: 35, 40, 45', '11s up to 9 repeat the digit: 11 × 7 = 77', 'Any number times an even number is even: 7 × 6 = 42']},
-  {id:'rhymes', name:'Rhymes for the tricky ones', why:'A silly line sticks where drilling does not, and it works best for the handful of facts a child keeps missing.',
-    kid:'Some facts come with a rhyme. Say it out loud a few times and it sticks.', ex:['5, 6, 7, 8: 56 = 7 × 8', 'I ate and I ate till I was sick on the floor: 8 × 8 = 64', '6 × 8 is 48, don’t be late!']},
-  {id:'skip-counting', name:'Count in steps', why:'Chanting or clapping in 3s, 4s, 6s and 7s builds the sequences that recall comes from. Good in the car or on a walk, no screen needed.',
-    kid:'Count out loud in steps and clap on each one. Then try it faster, then backwards.', ex:['3, 6, 9, 12, 15, 18, 21, 24 …', '7, 14, 21, 28, 35, 42, 49, 56 …', 'Backwards: 48, 42, 36, 30 …']},
-  {id:'card-game', name:'Times-table snap', why:'Two players turn over a card each and race to say the product. Quick, competitive and good for the facts that need speed under the 6-second limit.',
-    kid:'Play with a grown-up or each other: turn over two cards and be first to shout the answer.', ex:['Turn over 6 and 7: shout 42!', 'Picture cards count as 10, aces as 1', 'Keep the cards you win. Most cards wins.']}
+  {id:'factor-pairs', name:'Factor pairs', why:'Find every pair that makes a number. Links times and divide.',
+    kid:'Find all the pairs that make a number.', ex:['24 = 1 × 24 = 2 × 12 = 3 × 8 = 4 × 6', '36 = 1 × 36 = 2 × 18 = 3 × 12 = 4 × 9 = 6 × 6', '48 = 4 × 12 = 6 × 8']},
+  {id:'turnarounds', name:'Turnaround facts', why:'Facts work both ways, so 144 facts are really 78.',
+    kid:'Learn one fact, get its twin free.', ex:['7 × 8 = 56, so 8 × 7 = 56', '3 × 12 = 36, so 12 × 3 = 36', '9 × 6 = 54, so 6 × 9 = 54']},
+  {id:'doubling', name:'Doubling and halving', why:'The 4s and 8s are the 2s doubled.',
+    kid:'×2 is double. ×4 is double twice. ×8 is double three times.', ex:['6 × 4: 6 → 12 → 24', '7 × 8: 7 → 14 → 28 → 56', '5 × 16 is the same as 10 × 8 = 80 (halve one, double the other)']},
+  {id:'split-it', name:'Split it up', why:'Split a hard fact into two easy ones.',
+    kid:'Stuck? Split it into two you know, then add.', ex:['7 × 8 = 7 × 5 + 7 × 3 = 35 + 21 = 56', '12 × 7 = 10 × 7 + 2 × 7 = 70 + 14 = 84', '6 × 9 = 6 × 10 − 6 = 54']},
+  {id:'anchor-facts', name:'Build from a fact you know', why:'Step up or down from the 2s, 5s and 10s.',
+    kid:'Start from an easy fact and add or take one group.', ex:['6 × 7: 5 × 7 = 35, add one more 7 = 42', '9 × 8: 10 × 8 = 80, take away 8 = 72', '11 × 6: 10 × 6 = 60, add 6 = 66']},
+  {id:'squares', name:'Square numbers as stepping stones', why:'Learn the squares; their neighbours are one step away.',
+    kid:'Learn the squares, then hop one step.', ex:['7 × 7 = 49, so 7 × 8 = 49 + 7 = 56', '6 × 6 = 36, so 6 × 7 = 36 + 6 = 42', '8 × 8 = 64, so 8 × 9 = 64 + 8 = 72']},
+  {id:'fact-families', name:'Fact families', why:'Every times fact gives two divide facts.',
+    kid:'Three numbers, four facts.', ex:['6 × 7 = 42, 7 × 6 = 42, 42 ÷ 6 = 7, 42 ÷ 7 = 6', '8 × 3 = 24, 3 × 8 = 24, 24 ÷ 8 = 3, 24 ÷ 3 = 8']},
+  {id:'nines-fingers', name:'The nines finger trick', why:'A finger trick for the 9s.',
+    kid:'10 fingers up. For 9 × 4 fold down finger 4: 3 and 6 = 36.', ex:['9 × 4: 3 fingers, then 6 fingers = 36', '9 × 7: 6 fingers, then 3 fingers = 63', 'The digits always add up to 9: 3 + 6, 6 + 3']},
+  {id:'patterns', name:'Spot the patterns', why:'Patterns show if an answer could be right.',
+    kid:'Use the table’s pattern to check your answer.', ex:['5s always end in 5 or 0: 35, 40, 45', '11s up to 9 repeat the digit: 11 × 7 = 77', 'Any number times an even number is even: 7 × 6 = 42']},
+  {id:'rhymes', name:'Rhymes for the tricky ones', why:'A silly rhyme for a fact that won’t stick.',
+    kid:'Say the rhyme out loud. It sticks!', ex:['5, 6, 7, 8: 56 = 7 × 8', 'I ate and I ate till I was sick on the floor: 8 × 8 = 64', '6 × 8 is 48, don’t be late!']},
+  {id:'skip-counting', name:'Count in steps', why:'Count and clap in steps. Great in the car.',
+    kid:'Count in steps and clap. Then faster!', ex:['3, 6, 9, 12, 15, 18, 21, 24 …', '7, 14, 21, 28, 35, 42, 49, 56 …', 'Backwards: 48, 42, 36, 30 …']},
+  {id:'card-game', name:'Times-table snap', why:'Race to say the answer to two cards.',
+    kid:'Turn two cards. First to shout the answer wins.', ex:['Turn over 6 and 7: shout 42!', 'Picture cards count as 10, aces as 1', 'Keep the cards you win. Most cards wins.']}
 ];
 const methodState = id => (S.methods[id] || {}).status || 'new';
 // The suggested methods, then the ones the grown-ups wrote themselves (methods/<id> with custom: true), oldest first.
@@ -343,7 +343,7 @@ function methodsParent(){
   const list = allMethods().sort((a, b) => order[methodState(a.id)] - order[methodState(b.id)]);
   const kids = S.players.map(p => p.name).join(' and ') || 'the children';
   return `<h2 class="sec">New ways to learn</h2>
-    <p class="muted" style="margin:-6px 0 16px">Suggested methods, and any you add yourself. Approve one and it appears for ${esc(kids)} in Explore; reject it and they never see it.</p>
+    <p class="muted" style="margin:-6px 0 16px">Approve one and ${esc(kids)} see it in Explore.</p>
     <div class="settings">${list.map(m => {
       const st = methodState(m.id), d = S.methods[m.id] || {};
       return `<div class="sticker"><div class="card-h"><h3>${esc(m.name)}</h3>${st === 'new' ? '' : `<span class="pill ${st}">${st === 'approved' ? 'Approved' : 'Rejected'}</span>`}</div>
@@ -515,25 +515,25 @@ function toast(msg){
 function recommendations(p, sessions){
   const out = [];
   if (!sessions.length) {
-    out.push({text:'Warm up with a Practice round on the 2s, 5s and 10s. They help you work out lots of other facts.', mode:'practice', tables:[2,5,10], cta:'Practise 2s, 5s and 10s'});
-    out.push({text:'Have a look around Explore to see the patterns hiding in the times tables.', mode:'explore', tables:[], cta:'Open Explore'});
+    out.push({text:'Warm up on the 2s, 5s and 10s.', mode:'practice', tables:[2,5,10], cta:'Practise 2s, 5s and 10s'});
+    out.push({text:'Find the patterns in Explore.', mode:'explore', tables:[], cta:'Open Explore'});
     return out;
   }
   const scored = ALL.map(t => Object.assign({t}, tableStats(p, t))).filter(x => x.n >= 6).sort((a, b) => a.acc - b.acc);
-  if (scored[0] && scored[0].acc < .9) out.push({text:`Your ${scored[0].t}s are the trickiest right now: ${Math.round(scored[0].acc*100)}% right so far. A Practice round with tricks will help.`, mode:'practice', tables:[scored[0].t], cta:`Practise the ${scored[0].t}s`});
+  if (scored[0] && scored[0].acc < .9) out.push({text:`Your ${scored[0].t}s are trickiest: ${Math.round(scored[0].acc*100)}% right. Practise them.`, mode:'practice', tables:[scored[0].t], cta:`Practise the ${scored[0].t}s`});
   const tricky = ALLKEYS.map(k => ({k, f:p.facts[k]})).filter(x => x.f && x.f.n >= 2 && x.f.c / x.f.n < .8).sort((a, b) => a.f.c/a.f.n - b.f.c/b.f.n).slice(0, 3);
   if (tricky.length) out.push({text:`Watch out for ${tricky.map(x => fmtKey(x.k)).join(', ')}. Today's Daily Challenge picks facts like these.`, mode:'daily', tables:[], cta:'Daily Challenge'});
   const slow = ALLKEYS.filter(k => !k.startsWith('1x')).map(k => ({k, f:p.facts[k]})).filter(x => x.f && x.f.c > 0 && x.f.ms > 6000).sort((a, b) => b.f.ms - a.f.ms).slice(0, 2);
   if (slow.length) {
     const tabs = uniq(slow.flatMap(x => x.k.split('x').map(Number))).filter(t => t !== 1 && t !== 10).slice(0, 3);
-    out.push({text:`You know ${fmtKey(slow[0].k)}, but it takes you about ${Math.round(slow[0].f.ms/1000)} seconds. Beat the Clock will make it quicker.`, mode:'clock', tables: tabs.length ? tabs : [2,5,10], cta:'Beat the Clock'});
+    out.push({text:`You know ${fmtKey(slow[0].k)}, but it takes ${Math.round(slow[0].f.ms/1000)} seconds. Beat the Clock!`, mode:'clock', tables: tabs.length ? tabs : [2,5,10], cta:'Beat the Clock'});
   }
   const lastTest = [...sessions].reverse().find(s => s.mode === 'test' && !s.ab);
-  if (lastTest && lastTest.pct < 70) out.push({text:`Your last test was ${lastTest.pct}%. Practise those tables, then go for a Bronze Medal at 70%.`, mode:'practice', tables:lastTest.tables, cta:'Practise them'});
-  else if (lastTest && lastTest.pct < 100) { const nt = nextTier(lastTest.pct); out.push({text:`Last test: ${lastTest.pct}%. Score ${nt.min}% next time to win a ${nt.name}.`, mode:'test', tables:lastTest.tables, cta:'Try that test again'}); }
+  if (lastTest && lastTest.pct < 70) out.push({text:`Last test ${lastTest.pct}%. Practise, then aim for 70%.`, mode:'practice', tables:lastTest.tables, cta:'Practise them'});
+  else if (lastTest && lastTest.pct < 100) { const nt = nextTier(lastTest.pct); out.push({text:`Last test ${lastTest.pct}%. Get ${nt.min}% for a ${nt.name}.`, mode:'test', tables:lastTest.tables, cta:'Try that test again'}); }
   const next = TEACH_ORDER.find(t => t !== 1 && tableStats(p, t).n === 0);
-  if (next) out.push({text:`Ready for something new? Try the ${next}s next.`, mode:'practice', tables:[next], cta:`Start the ${next}s`});
-  if (overallMastery(p) >= .85 && !p.prizes.diamond) out.push({text:'You are close to expert level. Go for a Diamond Crown: 100% on an all-tables test.', mode:'test', tables:ALL, cta:'All-tables test'});
+  if (next) out.push({text:`Try the ${next}s next.`, mode:'practice', tables:[next], cta:`Start the ${next}s`});
+  if (overallMastery(p) >= .85 && !p.prizes.diamond) out.push({text:'Nearly expert! Go for 100% on all tables.', mode:'test', tables:ALL, cta:'All-tables test'});
   return out.slice(0, 3);
 }
 function weeklyGoals(p, sessions, player){
@@ -569,9 +569,9 @@ const focusTable = p => { const plan = planFor(S.me); return (plan && (plan.focu
 // played out of order still earns points, just not for the round. A Grown-ups demo runs the round too, on its copy, and
 // saves nothing. The approved ways to learn take turns day by day; how many come each day is set by Taylor's weekly plan
 // (plan.methods, 1 to 3), so the round grows as the children cope with it.
-const STEP_CLOCK = {k:'clock', name:'Beat the Clock', sub:'How many can you get in 60 seconds?', act:'setup', mode:'clock'};
-const STEP_EXPLORE = {k:'explore', name:'Explore', sub:'Look closely at 5 facts in the grid.', act:'go', mode:'explore'};
-const STEP_TEST = {k:'test', name:'Take a test', sub:'20 questions. Finish it and every point from the round is doubled.', act:'setup', mode:'test'};
+const STEP_CLOCK = {k:'clock', name:'Beat the Clock', sub:'As many as you can in 60 seconds.', act:'setup', mode:'clock'};
+const STEP_EXPLORE = {k:'explore', name:'Explore', sub:'Tap 5 facts in the grid.', act:'go', mode:'explore'};
+const STEP_TEST = {k:'test', name:'Take a test', sub:'20 questions. Then your points double!', act:'setup', mode:'test'};
 const EXPLORE_FACTS = 5, METHOD_QS = 5;
 function methodsToday(){
   const ok = allMethods().filter(m => methodState(m.id) === 'approved'); if (!ok.length) return [];
@@ -580,7 +580,7 @@ function methodsToday(){
   return Array.from({length:n}, (_, i) => ok[(start + i) % ok.length]);
 }
 const bonusSteps = () => [STEP_CLOCK, STEP_EXPLORE,
-  ...methodsToday().map(m => ({k:'m:' + m.id, name:`Try: ${m.name}`, sub:`See how it works, then ${METHOD_QS} questions using it.`, act:'method-step', mode:m.id})), STEP_TEST];
+  ...methodsToday().map(m => ({k:'m:' + m.id, name:`Try: ${m.name}`, sub:`Learn the trick, then ${METHOD_QS} questions.`, act:'method-step', mode:m.id})), STEP_TEST];
 const todayDone = p => { const d = (p.daily || {})[dayStr()]; return !!(d && d.pct >= 80); };
 const bonusToday = p => (p.bonus || {})[dayStr()] || null;
 // Steps done today; a round started on the version before 24 Oct evening kept them as clock/explore/test fields.
@@ -602,7 +602,7 @@ function exploreLooked(k){
   if (r.ex.length >= EXPLORE_FACTS) {
     const got = EXPLORE_FACTS * 10; r.steps.explore = Date.now(); r.xp += got; p.xp += got;
     const next = curStep(p);
-    toast(`Explore complete! +${got} ${ptsName()}. Next: ${next ? next.name : 'take a test'}.`); sound('win');
+    toast(`Explore done! +${got} ${ptsName()}.`); sound('win');
   }
   if (!S.demo) saveProg().catch(saveFail);
 }
@@ -622,12 +622,12 @@ function gameBanner(p){
 function todayCard(p){
   const d = (p.daily || {})[dayStr()], done = todayDone(p), steps = bonusSteps(), st = bonusStep(p), r = bonusToday(p) || {ex:[], xp:0};
   const day = new Date().toLocaleDateString('en-GB', {weekday:'long'}), pts = ptsName(), dn = skin().daily;
-  const head = !done ? {title:"Today's work", text:`Start with ${dn}. Then the Bonus Round, in this order: finish them all and every point you win in them is doubled.`}
-    : st < steps.length ? {title:"Today's work complete!", text:`Want more ${pts}? Do the Bonus Round, in this order. Finish them all and every point you win in them is doubled.`}
-    : {title:'Bonus Round complete!', text:`Everything done today, with ${r.bonusXp || r.xp} extra ${pts} for finishing the round. Play anything you like for more.`};
+  const head = !done ? {title:"Today's work", text:`Start with ${dn}. Then the Bonus Round, in order, for double ${pts}.`}
+    : st < steps.length ? {title:"Today's work complete!", text:`Want more ${pts}? Do the Bonus Round in order for double.`}
+    : {title:'Bonus Round complete!', text:`All done! +${r.bonusXp || r.xp} extra ${pts} today.`};
   const row = (n, name, sub, state, btn) => `<li class="${state}"><span class="n" aria-hidden="true">${state === 'done' ? '✓' : n}</span><div><b>${esc(name)}</b><small>${esc(sub)}</small></div>${btn}</li>`;
   const btn = (act, mode, label) => `<button class="btn" data-act="${act}" data-to="${mode}" data-mode="${mode}">${label}</button>`;
-  const rows = [row(1, dn, done ? `Done today: ${d.pct}%.` : d ? `Best today ${d.pct}%. Score 80% or more to complete it.` : `15 questions on your trickiest facts. Score 80% or more: +50 ${pts}.`, done ? 'done' : 'now', done ? '' : btn('start-daily', '', d ? 'Try again' : 'Start'))];
+  const rows = [row(1, dn, done ? `Done today: ${d.pct}%.` : d ? `Best today ${d.pct}%. Get 80% to finish.` : `15 tricky facts. 80% = +50 ${pts}.`, done ? 'done' : 'now', done ? '' : btn('start-daily', '', d ? 'Try again' : 'Start'))];
   steps.forEach((s, i) => {
     const isDone = done && st > i, isNow = done && st === i;
     const sub = isDone ? (s.k === 'explore' ? `Done: ${EXPLORE_FACTS} facts looked at.` : s.k === 'test' ? `Done. Round complete: +${r.bonusXp || 0} ${pts}.` : 'Done.')
@@ -863,7 +863,7 @@ function loginForm(p){
   const setup = !p.pinHash;
   return `<form class="sticker form" data-form="login" data-id="${esc(p.id)}">
     <h2>${setup ? `Choose your PIN, ${esc(p.name)}` : `Welcome back, ${esc(p.name)}!`}</h2>
-    ${setup ? '<p class="muted">First time here. Choose 4 numbers you will remember, and keep them secret.</p>' : ''}
+    ${setup ? '<p class="muted">Choose 4 secret numbers you’ll remember.</p>' : ''}
     <label for="lg-pin">${setup ? 'Choose a PIN (4 numbers)' : 'Your PIN'}</label>
     <input id="lg-pin" name="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="4" required data-autofocus>
     ${setup ? '<label for="lg-pin2">Type your PIN again</label><input id="lg-pin2" name="pin2" type="password" inputmode="numeric" autocomplete="off" maxlength="4" required>' : ''}
@@ -898,12 +898,12 @@ function scrHome(){
   <div class="grid-home">
     <div class="col">
       ${gameBanner(p)}${todayCard(p)}
-      <div class="extra-h"><h2>Extra practice</h2><p>Not part of today's work or the weekly plan: play any of these whenever you like. Every right answer earns ${ptsName()}, more on harder tables like the 7s and 8s, and a test at 70% or more on a table that isn't strong yet also wins a trophy for your ${skinId() === 'eras' ? 'Eras Tour' : skinId() === 'trail' ? 'jungle trail' : 'weekly trail'}.</p></div>
+      <div class="extra-h"><h2>Extra practice</h2><p>Not part of today's plan. Play any time for more ${ptsName()}.</p></div>
       <div class="modes">
-        ${modeTile('practice', '7×8', 'Practise', `No timer, tricks when you get stuck. More ${ptsName()} on harder tables.`, 'mint')}
-        ${modeTile('test', '90%', 'Take a test', "70% or more on a table that isn't strong yet wins a trophy.", 'sun')}
-        ${modeTile('clock', '60s', 'Beat the Clock', `Beat your best in 60 seconds. More ${ptsName()} on harder tables.`, 'tomato')}
-        ${modeTile('explore', '12²', 'Explore', 'See the patterns in every table, just for fun.', 'sky')}
+        ${modeTile('practice', '7×8', 'Practise', 'No timer. Tricks when stuck.', 'mint')}
+        ${modeTile('test', '90%', 'Take a test', 'Win trophies at 70%.', 'sun')}
+        ${modeTile('clock', '60s', 'Beat the Clock', 'Beat your best in 60 seconds.', 'tomato')}
+        ${modeTile('explore', '12²', 'Explore', 'Spot the patterns.', 'sky')}
       </div>
       <div class="sticker"><p class="eyebrow">From Taylor, your Times Table Coach</p>${planFor(me) && planFor(me).note ? `<p class="callout" style="margin-top:10px">${esc(planFor(me).note)}</p>` : ''}<ul class="recs">${recommendations(p, S.sessions).map(recItem).join('')}</ul></div>
     </div>
@@ -966,7 +966,7 @@ const trailDress = (p, i) => (Math.floor(trailStart(p) / (7 * 864e5)) * TRAIL_ST
 const JUNGLE = [[0, 'Load the boat on the river'], [1, 'Find the jungle trail'], [2, 'Choose the right path'], [3, 'Fill up at the waterfall'],
   [4, 'Walk through the dark forest'], [6, 'Swing across the ravine'], [12, 'Reach the edge of the gold jungle']].map(([tool, camp]) => ({tool, camp}));
 const allTablesTest = s => s.mode === 'test' && !s.ab && s.tables && s.tables.length === 12;
-const trophyLine = p => `<div class="trophy-line">${TIERS.map(t => `<span class="${p.prizes[t.id] ? '' : 'locked'}" title="${esc(t.name)}">${medal(t.id, 28)}<b class="num">${p.prizes[t.id] || 0}</b></span>`).join('')}<span class="muted small">Win a trophy to move on: 70% or more in the Daily Challenge, or in a test with a table that isn't strong yet.</span></div>`;
+const trophyLine = p => `<div class="trophy-line">${TIERS.map(t => `<span class="${p.prizes[t.id] ? '' : 'locked'}" title="${esc(t.name)}">${medal(t.id, 28)}<b class="num">${p.prizes[t.id] || 0}</b></span>`).join('')}<span class="muted small">Win trophies with 70% to move on.</span></div>`;
 
 function dressSvg(i, size, locked){
   const L = 'var(--line)', sw = 2.2;
@@ -1064,7 +1064,7 @@ function collectionCard(p){
   const tl = sel !== undefined && sel < TRAIL_STOPS && TOOLS[JUNGLE[sel].tool];
   return `<div class="sticker journey"><div class="card-h"><h3>This week's jungle trail</h3><span class="muted small">${n} of ${TRAIL_STOPS} camps</span></div>
     <svg viewBox="0 0 640 270" role="img" aria-label="Jungle trail: ${n} of ${TRAIL_STOPS} camps reached">${g}</svg>
-    ${n < TRAIL_STOPS ? `<p style="font-weight:800;margin:6px 0 4px">Next: camp ${n + 1}, ${esc(JUNGLE[n].camp.toLowerCase())}. Win a trophy to pack the ${esc(TOOLS[JUNGLE[n].tool].name)} and get there.</p>` : ''}
+    ${n < TRAIL_STOPS ? `<p style="font-weight:800;margin:6px 0 4px">Next: camp ${n + 1}. Win a trophy to get there.</p>` : ''}
     <div class="kit">${JUNGLE.map((j, k) => `<button class="slot-btn ${k < n ? '' : 'locked'} ${sel === k ? 'on' : ''}" data-act="item" data-i="${k}" aria-label="${esc(TOOLS[j.tool].name)}${k < n ? '' : ', not won yet'}">${toolSvg(j.tool, 36, k >= n)}<span>${k < n ? esc(TOOLS[j.tool].name) : '?'}</span></button>`).join('')}</div>
     ${tl ? `<div class="item-detail">${toolSvg(JUNGLE[sel].tool, 60, sel >= n)}<div><p class="eyebrow">Camp ${sel + 1} · ${esc(JUNGLE[sel].camp)}</p><p>${sel < n ? `<b>${esc(tl.name)}.</b> ${esc(tl.use)}` : `Win ${sel + 1 - n} more troph${sel + 1 - n === 1 ? 'y' : 'ies'} to get this tool.`}</p></div></div>` : ''}
     ${goal}${trophyLine(p)}</div>`;
@@ -1115,9 +1115,9 @@ function heatmap(p, compact){
 function scrSetup(){
   const m = S.v.mode, c = S.v.cfg;
   const info = {
-    practice:['Practise', 'Take your time. Get one wrong and you will see the answer and a trick to remember it.'],
-    test:['Take a test', 'No hints. Score 70% for a Bronze Medal, 80% for Silver, 90% for a Gold Trophy and 100% for the Diamond Crown.'],
-    clock:['Beat the Clock', 'Answer as many as you can in 60 seconds. Your answer is checked as soon as you type enough digits.']
+    practice:['Practise', 'No timer. Get one wrong and you get a trick.'],
+    test:['Take a test', '70% Bronze, 80% Silver, 90% Gold, 100% Diamond.'],
+    clock:['Beat the Clock', 'As many as you can in 60 seconds.']
   }[m];
   const best = m === 'clock' ? S.prog.bests[c.tables.slice().sort((a, b) => a - b).join('-') + '|' + ['mul', ...(c.miss ? ['miss'] : []), ...(c.div ? ['div'] : [])].join('')] : null;
   return `${topbar(m)}<section class="setup">
@@ -1125,14 +1125,14 @@ function scrSetup(){
     <div class="sticker" style="display:grid;gap:18px">
       <div><div class="card-h"><h3>Which times tables?</h3><div class="row"><button class="btn ghost small" data-act="all-tables">All</button><button class="btn ghost small" data-act="clear-tables">Clear</button></div></div>
         <div class="chips">${ALL.map(t => { const st = t !== 1 && strongCount(S.prog, t) === 12; return `<button class="tchip ${c.tables.includes(t) ? 'on' : ''} ${st ? 'strong' : ''}" data-act="toggle-table" data-t="${t}" aria-pressed="${c.tables.includes(t)}" aria-label="${t} times table${st ? ', strong' : ', needs practice'}${tablePts(t) > 10 ? `, ${tablePts(t)} points a right answer` : ''}">×${t}${st ? ' \u2713' : ''}${tablePts(t) > 10 ? `<small class="up">+${(tablePts(t) - 10) * 10}%</small>` : ''}</button>`; }).join('')}</div>
-        <p class="muted small" style="margin-top:8px">\u2713 means that table is strong already. The others need practice.</p>
-        <p class="muted small" style="margin-top:4px">Harder tables earn more: 15 ${ptsName()} a right answer on the 6s, 7s, 8s, 9s and 12s, 12 on the 3s and 4s, 10 on the rest. Missing numbers and division add 5.</p>
-        ${S.v.suggested && c.tables.length === 1 && c.tables[0] === S.v.suggested ? `<p class="muted small" style="margin-top:10px">We picked the ${S.v.suggested}s for you: they're the ones to work on next. Tap any table to change.</p>` : ''}</div>
+        <p class="muted small" style="margin-top:8px">\u2713 = strong already.</p>
+        <p class="muted small" style="margin-top:4px">Harder tables earn more ${ptsName()}.</p>
+        ${S.v.suggested && c.tables.length === 1 && c.tables[0] === S.v.suggested ? `<p class="muted small" style="margin-top:10px">We picked the ${S.v.suggested}s for you.</p>` : ''}</div>
       ${m === 'test' ? `<div><h3>How many questions?</h3><div class="chips" style="margin-top:10px">${[10,20,30].map(n => `<button class="tchip ${c.count === n ? 'on' : ''}" data-act="set-count" data-n="${n}" aria-pressed="${c.count === n}">${n}</button>`).join('')}</div></div>` : ''}
       <div style="display:grid;gap:6px"><h3>Extra question types</h3>
         <button class="toggle" data-act="toggle-kind" data-k="miss" aria-pressed="${!!c.miss}"><span class="sw"></span>Missing numbers, like 6 × ? = 42</button>
         <button class="toggle" data-act="toggle-kind" data-k="div" aria-pressed="${!!c.div}"><span class="sw"></span>Division, like 42 ÷ 6 = ?</button></div>
-      ${m === 'test' && c.tables.length ? (trophyTest(S.prog, c.tables) ? `<p class="callout mint">This test can win a trophy for your trail.</p>` : `<p class="callout">These tables are already strong, so this test earns ${ptsName()} but no trophy. Add ${(t => t ? `the ${t}s` : 'a table that is not strong yet')(focusTable(S.prog))} to win one.</p>`) : ''}
+      ${m === 'test' && c.tables.length ? (trophyTest(S.prog, c.tables) ? `<p class="callout mint">This test can win a trophy.</p>` : `<p class="callout">Already strong, so no trophy. Add ${(t => t ? `the ${t}s` : 'a table that is not strong yet')(focusTable(S.prog))} to win one.</p>`) : ''}
       ${m === 'clock' ? `<p class="callout ${best ? 'mint' : ''}">${best ? `Your best with these tables: <b>${best.score}</b> in 60 seconds (${fmtDate(best.t)}). Can you beat it?` : 'No score yet with these tables. Set your first record!'}</p>` : ''}
       <div><button class="btn big" data-act="start" ${c.tables.length ? '' : 'disabled'}>${c.tables.length ? 'Start' : 'Pick at least one table'}</button></div>
     </div></section>`;
@@ -1195,15 +1195,15 @@ function scrResults(){
       <h1 class="mega sm">${headline}</h1>
       <div><span class="score num">${big}</span> <span class="muted" style="font-weight:800">${sub}</span></div>
       <p class="callout mint">+${r.xp} ${ptsName()}${[r.uplift ? `${r.uplift} extra for harder tables` : '', r.dailyDone ? `50 bonus for completing the Daily Challenge` : ''].filter(Boolean).map((x, i, a) => (i ? '' : ' (including ') + x + (i === a.length - 1 ? ')' : ' and ')).join('')}</p>
-      ${r.bonus && r.bonus.done ? `<p class="callout mint">Bonus Round complete! The ${r.bonus.base} ${ptsName()} you won in the round are doubled: +${r.bonus.extra} extra.</p>`
-        : r.bonus && r.bonus.step ? `<p class="callout">Bonus Round: ${r.bonus.step} of ${r.bonus.of} done. Next: ${esc(r.bonus.next.name)}, and finish them all for double ${ptsName()}. ${nextBtn(r.bonus.next)}</p>`
-        : r.bonus && r.bonus.hint ? `<p class="callout">Bonus Round: do the steps in order for double ${ptsName()}. Next: ${esc(r.bonus.next.name)}. ${nextBtn(r.bonus.next)}</p>`
-        : r.dailyDone ? `<p class="callout">Today's work complete! Want more ${ptsName()}? Do the Bonus Round, in order: ${bonusSteps().map(x => x.name).join(', then ')}. Finish them all and every point you win in them is doubled. ${nextBtn(bonusSteps()[0])}</p>` : ''}
-      ${r.noTrophy ? `<p class="callout">Great score! No trophy this time: every table in this test is already strong. Add ${(t => t ? `the ${t}s` : 'a table that is not strong yet')(focusTable(S.prog))} to win one.</p>` : ''}
+      ${r.bonus && r.bonus.done ? `<p class="callout mint">Bonus Round complete! +${r.bonus.extra} extra ${ptsName()}.</p>`
+        : r.bonus && r.bonus.step ? `<p class="callout">Bonus Round: ${r.bonus.step} of ${r.bonus.of} done. ${nextBtn(r.bonus.next)}</p>`
+        : r.bonus && r.bonus.hint ? `<p class="callout">Do the Bonus Round in order. ${nextBtn(r.bonus.next)}</p>`
+        : r.dailyDone ? `<p class="callout">Today's work done! Now the Bonus Round for double ${ptsName()}. ${nextBtn(bonusSteps()[0])}</p>` : ''}
+      ${r.noTrophy ? `<p class="callout">No trophy: these tables are already strong. Next time add ${(t => t ? `the ${t}s` : 'a table that is not strong yet')(focusTable(S.prog))} to win one.</p>` : ''}
       ${reward ? `<p class="callout">Your reward for a ${prize.name}: <b>${esc(reward)}</b></p>` : ''}
       ${nt ? `<p class="callout">${r.pct < 70 ? 'So close to a prize.' : 'Brilliant work.'} Score ${nt.min}% next time to win a ${nt.name}.</p>` : ''}
       ${resultItems(r)}
-      ${r.newBadges.map(t => `<p class="callout mint">You have mastered the ${t} times table. A new badge is in your trophy cabinet.</p>`).join('')}
+      ${r.newBadges.map(t => `<p class="callout mint">You mastered the ${t}s! New badge in your cabinet.</p>`).join('')}
       ${wrongA.length ? `<div><h3 style="margin-bottom:8px">Facts to practise</h3><div class="mistakes">${wrongA.slice(0, 16).map(a => `<span>${esc(a.t.replace('?', a.a))} <small>you said ${a.g}</small></span>`).join('')}</div></div>` : (r.n >= 5 ? '<p class="callout mint">Every answer right. Amazing!</p>' : '')}
       <div class="row" style="margin-top:6px">
         <button class="btn big" data-act="again">Play again</button>
@@ -1327,16 +1327,16 @@ function scrExplore(){
   board += `</div></div>`;
   const lv = level(S.prog.facts[fkey(a, b)]);
   const p0 = S.prog, cs = todayDone(p0) ? curStep(p0) : null, exDone = !!stepsDone(bonusToday(p0)).explore;
-  const roundLine = cs && cs.k === 'explore' ? `<p class="callout" style="margin-top:10px">Bonus Round: look closely at ${EXPLORE_FACTS} different facts. ${bonusRound(p0).ex.length} of ${EXPLORE_FACTS} so far.</p>`
-    : cs && exDone ? `<p class="callout mint" style="margin-top:10px">Explore done. Next: ${esc(cs.name)}. <button class="btn small" data-act="${cs.act}" data-to="${cs.mode}" data-mode="${cs.mode}">${esc(cs.name)}</button></p>` : '';
-  return `${topbar('explore')}<div class="parent-head"><div><p class="eyebrow">Explore</p><h1 class="mega sm">Tap any square</h1><p class="lede">Every answer in the grid is a rectangle of dots. Find the patterns.</p>${roundLine}</div></div>
+  const roundLine = cs && cs.k === 'explore' ? `<p class="callout" style="margin-top:10px">Tap ${EXPLORE_FACTS} different facts: ${bonusRound(p0).ex.length} of ${EXPLORE_FACTS}.</p>`
+    : cs && exDone ? `<p class="callout mint" style="margin-top:10px">Explore done! <button class="btn small" data-act="${cs.act}" data-to="${cs.mode}" data-mode="${cs.mode}">${esc(cs.name)}</button></p>` : '';
+  return `${topbar('explore')}<div class="parent-head"><div><p class="eyebrow">Explore</p><h1 class="mega sm">Tap any square</h1><p class="lede">Tap a square to see it as dots.</p>${roundLine}</div></div>
   <div class="explore">
     <div class="sticker" style="display:grid;gap:14px">
       ${board}
       <div><p class="eyebrow" style="margin-bottom:8px">Light up a pattern</p><div class="chips">
         <button class="tchip ${e.hl === 'sq' ? 'on' : ''}" data-act="ex-hl" data-v="sq" style="font-size:16px">Square numbers</button>
         ${[2,3,4,5,6,7,8,9,10,11,12].map(n => `<button class="tchip ${e.hl === n ? 'on' : ''}" data-act="ex-hl" data-v="${n}" style="font-size:16px" aria-label="Multiples of ${n}">${n}s</button>`).join('')}
-      </div>${typeof e.hl === 'number' ? `<p class="muted small" style="margin-top:8px">Yellow squares are all in the ${e.hl} times table. See how they make stripes?</p>` : e.hl === 'sq' ? '<p class="muted small" style="margin-top:8px">Square numbers sit on the diagonal: a number times itself.</p>' : ''}</div>
+      </div>${typeof e.hl === 'number' ? `<p class="muted small" style="margin-top:8px">Yellow = the ${e.hl}s. See the stripes?</p>` : e.hl === 'sq' ? '<p class="muted small" style="margin-top:8px">Squares sit on the diagonal.</p>' : ''}</div>
     </div>
     <div class="sticker">
       <p class="eyebrow">${LEVEL_NAMES[lv]} for you</p>
@@ -1416,7 +1416,7 @@ function scrParent(){
         <label for="ep-a-${esc(pl.id)}">Age</label><input id="ep-a-${esc(pl.id)}" name="age" type="number" min="4" max="16" value="${esc(pl.age || '')}">
         <label for="ep-y-${esc(pl.id)}">School year: <b>Year ${yearOf(pl)}</b></label>
         <input id="ep-y-${esc(pl.id)}" name="year" type="range" min="3" max="8" step="1" value="${yearOf(pl)}" oninput="this.previousElementSibling.querySelector('b').textContent = 'Year ' + this.value">
-        <p class="muted small">Sets the Daily Challenge mix: Year 4 adds missing numbers, Year 5 division, Year 6 ×10 facts like 70 × 8, Year 7 and 8 ×100 facts. The weekly plan builds on it.</p>
+        <p class="muted small">Sets the question types: Year 4 missing numbers, Year 5 division, Year 6 ×10, Year 7 and 8 ×100.</p>
         <label for="ep-e-${esc(pl.id)}">Google account</label><input id="ep-e-${esc(pl.id)}" name="email" type="email" value="${esc(pl.email || '')}" placeholder="Their iPad opens on their name">
         <label for="ep-t-${esc(pl.id)}">App theme</label><select id="ep-t-${esc(pl.id)}" name="theme">${Object.entries(SKINS).map(([k, v]) => `<option value="${k}" ${(pl.theme || 'classic') === k ? 'selected' : ''}>${esc(v.label || 'Classic exercise book')}</option>`).join('')}</select>
         <label>Colour</label>${swatches('ep-c-' + pl.id, pl.color)}
@@ -1462,7 +1462,7 @@ function devicePanel(){
     <p class="muted small">${esc(syncText())}${Sync.status === 'error' && Sync.err ? ' · ' + esc(Sync.err) : ''}</p>
     <div class="row">${Sync.status === 'signed-out' ? '<button class="btn" type="button" data-act="google">Sign in with Google again</button>' : '<button class="btn" type="button" data-act="sync-now">Sync now</button>'}
       <button class="btn ghost" type="button" data-act="device-out">${S.v.confirmOut ? 'Tap again to sign out' : 'Sign this device out'}</button></div>
-    <p class="muted small">Everything is saved on this device first and copied online whenever there is internet, so the reports match on every family device.</p>
+    <p class="muted small">Saved here first, then copied online when there’s internet.</p>
   </div>`;
 }
 const swatches = (name, cur) => `<div class="swatches" role="radiogroup">${COLORS.map(([c, l]) => `<label title="${l}"><input type="radio" name="color" value="${c}" ${c === cur ? 'checked' : ''} aria-label="${l}"><span style="--c:var(--${c})"></span></label>`).join('')}</div>`;
