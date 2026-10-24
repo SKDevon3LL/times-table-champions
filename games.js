@@ -184,13 +184,17 @@ function jungle(host, api){
 
 /* ---------- Jessica: the Eras Stadium Show ---------- */
 // Choose a dress and a song, then perform. Each right answer brings more fans in; fill the stadium to win the award.
-// Song titles are real; the music is an original tune made here, never the recording or its words.
+// Song titles are real; the band plays an original tune made here, never the recording or its words. The real song is a
+// tap away in Apple Music (url: the track; Jessica's own favourites open an Apple Music search). Stage 2 may play it here.
 const SONGS = [
-  {title:'Tim McGraw', era:0, bpm:92}, {title:'Love Story', era:1, bpm:118}, {title:'Enchanted', era:2, bpm:100},
-  {title:'All Too Well', era:3, bpm:94}, {title:'Shake It Off', era:4, bpm:160}, {title:'...Ready for It?', era:5, bpm:120},
-  {title:'Cruel Summer', era:6, bpm:170}, {title:'cardigan', era:7, bpm:130}, {title:'willow', era:8, bpm:84},
-  {title:'Anti-Hero', era:9, bpm:97}, {title:'Fortnight', era:10, bpm:96}, {title:'The Fate of Ophelia', era:11, bpm:126}
+  {title:'Tim McGraw', era:0, bpm:92, url:'https://music.apple.com/gb/album/tim-mcgraw/1440802681?i=1440802686'}, {title:'Love Story', era:1, bpm:118, url:'https://music.apple.com/gb/album/love-story-taylors-version/1552791073?i=1552791427'},
+  {title:'Enchanted', era:2, bpm:100, url:'https://music.apple.com/gb/album/enchanted-taylors-version/1690839749?i=1690840535'}, {title:'All Too Well', era:3, bpm:94, url:'https://music.apple.com/gb/album/all-too-well-taylors-version/1590368448?i=1590368456'},
+  {title:'Shake It Off', era:4, bpm:160, url:'https://music.apple.com/gb/album/shake-it-off-taylors-version/1708308989?i=1708309002'}, {title:'...Ready for It?', era:5, bpm:120, url:'https://music.apple.com/gb/album/ready-for-it/1440933849?i=1440934248'},
+  {title:'Cruel Summer', era:6, bpm:170, url:'https://music.apple.com/gb/album/cruel-summer/1468058165?i=1468058171'}, {title:'cardigan', era:7, bpm:130, url:'https://music.apple.com/gb/album/cardigan/1524793738?i=1524793745'},
+  {title:'willow', era:8, bpm:84, url:'https://music.apple.com/gb/album/willow/1544275966?i=1544276228'}, {title:'Anti-Hero', era:9, bpm:97, url:'https://music.apple.com/gb/album/anti-hero/1649434004?i=1649434293'},
+  {title:'Fortnight', era:10, bpm:96, url:'https://music.apple.com/gb/album/fortnight-feat-post-malone/1736268193?i=1736268194'}, {title:'The Fate of Ophelia', era:11, bpm:126, url:'https://music.apple.com/gb/album/the-fate-of-ophelia/1838810949?i=1838810951'}
 ];
+const appleMusic = s => s.url || `https://music.apple.com/gb/search?term=${encodeURIComponent('Taylor Swift ' + s.title)}`;
 const CAPACITY = 90000, AWARD_AT = 80000;
 
 // An original pop tune: drums, bass, chords and a hook, all made in the browser from the song's own number.
@@ -235,6 +239,12 @@ function cheer(ac, big){
 function stage(host, api){
   // Jessica's real stage photos (private bucket, cached on the device): per dress a = singing, d = dancing, t = twirling.
   const sv = api.state, pick = {dress: sv.dress ?? 2, song: sv.song ?? 4};
+  // Jessica's own set list (Sam, 24 Oct 2026): she chooses her 10 favourite songs, and once all 10 are in it is fixed and
+  // replaces the twelve below. Until then the twelve play, and she can take a pick out again to fix a mistake.
+  const MY_SET = 10, mine = () => sv.mySongs || [], fixed = () => mine().length >= MY_SET;
+  const known = t => SONGS.find(x => x.title.toLowerCase().replace(/[^a-z]/g, '') === t.toLowerCase().replace(/[^a-z]/g, ''));
+  const songs = () => fixed() ? mine().slice(0, MY_SET).map(s => ({title: s.title, era: s.era, bpm: (known(s.title) || {}).bpm || 112, url: (known(s.title) || {}).url})) : SONGS;
+  if (pick.song >= songs().length) pick.song = 4;
   const pic = (d, p) => `stage/era${String(d).padStart(2, '0')}-${p}.jpg`;
   const load = (img, path) => api.picture(path).then(u => { if (img.isConnected) img.src = u; }).catch(() => { img.alt = 'Connect to Wi-Fi once to load this photo'; });
   let show = null;
@@ -257,14 +267,18 @@ function stage(host, api){
       <div class="sticker stg-preview"><img class="stg-big" data-p="${pic(pick.dress, 'a')}" alt="Jessica in the ${esc(api.eras[pick.dress].album)} dress"><p class="muted small">${(sv.awards || 0) ? `MTV Awards won: ${sv.awards} · ` : ''}Biggest crowd: ${(sv.best || 0).toLocaleString('en-GB')}</p></div>
       <div class="stg-opts">
         <div class="sticker"><h3>1. Choose your dress</h3><div class="looks">${api.eras.map((e, k) => `<button class="look ${pick.dress === k ? 'on' : ''}" data-dress="${k}" aria-label="${esc(e.album)} dress"><img data-p="${pic(k, 'a')}" alt=""><span style="--era:${e.hex};--era-t:${e.text}">${esc(e.era)}</span></button>`).join('')}</div></div>
-        <div class="sticker"><h3>2. Pick your song</h3><div class="songs">${SONGS.map((s, k) => `<button class="song ${pick.song === k ? 'on' : ''}" data-song="${k}" style="--era:${api.eras[s.era].hex};--era-t:${api.eras[s.era].text}">${esc(s.title)}</button>`).join('')}</div>
-          <p class="muted small" style="margin-top:8px">The band plays its own tune for each song. Sing along!</p></div>
+        <div class="sticker"><h3>2. Pick your song</h3><div class="songs">${songs().map((s, k) => `<button class="song ${pick.song === k ? 'on' : ''}" data-song="${k}" style="--era:${api.eras[s.era].hex};--era-t:${api.eras[s.era].text}">${esc(s.title)}</button>`).join('')}</div>
+          <div class="row" style="margin-top:12px"><a class="btn small" href="${appleMusic(songs()[pick.song])}" target="_blank" rel="noopener">\u25B6 Play \u201C${esc(songs()[pick.song].title)}\u201D in Apple Music</a></div>
+          ${fixed() ? `<p class="muted small" style="margin-top:10px">This is your own set list of ${MY_SET} favourites.</p>` : `<form class="addsong" data-k="addsong"><label for="as-t">Make your own set list: choose your ${MY_SET} favourite songs (${mine().length} of ${MY_SET} chosen). Once all ${MY_SET} are in, it is fixed.</label>
+            ${mine().length ? `<div class="chips">${mine().map((m, k) => `<button class="tchip" type="button" data-del="${k}" aria-label="Take out ${esc(m.title)}">${esc(m.title)} \u2715</button>`).join('')}</div>` : ''}
+            <div class="row"><input id="as-t" name="t" maxlength="40" required placeholder="Song title"><select name="e" aria-label="Which era">${api.eras.map((e, k) => `<option value="${k}">${esc(e.album)}</option>`).join('')}</select><button class="btn small" type="submit">Add</button></div></form>`}
+          <p class="muted small" style="margin-top:8px">On stage the band plays its own tune. Tap Play to hear the real song.</p></div>
         <button class="btn big" data-go="stage">Go on stage</button>
       </div></div>`;
     host.querySelectorAll('img[data-p]').forEach(im => load(im, im.dataset.p));
   }
   function concert(){
-    const song = SONGS[pick.song], ac = api.audio();
+    const song = songs()[pick.song] || SONGS[4], ac = api.audio();
     sv.dress = pick.dress; sv.song = pick.song; api.save();
     let crowd = 15000, asked = 0, right = 0, cancelQ = null, ended = false, pose = 0;
     host.innerHTML = `<div class="stg">
@@ -315,13 +329,20 @@ function stage(host, api){
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.dress) { pick.dress = +b.dataset.dress; wardrobe(); }
     else if (b.dataset.song) { pick.song = +b.dataset.song; wardrobe(); }
+    else if (b.dataset.del && !fixed()) { const m = mine().slice(); m.splice(+b.dataset.del, 1); sv.mySongs = m; api.save(); wardrobe(); }
     else if (b.dataset.go === 'stage') concert();
     else if (b.dataset.go === 'wardrobe') wardrobe();
+  };
+  host.onsubmit = e => {
+    e.preventDefault(); const f = e.target; if (f.dataset.k !== 'addsong' || fixed()) return;
+    const title = f.t.value.trim().slice(0, 40); if (!title) return;
+    const m = mine().filter(s => s.title.toLowerCase() !== title.toLowerCase()); m.push({title, era: +f.e.value || 0}); sv.mySongs = m.slice(0, MY_SET);
+    if (fixed()) { pick.song = 0; sv.song = 0; } api.save(); wardrobe();
   };
   wardrobe();
   // Fetch every stage photo now, so the show also works with no internet later.
   for (let d = 0; d < 12; d++) for (const p of ['a', 'd', 't']) api.picture(pic(d, p)).catch(() => {});
-  return {destroy(){ if (show) show.stop(); host.onclick = null; host.innerHTML = ''; }};
+  return {destroy(){ if (show) show.stop(); host.onclick = null; host.onsubmit = null; host.innerHTML = ''; }};
 }
 
 window.TTCGames = {jungle, stage};

@@ -545,6 +545,7 @@ function weeklyGoals(p, sessions, player){
     {name:`Play on ${dGoal} different days`, cur: uniq(wk.map(s => dayStr(s.t))).length, goal:dGoal},
     {name:'Complete 3 Daily Challenges', cur: uniq(wk.filter(s => s.mode === 'daily' && s.pct >= 80).map(s => dayStr(s.t))).length, goal:3},
     {name:`Win a ${TIERS[2].name} (90% or more)`, cur: wk.some(s => (s.mode === 'test' || s.mode === 'daily') && s.pct >= 90 && !s.ab) ? 1 : 0, goal:1},
+    {name:'Complete a Bonus Round', cur: Object.values(p.bonus || {}).some(b => b.done >= ws) ? 1 : 0, goal:1},
   ];
   if (quest) goals.push({name:`Quest: make all twelve ${quest}s facts strong`, cur: strongCount(p, quest), goal:12});
   return goals;
@@ -620,6 +621,7 @@ function weakPairs(p, n){
 function go(to){
   if (S.play && to !== 'play') { quit(); return; }
   if (S.screen === 'game' && (gameTimer || gameInst)) { const demo = !!S.demo; stopGame(); if (!demo) saveProg().catch(saveFail); }
+  if (S.reloadSoon && !S.demo && ['home', 'login', 'parent'].includes(to)) { location.reload(); return; }
   if (S.demo && (to === 'home' || to === 'login')) { endDemo(); to = 'parent'; }
   if (to === 'parent' && isParentDevice() && !S.parentOK) { S.parentOK = true; setTimeout(loadParentData, 0); }
   S.screen = to; S.err = null; S.okMsg = null; render(); scrollTo(0, 0);
@@ -853,6 +855,7 @@ function scrHome(){
   <div class="grid-home">
     <div class="col">
       ${gameBanner(p)}${todayCard(p)}
+      <p class="eyebrow" style="margin:6px 0 -8px">Free play: any time, for more ${ptsName()}</p>
       <div class="modes">
         ${modeTile('practice', '7×8', 'Practise', 'No timer. Tricks when you get stuck.', 'mint')}
         ${modeTile('test', '90%', 'Take a test', 'Win medals at 70, 80, 90 and 100%.', 'sun')}
@@ -1470,7 +1473,7 @@ async function startDemo(id, what){
 }
 function endDemo(){
   const d = S.demo; if (!d) return;
-  S.demo = null;
+  S.demo = null; S.gtab = 'try';
   if (S.play) { clearInterval(S.play.timer); S.play = null; }
   S.me = d.me; S.prog = d.prog; S.sessions = d.sessions; S.logins = d.logins; S.logCur = d.logCur;
   applySkin(S.me); S.v = {};
@@ -1731,7 +1734,13 @@ async function startApp(){
 }
 async function boot(){
   render();
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    // A new version installs in the background; the page reloads into it at the next calm moment (not mid-question or
+    // mid-game), and the app checks for one whenever it comes back to the front.
+    const had = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (had) { S.reloadSoon = true; if (!S.play && !['game', 'setup'].includes(S.screen)) location.reload(); } });
+    navigator.serviceWorker.register('sw.js').then(reg => document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); })).catch(() => {});
+  }
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch {}
   const q = new URLSearchParams(location.search);
   if (q.get('error_description')) S.gateErr = q.get('error_description');

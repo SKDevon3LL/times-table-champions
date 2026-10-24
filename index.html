@@ -291,6 +291,7 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webk
 .songs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px}
 .song{border:2.5px solid var(--line);border-radius:12px;padding:8px 10px;font-weight:900;background:var(--card);text-align:left}
 .song.on{background:var(--era);color:var(--era-t);box-shadow:3px 3px 0 var(--shadow)}
+.addsong{margin-top:14px;display:grid;gap:6px}.addsong label{font-weight:900;font-size:14px}.addsong input{flex:1 1 160px;min-width:0}.addsong select{flex:0 1 150px}
 .stg{position:relative;height:min(78vh,720px);border:3px solid var(--line);border-radius:20px;overflow:hidden;background:linear-gradient(#0B0F2A,#1D1450 60%,#2A1A55)}
 .stg-sky{position:absolute;inset:0}
 .beam{position:absolute;top:-10%;width:90px;height:110%;background:linear-gradient(var(--c),transparent 80%);opacity:.35;transform-origin:top center;animation:beam 3.2s ease-in-out infinite alternate;animation-delay:var(--d);filter:blur(2px);clip-path:polygon(40% 0,60% 0,100% 100%,0 100%)}
@@ -480,7 +481,8 @@ body:has(.jg-bd) .top .brand, body:has(.jg-bd) .top .sync{color:#FFFFFF;text-sha
   .brand span{font-size:19px}
 }
 @media (max-width:400px){ .modes{grid-template-columns:1fr} }
-@media (max-width:520px){ .todo li{grid-template-columns:42px minmax(0,1fr)} .todo li .btn{grid-column:2;justify-self:start} }
+@media (max-width:520px){ .todo li{grid-template-columns:42px minmax(0,1fr)} .todo li .btn{grid-column:2;justify-self:start}
+  .board button{min-height:32px} .card-h .link,.foot-link .link{display:inline-block;padding:10px 4px} }
 @media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
 </style>
 </head>
