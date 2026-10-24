@@ -84,16 +84,20 @@ function jungle(host, api){
   const backdrop = name => { const im = host.querySelector('.jg-bd'); if (im) { im.dataset.p = `jungle/${name}.jpg`; loadPics(host); } };
   // The action panel beside the board (held sideways) and the blurred backdrop: what Hughie is doing this turn.
   // Each moment also has a 10-second video clip (clips/, made with Google's video model; jungle, creatures and his-eye
-  // views, never his face). It plays over the picture once it has loaded; until then, or offline, the picture shows.
+  // views, never his face). The side screen mixes them with his own picture (Sam, 24 Oct 2026): the picture for 2.5
+  // seconds, then the clip fades in; when the clip ends his picture shows for 3 seconds and the clip plays again.
   const CLIP = {start:'start', chop:'chop', miss:'miss', hold:'hold', chase:'chase', run:'run', gold:'gold', win:'win', 'snake-attack':'snake', 'panther-attack':'panther'};
   const clipUrls = new Map();
   const clipUrl = c => clipUrls.get(c) || clipUrls.set(c, fetch(`clips/${c}.mp4`).then(r => r.ok ? r.blob() : Promise.reject()).then(b => URL.createObjectURL(b))).get(c);
   const action = (name, cap) => {
     const a = $('act'); if (!a) { backdrop(name); return; }
     a.querySelector('img').dataset.p = `jungle/${name}.jpg`; a.querySelector('b').textContent = cap; backdrop(name);
-    const v = a.querySelector('video'), c = CLIP[name]; a.dataset.clip = c || '';
-    if (!c) { a.classList.remove('has-clip'); v.pause(); return; }
-    clipUrl(c).then(u => { if (a.dataset.clip !== c || !a.isConnected) return; if (v.src !== u) v.src = u; v.currentTime = 0; v.play().catch(() => {}); a.classList.add('has-clip'); }).catch(() => a.classList.remove('has-clip'));
+    const v = a.querySelector('video'), c = CLIP[name], go = (a._go || 0) + 1; a._go = go; a.dataset.clip = c || '';
+    clearTimeout(a._t); a.classList.remove('has-clip'); v.pause();
+    if (!c) return;
+    const play = () => { if (a._go !== go || !a.isConnected) return; v.currentTime = 0; v.play().catch(() => {}); a.classList.add('has-clip'); };
+    v.onended = () => { if (a._go !== go) return; a.classList.remove('has-clip'); a._t = setTimeout(play, 3000); };
+    clipUrl(c).then(u => { if (a._go !== go) return; if (v.src !== u) v.src = u; a._t = setTimeout(play, 2500); }).catch(() => {});
   };
   setTimeout(() => Object.values(CLIP).forEach(c => clipUrl(c).catch(() => {})), 1500);   // fetch the rest in the background
 
@@ -104,7 +108,7 @@ function jungle(host, api){
     for (const [t, u] of pairs) host.style.setProperty('--t-' + t, `url("${u}")`);
     b.classList.add('tiles');
   }).catch(() => {});
-  host.innerHTML = `<img class="jg-bd" alt=""><div class="jg"><div class="jg-act" data-k="act"><video muted playsinline loop preload="auto"></video><img alt=""><b></b></div>
+  host.innerHTML = `<img class="jg-bd" alt=""><div class="jg"><div class="jg-act" data-k="act"><video muted playsinline preload="auto"></video><img alt=""><b></b></div>
     <div class="jg-bar"><b>Level <span data-k="lvl">1</span></b><span class="jg-msg" data-k="msg"></span><b>Gold <span data-k="gold">${api.state.gold || 0}</span></b></div>
     <div class="jg-board" data-k="board" style="--w:${W}"></div>
     <div class="gq" data-k="q" hidden></div>
