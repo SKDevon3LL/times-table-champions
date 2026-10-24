@@ -26,8 +26,15 @@ function jungle(host, api){
   // Snakes always close in on him, every other turn, wherever they are, so he feels cornered (Sam, 24 Oct 2026).
   const W = 7, H = 9, BOAT = 3, SENSE = {snake:99, panther:3, anaconda:5, ogre:99};
   // Adventure music (an original track made for the game) loops quietly while he plays, when sound is on.
-  const music = new Audio('audio/jungle-adventure.mp3'); music.loop = true; music.volume = .35;
-  if (api.soundOn && api.soundOn()) music.play().catch(() => {});
+  // As a snake, panther, anaconda or the ogre closes in, the music turns from the adventure track to a tense chase track
+  // (Sam, 24 Oct 2026): blended by distance, and a touch faster when one is right beside him.
+  const music = new Audio('audio/jungle-adventure.mp3'), danger = new Audio('audio/jungle-danger.mp3');
+  music.loop = danger.loop = true; music.volume = .35; danger.volume = 0;
+  if (api.soundOn && api.soundOn()) { music.play().catch(() => {}); danger.play().catch(() => {}); }
+  let mood = {calm: .35, tense: 0, rate: 1};
+  const fader = setInterval(() => { const step = (v, t) => Math.abs(t - v) < .03 ? t : v + Math.sign(t - v) * .03;
+    music.volume = step(music.volume, mood.calm); danger.volume = step(danger.volume, mood.tense); danger.playbackRate = mood.rate; }, 80);
+  const setMood = d => { mood = d <= 1 ? {calm: 0, tense: .6, rate: 1.08} : d === 2 ? {calm: .05, tense: .5, rate: 1} : d === 3 ? {calm: .2, tense: .3, rate: 1} : {calm: .35, tense: 0, rate: 1}; };
   // Snakes hiss louder as they slither closer, and strike with a snap when they catch him.
   const noise = (ac, len) => { const b = ac.createBuffer(1, Math.ceil(ac.sampleRate * len), ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; const n = ac.createBufferSource(); n.buffer = b; return n; };
   // A cobra: a breathy hiss that pulses (louder the closer it is); the strike rears up with a rising hiss, then a sharp
@@ -211,6 +218,7 @@ function jungle(host, api){
     }
     $('board').innerHTML = h;
     $('board').dataset.near = Math.min(snakeNear(), 9);   // the board glows amber, then red, as a snake closes in
+    setMood(Math.min(...st.preds.map(p => Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c)), 9));
     if (!busy && boxedIn()) msg('Boxed in! Tap yourself to hold your ground.');
   }
   function stepPred(p){
@@ -231,7 +239,7 @@ function jungle(host, api){
     if (win) {
       api.state.gold = (api.state.gold || 0) + 1; api.save(); $('gold').textContent = api.state.gold;
       o.innerHTML = scene('win', 'You made it to the boat with the gold!', `Level ${level} done. The jungle gets wilder from here.`, 'next', 'Next level');
-      api.sound('win'); loadPics(o); action('win', 'Made it!');
+      api.sound('win'); loadPics(o); action('win', 'Made it!'); setMood(9);
     } else {
       if (who === 'ogre') ogreYell(.8); else if (who !== 'panther') hiss(.9, true); else roar(.8, true);
       o.innerHTML = scene(who === 'ogre' ? 'ogre-pot' : who === 'panther' ? 'panther-attack' : 'snake-attack', who === 'ogre' ? 'The ogre got you! Into the pot!' : who === 'anaconda' ? 'An anaconda got you!' : who === 'panther' ? 'The panther got you!' : 'Snake attack!', `Right answers keep you ahead of them. Try level ${level} again.`, 'again', 'Try again');
@@ -297,7 +305,7 @@ function jungle(host, api){
     cancelQ = askBox($('q'), api, 10, (ok, q, timeout) => { cancelQ = null; busy = false; turn(ok, r, c, timeout); });
   };
   newLevel();
-  return {destroy(){ if (cancelQ) cancelQ(); music.pause(); host.querySelectorAll('video').forEach(v => v.pause()); host.onclick = null; host.innerHTML = ''; }};
+  return {destroy(){ if (cancelQ) cancelQ(); music.pause(); danger.pause(); clearInterval(fader); host.querySelectorAll('video').forEach(v => v.pause()); host.onclick = null; host.innerHTML = ''; }};
 }
 
 /* ---------- Jessica: the Eras Stadium Show ---------- */

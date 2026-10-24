@@ -1,11 +1,11 @@
 // Keeps the whole app on the device so it opens with no internet.
 // Bump VERSION whenever any file below changes; the iPads pick up the new copy the next time they are online.
-const VERSION = 'ttc-2026-10-25z';
+const VERSION = 'ttc-2026-10-26a';
 const FILES = [
   './', './index.html', './app.js', './games.js', './manifest.webmanifest',
   './vendor/supabase.js', './vendor/fonts.css',
   './vendor/fonts/AbrilFatface-0.woff2', './vendor/fonts/AlfaSlabOne-1.woff2', './vendor/fonts/LilitaOne-2.woff2', './vendor/fonts/Nunito-3.woff2',
-  './audio/jungle-adventure.mp3', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'
+  './audio/jungle-adventure.mp3', './audio/jungle-danger.mp3', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', e => {
