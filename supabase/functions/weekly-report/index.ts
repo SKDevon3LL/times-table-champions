@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
   if (error) return new Response("read failed: " + error.message, {status: 500});
   const by = (pre: string) => docs!.filter(d => d.path.startsWith(pre)).map(d => ({id: d.path.slice(pre.length), ...d.data}));
   const players = by("players/"), progress = Object.fromEntries(by("progress/").map(p => [p.id, p])), plans = Object.fromEntries(by("plans/").map(p => [p.id, p]));
-  const methods = by("methods/").filter((m: any) => m.status === "approved").map((m: any) => m.id);
+  const methods = by("methods/").filter((m: any) => m.status === "approved").map((m: any) => m.custom ? `${m.name} (added by ${m.author || "a grown-up"}: ${m.kid})` : m.id);
   const rows = players.map((pl: any) => {
     const sessions = by("logs/").filter((l: any) => l.player === pl.id).flatMap((l: any) => l.sessions || []);
     const plan = plans[pl.id] && plans[pl.id].week === week ? plans[pl.id] : null;

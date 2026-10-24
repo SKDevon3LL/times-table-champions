@@ -336,27 +336,36 @@ const METHODS = [
     kid:'Play with a grown-up or each other: turn over two cards and be first to shout the answer.', ex:['Turn over 6 and 7: shout 42!', 'Picture cards count as 10, aces as 1', 'Keep the cards you win. Most cards wins.']}
 ];
 const methodState = id => (S.methods[id] || {}).status || 'new';
+// The suggested methods, then the ones the grown-ups wrote themselves (methods/<id> with custom: true), oldest first.
+const allMethods = () => [...METHODS, ...Object.values(S.methods || {}).filter(m => m.custom && m.name).sort((a, b) => (a.made || 0) - (b.made || 0))];
 function methodsParent(){
   const order = {new:0, approved:1, rejected:2};
-  const list = METHODS.slice().sort((a, b) => order[methodState(a.id)] - order[methodState(b.id)]);
+  const list = allMethods().sort((a, b) => order[methodState(a.id)] - order[methodState(b.id)]);
   const kids = S.players.map(p => p.name).join(' and ') || 'the children';
   return `<h2 class="sec">New ways to learn</h2>
-    <p class="muted" style="margin:-6px 0 16px">Suggested methods. Approve one and it appears for ${esc(kids)} in Explore; reject it and they never see it.</p>
+    <p class="muted" style="margin:-6px 0 16px">Suggested methods, and any you add yourself. Approve one and it appears for ${esc(kids)} in Explore; reject it and they never see it.</p>
     <div class="settings">${list.map(m => {
       const st = methodState(m.id), d = S.methods[m.id] || {};
       return `<div class="sticker"><div class="card-h"><h3>${esc(m.name)}</h3>${st === 'new' ? '' : `<span class="pill ${st}">${st === 'approved' ? 'Approved' : 'Rejected'}</span>`}</div>
-        <p>${esc(m.why)}</p>
-        <div class="mistakes" style="margin:12px 0"><span>${esc(m.ex[0])}</span></div>
+        ${m.custom ? `<p class="muted small">Added by ${esc(m.author || 'a grown-up')}</p><p style="font-weight:800">${esc(m.kid)}</p>` : `<p>${esc(m.why)}</p>`}
+        ${(m.ex || []).length ? `<div class="mistakes" style="margin:12px 0"><span>${esc(m.ex[0])}</span></div>` : ''}
         ${st === 'new' ? '' : `<p class="muted small">${st === 'approved' ? 'Approved' : 'Rejected'}${d.by ? ' by ' + esc(d.by) : ''}${d.at ? ' ' + ago(d.at) : ''}.</p>`}
         <div class="row">${st !== 'approved' ? `<button class="btn small" data-act="method" data-id="${m.id}" data-s="approved">Approve</button>` : ''}${st !== 'rejected' ? `<button class="btn small ghost" data-act="method" data-id="${m.id}" data-s="rejected">Reject</button>` : ''}</div>
       </div>`;
-    }).join('')}</div>`;
+    }).join('')}
+      <form class="sticker form" data-form="add-method"><h3>Add your own method</h3>
+        <p class="muted small">It shows in Explore for ${esc(kids)} as soon as you save it.</p>
+        <label for="am-n">Name</label><input id="am-n" name="name" required maxlength="60" placeholder="The nines finger trick">
+        <label for="am-k">How you would explain it to the children</label><textarea id="am-k" name="kid" required maxlength="300" rows="3" placeholder="Hold up ten fingers and fold down the one you are multiplying by..."></textarea>
+        <label for="am-e">Examples, one per line (up to 5)</label><textarea id="am-e" name="ex" maxlength="400" rows="3" placeholder="9 &times; 3: fold the 3rd finger, 2 and 7 = 27"></textarea>
+        <button class="btn" type="submit">Add method</button></form>
+    </div>`;
 }
 function methodsKids(){
-  const ok = METHODS.filter(m => methodState(m.id) === 'approved');
+  const ok = allMethods().filter(m => methodState(m.id) === 'approved');
   if (!ok.length) return '';
   return `<h2 class="sec">New ways to learn</h2><div class="settings">${ok.map(m => `<div class="sticker"><h3>${esc(m.name)}</h3><p style="font-weight:800">${esc(m.kid)}</p>
-    <div class="mistakes" style="margin-top:12px;flex-direction:column;align-items:flex-start">${m.ex.map(x => `<span>${esc(x)}</span>`).join('')}</div></div>`).join('')}</div>`;
+    <div class="mistakes" style="margin-top:12px;flex-direction:column;align-items:flex-start">${(m.ex || []).map(x => `<span>${esc(x)}</span>`).join('')}</div></div>`).join('')}</div>`;
 }
 
 /* ---------- state ---------- */
@@ -1589,9 +1598,9 @@ const A = {
   'game-unapprove': el => setGameApproval(el.dataset.id, 'pending'),
   lightbox: el => { S.v.lightbox = el.dataset.p || null; render(); },
   method: async el => {
-    const id = el.dataset.id, status = el.dataset.s, m = METHODS.find(x => x.id === id);
+    const id = el.dataset.id, status = el.dataset.s, m = allMethods().find(x => x.id === id);
     if (!m || !['approved', 'rejected'].includes(status)) return;
-    const doc = {status, by: (Device.get() || {}).name || '', at: Date.now()};
+    const doc = Object.assign(m.custom ? {...m} : {}, {status, by: (Device.get() || {}).name || '', at: Date.now()});
     try { await Store.set('methods/' + id, doc); S.methods[id] = doc; toast(status === 'approved' ? `${m.name} approved: it shows in Explore for the children.` : `${m.name} rejected: the children won't see it.`); } catch { saveFail(); }
     render();
   },
@@ -1663,6 +1672,14 @@ const F = {
     S.players.push(pl); S.players.sort((a, b) => a.name.localeCompare(b.name));
     S.pdata[id] = {prog: defaultProg(id), logs:[], sessions:[], logins:[]};
     S.okMsg = `Added ${name}. They can sign in from the start screen.`; render();
+  },
+  async 'add-method'(f){
+    const name = f.name.value.trim(), kid = f.kid.value.trim(), ex = f.ex.value.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 5);
+    if (!name || !kid) return;
+    const who = (Device.get() || {}).name || '', now = Date.now(), id = 'own-' + now.toString(36);
+    const doc = {id, custom:true, name, kid, ex, author: who, made: now, status:'approved', by: who, at: now};
+    try { await Store.set('methods/' + id, doc); S.methods[id] = doc; toast(`${name} added: it shows in Explore for the children.`); } catch { saveFail(); }
+    render();
   },
   async rewards(f){
     S.family.rewards = Object.fromEntries(TIERS.map(t => [t.id, f[t.id].value.trim()]));
