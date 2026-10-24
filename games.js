@@ -428,7 +428,7 @@ function stage(host, api){
     sv.dress = pick.dress; sv.song = pick.song; api.save();
     let crowd = 15000, asked = 0, right = 0, cancelQ = null, ended = false, pose = 0;
     host.innerHTML = `<div class="stg">
-      <div class="stg-photos"><img class="stg-fill" data-p="${pic(pick.dress, 'a')}" alt="">${['a', 'd', 'a', 't'].map((p, i) => `<img class="pose ${i === 0 ? 'on' : ''}" data-p="${pic(pick.dress, p)}" alt="">`).join('')}</div>
+      <div class="stg-photos"><img class="stg-fill" data-p="${pic(pick.dress, 'a')}" alt="">${['a', 'd', 'a', 't'].map((p, i) => `<img class="pose ${i === 0 ? 'on' : ''}" data-p="${pic(pick.dress, p)}" alt="">`).join('')}<video class="stg-clip" muted playsinline preload="auto"></video></div>
       <div class="stg-hud"><b>${esc(song.title)}</b><span>Fans: <b data-k="count">15,000</b></span><div class="meter"><span data-k="fill"></span></div></div>
       <div class="stg-pop" data-k="pop"></div>
       <div class="gq" data-k="q" hidden></div>
@@ -440,7 +440,20 @@ function stage(host, api){
     const t = tune(ac, song.title, song.bpm), bars = 24, endAt = Date.now() + t.barSec * bars * 1000;
     box.style.setProperty('--beat', (t.barSec / 4).toFixed(3) + 's');
     const dance = setInterval(() => { pose = (pose + 1) % imgs.length; imgs.forEach((im, i) => im.classList.toggle('on', i === pose)); }, t.barSec * 1000);
-    show = {stop(){ ended = true; t.stop(); if (cancelQ) cancelQ(); clearInterval(loop); clearInterval(dance); }};
+    // Stadium clips for the song's own era (Sam, 24 Oct 2026: two per dress, matched to the song she picks): her photos for
+    // 4 seconds, then the era's first clip, her photos again, then the second clip, and round again. Made with Google's video
+    // model; the singer is seen from behind or far away, never Jessica's face. The crowd sound plays softly under the band.
+    const era = String(song.era).padStart(2, '0'), vid = host.querySelector('.stg-clip'); let clipSrc = null, clipTimer = null, which = 0;
+    const stopClip = () => { vid.pause(); vid.classList.remove('on'); if (clipSrc) { try { clipSrc.stop(); } catch {} clipSrc = null; } };
+    const nextClip = () => { if (ended) return; const k = ['a', 'b'][which++ % 2];
+      Promise.all([fetch(`clips/stage/era${era}-${k}.mp4`).then(r => r.ok ? r.blob() : Promise.reject()), fetch(`clips/stage/era${era}-${k}.m4a`).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null)])
+        .then(async ([b, snd]) => { if (ended) return; vid.src = URL.createObjectURL(b); vid.currentTime = 0; await vid.play().catch(() => {}); vid.classList.add('on');
+          if (snd && !(api.soundOn && !api.soundOn())) { const buf = await ac.decodeAudioData(snd).catch(() => null); if (buf && !ended) { const s = ac.createBufferSource(), g = ac.createGain(); s.buffer = buf; g.gain.value = .35; s.connect(g); g.connect(ac.destination); s.start(); clipSrc = s; } } })
+        .catch(() => {});
+      clipTimer = setTimeout(() => { stopClip(); clipTimer = setTimeout(nextClip, 5000); }, 10000);
+    };
+    clipTimer = setTimeout(nextClip, 4000);
+    show = {stop(){ ended = true; t.stop(); if (cancelQ) cancelQ(); clearInterval(loop); clearInterval(dance); clearTimeout(clipTimer); stopClip(); }};
     let nextQ = Date.now() + t.barSec * 2000;
     const loop = setInterval(() => {
       if (ended) return;

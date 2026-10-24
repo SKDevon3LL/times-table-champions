@@ -363,6 +363,7 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webk
 .stg-photos .stg-fill{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(26px) brightness(.55);transform:scale(1.15);opacity:1;animation:none}
 .stg-photos img.pose{position:absolute;height:100%;width:auto;max-width:none;left:50%;transform:translateX(-50%);opacity:0;transition:opacity .45s ease;animation:stg-beat var(--beat,.5s) ease-in-out infinite alternate}
 .stg-photos img.pose.on{opacity:1}
+.stg-photos .stg-clip{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .6s;pointer-events:none}.stg-photos .stg-clip.on{opacity:1}
 @keyframes stg-beat{from{transform:translateX(-50%) scale(1)}to{transform:translateX(-50%) scale(1.025) rotate(.4deg)}}
 .stg.roar .stg-photos img.pose.on{filter:brightness(1.25) saturate(1.2)}
 .stg-pop{position:absolute;left:50%;top:auto;bottom:12%;transform:translate(-50%,0);font-family:var(--display);font-size:40px;color:#FFE36E;text-shadow:0 3px 12px rgba(0,0,0,.6);opacity:0;pointer-events:none}
