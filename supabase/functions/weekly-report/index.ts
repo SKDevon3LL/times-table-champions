@@ -75,10 +75,9 @@ const PLAN_SCHEMA = {
     signoff: {type: "string"},
     children: {type: "array", items: {
       type: "object", additionalProperties: false,
-      required: ["id", "headline", "summary", "wins", "watch", "tutor", "plan"],
+      required: ["id", "headline", "summary", "idea", "plan"],
       properties: {
-        id: {type: "string"}, headline: {type: "string"}, summary: {type: "string"},
-        wins: {type: "array", items: {type: "string"}}, watch: {type: "array", items: {type: "string"}}, tutor: {type: "array", items: {type: "string"}},
+        id: {type: "string"}, headline: {type: "string"}, summary: {type: "string"}, idea: {type: "string"},
         plan: {type: "object", additionalProperties: false, required: ["focus", "mix", "questions", "days", "note", "why"], properties: {
           focus: {type: "array", items: {type: "integer"}},
           mix: {type: "object", additionalProperties: false, required: ["miss", "div", "scale", "scale100"], properties: {miss: {type: "boolean"}, div: {type: "boolean"}, scale: {type: "boolean"}, scale100: {type: "boolean"}}},
@@ -96,7 +95,7 @@ Each Sunday you read each child's week and do two things.
 1. Set next week's plan, matched to what they actually did. Make it a step harder when they met this week's targets with good accuracy (85% or more): more questions, the next table that is not yet strong, or the next question type their school year allows. Hold it, or ease it slightly, when they missed the targets, so the challenge stays reachable. Over 52 weeks every table should become strong and quick (the national Multiplication Tables Check allows 6 seconds a question). Focus on two or three tables at most. Question types: miss = missing numbers (6 × ? = 42), div = division, scale = ×10 facts (70 × 8), scale100 = ×100 facts; only use the ones their school year allows (given). questions = the week's question target (100 to 600), days = days to play (3 to 7).
 The note is for the child: one or two short, encouraging sentences, no more than 25 words. The why is one sentence for the grown-ups.
 
-2. Write the weekly email to the grown-ups it is going to, who are named in the message: Sam and Abbey are the parents; Hayley is the children's maths tutor and is only among them when named. Greet only the people it goes to. Write as Taylor in the first person, and never call yourself just "coach" or "your coach": the intro begins "It's me, Taylor, your Times Table Coach," and the signoff ends "Taylor, your Times Table Coach". British English. Warm, plain and specific; use the numbers given, never invent any. The summary is three to five sentences per child. Wins and watch are short points (up to three each). Tutor is one to three concrete suggestions Hayley could use in a session, such as a method or a game for a specific fact. No markdown, no dashes as punctuation.`;
+2. Write the weekly email to the grown-ups it is going to, who are named in the message: Sam and Abbey are the parents; Hayley is the children's maths tutor and is only among them when named. Greet only the people it goes to. Write as Taylor in the first person, and never call yourself just "coach" or "your coach". Keep it short, because it is read on a phone. The intro is at most two sentences and begins "It's me, Taylor, your Times Table Coach,". For each child: the headline is under ten words; the summary is two or three sentences, at most 60 words, saying what went well and the one thing to work on next; the idea is one sentence with one concrete thing to try this week, such as a method or a quick game for a specific fact (for Hayley's sessions when Hayley is named, otherwise something to try at home). The signoff is one short sentence ending "Taylor, your Times Table Coach". British English. Warm and plain; use the numbers given, never invent any. No markdown, no dashes as punctuation.`;
 
 function clampPlan(p: any, year: number, prev: any, stats: any) {
   const allowed = YEAR_KINDS[year] || [];
@@ -114,31 +113,27 @@ function clampPlan(p: any, year: number, prev: any, stats: any) {
 }
 
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]!));
-function emailHtml(week: number, ai: any, rows: any[]) {
-  const li = (a: string[]) => a.length ? `<ul style="margin:6px 0 0;padding-left:20px">${a.map(x => `<li style="margin:3px 0">${esc(x)}</li>`).join("")}</ul>` : "";
+// Short on purpose (Sam, 24 Oct 2026: "its a lot"): per child one line of numbers, two or three sentences, one idea, next week.
+function emailHtml(week: number, ai: any, rows: any[], forHayley: boolean) {
+  const list = (a: number[]) => a.length > 1 ? `${a.slice(0, -1).join("s, ")}s and ${a[a.length - 1]}s` : `${a[0]}s`;
   const kids = rows.map(({id, stats, plan}) => {
     const c = (ai.children || []).find((x: any) => x.id === id) || {};
-    const strong = stats.tables.filter((t: any) => t.strong === 12).map((t: any) => t.t);
-    const facts = [["Played", `${stats.days} day${stats.days === 1 ? "" : "s"}, ${stats.sessions} activities`], ["Questions", `${stats.questions}${stats.accuracy !== null ? `, ${stats.accuracy}% right` : ""}`],
-      ["Daily Challenges done", stats.dailyDone], ["Bonus Rounds done", stats.bonusRounds], ["Trophies this week", `${stats.trophies} of 7${stats.trailDone ? " (trail complete)" : ""}`],
-      ["Tests", stats.tests.length ? stats.tests.map((t: any) => t.pct + "%").join(", ") : "none"], ["Facts strong", `${stats.mastered} of 78`],
-      ["Tables fully strong", strong.length ? strong.map((t: number) => "×" + t).join(" ") : "none yet"], ["School year", `Year ${stats.year}`]];
-    return `<div style="border:2px solid #1B2140;border-radius:14px;padding:16px 18px;margin:18px 0;background:#FFFFFF">
-      <h2 style="margin:0 0 4px;font-size:20px">${esc(stats.name)}</h2><p style="margin:0 0 10px;font-weight:700">${esc(c.headline)}</p>
-      <table style="border-collapse:collapse;width:100%;font-size:14px">${facts.map(([k, v]) => `<tr><td style="padding:4px 8px 4px 0;color:#555">${esc(k)}</td><td style="padding:4px 0;font-weight:700">${esc(v)}</td></tr>`).join("")}</table>
-      <p style="margin:12px 0 0">${esc(c.summary)}</p>
-      ${(c.wins || []).length ? `<p style="margin:12px 0 0;font-weight:700">Going well</p>${li(c.wins)}` : ""}
-      ${(c.watch || []).length ? `<p style="margin:12px 0 0;font-weight:700">To watch</p>${li(c.watch)}` : ""}
-      ${(c.tutor || []).length ? `<p style="margin:12px 0 0;font-weight:700">Ideas for Hayley's sessions</p>${li(c.tutor)}` : ""}
-      <div style="margin-top:14px;padding:10px 12px;border-radius:10px;background:#FFF4CC"><b>Next week's plan.</b> ${plan.focus.length ? `Focus on the ${plan.focus.join("s, ")}s. ` : ""}${plan.questions} questions over ${plan.days} days. ${esc(plan.why)}<br><i>${esc(stats.name)} will see: "${esc(plan.note)}"</i></div>
+    const nums = [`Played ${stats.days} day${stats.days === 1 ? "" : "s"}`, `${stats.questions} questions${stats.accuracy !== null ? `, ${stats.accuracy}% right` : ""}`,
+      `${stats.trophies} of 7 trophies${stats.trailDone ? " (trail complete)" : ""}`].join(" \u00b7 ");
+    return `<div style="border:2px solid #1B2140;border-radius:14px;padding:14px 16px;margin:16px 0;background:#FFFFFF">
+      <h2 style="margin:0;font-size:19px">${esc(stats.name)}: ${esc(c.headline)}</h2>
+      <p style="margin:6px 0 0;font-size:14px;color:#555">${esc(nums)}</p>
+      <p style="margin:10px 0 0;line-height:1.5">${esc(c.summary)}</p>
+      ${c.idea ? `<p style="margin:10px 0 0;line-height:1.5"><b>${forHayley ? "Idea for Hayley's sessions" : "Try at home"}:</b> ${esc(c.idea)}</p>` : ""}
+      <p style="margin:12px 0 0;padding:8px 12px;border-radius:10px;background:#FFF4CC"><b>Next week:</b> ${plan.focus.length ? `the ${list(plan.focus)}, ` : ""}${plan.questions} questions over ${plan.days} days.</p>
     </div>`;
   }).join("");
-  return `<!doctype html><html><body style="margin:0;background:#F4F1EA;font-family:Helvetica,Arial,sans-serif;color:#1B2140">
-    <div style="max-width:620px;margin:0 auto;padding:20px 16px">
-      <p style="margin:0;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#555">Kirkwood Family Times Table Champions · Week ${week} of 52</p>
-      <p style="margin:12px 0 0;font-size:16px;line-height:1.5">${esc(ai.intro)}</p>${kids}
-      <p style="font-size:16px;line-height:1.5">${esc(ai.signoff)}</p>
-      <p style="font-size:13px;color:#555">The full reports are in the Grown-ups area of the app: <a href="${APP}">${APP}</a></p>
+  return `<!doctype html><html><body style="margin:0;background:#F4F1EA;font-family:Helvetica,Arial,sans-serif;color:#1B2140;font-size:16px">
+    <div style="max-width:600px;margin:0 auto;padding:20px 16px">
+      <p style="margin:0;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#555">Kirkwood Family Times Table Champions \u00b7 Week ${week} of 52</p>
+      <p style="margin:12px 0 0;line-height:1.5">${esc(ai.intro)}</p>${kids}
+      <p style="line-height:1.5">${esc(ai.signoff)}</p>
+      <p style="font-size:13px;color:#555">More detail in the Grown-ups area: <a href="${APP}">${APP}</a></p>
     </div></body></html>`;
 }
 
@@ -182,7 +177,7 @@ Deno.serve(async (req) => {
     const c = (ai.children || []).find((x: any) => x.id === r.id) || {plan: {}};
     return {id: r.id, stats: r.stats, plan: {...clampPlan(c.plan, r.stats.year, r.prevPlan, r.stats), week: week + 1, set: Date.now()}};
   });
-  const html = emailHtml(week, ai, plansOut), subject = String(ai.subject || `Kirkwood Family Times Table Champions: week ${week} of 52`);
+  const html = emailHtml(week, ai, plansOut, recipients.some(e => e.toLowerCase() === "hayleybac@gmail.com")), subject = String(ai.subject || `Kirkwood Family Times Table Champions: week ${week} of 52`);
   if (dry) return Response.json({week, subject, html, plans: plansOut.map(p => ({id: p.id, plan: p.plan})), stats: rows.map(r => r.stats)});
 
   if (!to) {
