@@ -1,6 +1,6 @@
 // Keeps the whole app on the device so it opens with no internet.
 // Bump VERSION whenever any file below changes; the iPads pick up the new copy the next time they are online.
-const VERSION = 'ttc-2026-10-24n';
+const VERSION = 'ttc-2026-10-24o';
 const FILES = [
   './', './index.html', './app.js', './games.js', './manifest.webmanifest',
   './vendor/supabase.js', './vendor/fonts.css',
@@ -14,7 +14,7 @@ self.addEventListener('install', e => {
 
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
-    .then(keys => Promise.all(keys.filter(k => k !== VERSION).map(k => caches.delete(k))))
+    .then(keys => Promise.all(keys.filter(k => k !== VERSION && !k.startsWith('ttc-photos')).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 

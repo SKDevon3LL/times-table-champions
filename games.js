@@ -154,7 +154,7 @@ function jungle(host, api){
 }
 
 /* ---------- Jessica: the Eras Stadium Show ---------- */
-// Choose a dress, accessories and a song, then perform. Each right answer brings more fans in; fill the stadium to win the award.
+// Choose a dress and a song, then perform. Each right answer brings more fans in; fill the stadium to win the award.
 // Song titles are real; the music is an original tune made here, never the recording or its words.
 const SONGS = [
   {title:'Tim McGraw', era:0, bpm:92}, {title:'Love Story', era:1, bpm:118}, {title:'Enchanted', era:2, bpm:100},
@@ -162,30 +162,7 @@ const SONGS = [
   {title:'Cruel Summer', era:6, bpm:170}, {title:'cardigan', era:7, bpm:130}, {title:'willow', era:8, bpm:84},
   {title:'Anti-Hero', era:9, bpm:97}, {title:'Fortnight', era:10, bpm:96}, {title:'The Fate of Ophelia', era:11, bpm:126}
 ];
-const ACCS = [['hat', 'Black hat'], ['tiara', 'Tiara'], ['guitar', 'Sparkly guitar'], ['boots', 'Glitter boots'], ['bracelets', 'Friendship bracelets'], ['cape', 'Starry cape']];
 const CAPACITY = 90000, AWARD_AT = 80000;
-
-function performerSvg(api, dress, acc){
-  const col = api.eras[dress].hex;
-  const body = api.dressSvg(dress, 120).replace('<svg ', '<svg x="40" y="70" ');
-  return `<svg viewBox="0 0 200 250" class="perf" aria-hidden="true">
-    ${acc.cape ? `<path d="M70 95 Q100 85 130 95 L160 240 Q100 250 40 240 Z" fill="#26346E" stroke="var(--line)" stroke-width="2"/><g fill="#FFE98A">${[[60,200],[80,160],[120,180],[140,220],[100,225]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2.5"/>`).join('')}</g>` : ''}
-    <path d="M90 140 L86 238 M110 140 L114 238" stroke="#F1C7A5" stroke-width="9" stroke-linecap="round"/>
-    <path d="M84 104 L66 150" stroke="#F1C7A5" stroke-width="8" stroke-linecap="round"/>
-    <path d="M116 104 L136 76" stroke="#F1C7A5" stroke-width="8" stroke-linecap="round"/>
-    ${body}
-    <rect x="94" y="62" width="12" height="16" fill="#F1C7A5"/>
-    <defs><clipPath id="perf-face"><circle cx="100" cy="44" r="28"/></clipPath></defs>
-    ${api.photo ? `<image href="${api.photo}" x="72" y="16" width="56" height="56" clip-path="url(#perf-face)" preserveAspectRatio="xMidYMid slice"/>` : `<circle cx="100" cy="44" r="28" fill="#F1C7A5"/><path d="M72 44 Q72 12 100 14 Q128 12 128 44 L128 70 L120 70 L118 40 Q100 30 82 40 L80 70 L72 70 Z" fill="#D9B27C"/>`}
-    <circle cx="100" cy="44" r="28" fill="none" stroke="var(--line)" stroke-width="2.5"/>
-    ${acc.hat ? `<ellipse cx="100" cy="20" rx="40" ry="7" fill="#1C1C22" stroke="var(--line)" stroke-width="2"/><path d="M80 20 Q80 -2 100 -2 Q120 -2 120 20 Z" fill="#1C1C22"/>` : ''}
-    ${acc.tiara && !acc.hat ? `<path d="M80 20 L86 8 L92 18 L100 4 L108 18 L114 8 L120 20 Z" fill="#E8B923" stroke="var(--line)" stroke-width="1.6" stroke-linejoin="round"/><circle cx="100" cy="10" r="2.5" fill="#7DE3FF"/>` : ''}
-    <rect x="134" y="62" width="8" height="16" rx="3" fill="#2B2B33" transform="rotate(35 138 70)"/><circle cx="142" cy="64" r="6" fill="#9AA0AA" stroke="var(--line)" stroke-width="1.5"/>
-    ${acc.guitar ? `<g transform="rotate(-28 70 170)"><rect x="66" y="96" width="8" height="70" fill="#5B3A1E"/><ellipse cx="70" cy="176" rx="22" ry="18" fill="${col}" stroke="var(--line)" stroke-width="2.4"/><circle cx="70" cy="176" r="6" fill="#1C1C22"/>${[[58,168],[80,184],[66,190]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.8" fill="#FFF"/>`).join('')}</g>` : ''}
-    ${acc.bracelets ? `<g>${['#F5A3C7', '#7DB9E8', '#E8B923', '#A77BD6'].map((c, i) => `<circle cx="${64 + i * 2}" cy="${146 - i * 3}" r="3" fill="${c}" stroke="var(--line)" stroke-width="1"/>`).join('')}</g>` : ''}
-    ${acc.boots ? `<path d="M78 222 h14 v24 h-18 v-6 h4 z M108 222 h14 v18 h4 v6 h-18 z" fill="${col}" stroke="var(--line)" stroke-width="2"/><g fill="#FFF">${[[84,230],[114,232],[86,240],[116,240]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.6"/>`).join('')}</g>` : ''}
-  </svg>`;
-}
 
 // An original pop tune: drums, bass, chords and a hook, all made in the browser from the song's own number.
 function tune(ac, seedText, bpm){
@@ -227,7 +204,10 @@ function cheer(ac, big){
 }
 
 function stage(host, api){
-  const sv = api.state, pick = {dress: sv.dress ?? 4, acc: Object.assign({bracelets:true, boots:true}, sv.acc || {}), song: sv.song ?? 4};
+  // Jessica's real stage photos (private bucket, cached on the device): per dress a = singing, d = dancing, t = twirling.
+  const sv = api.state, pick = {dress: sv.dress ?? 2, song: sv.song ?? 4};
+  const pic = (d, p) => `stage/era${String(d).padStart(2, '0')}-${p}.jpg`;
+  const load = (img, path) => api.picture(path).then(u => { if (img.isConnected) img.src = u; }).catch(() => { img.alt = 'Connect to Wi-Fi once to load this photo'; });
   let show = null;
   // The MTV Video Music Award: a silver astronaut planting a flag, on a black base (drawn here, logo left off the flag).
   const awardSvg = size => `<svg viewBox="0 0 80 120" width="${size}" height="${Math.round(size * 1.5)}" aria-hidden="true">
@@ -245,35 +225,33 @@ function stage(host, api){
   function wardrobe(){
     if (show) { show.stop(); show = null; }
     host.innerHTML = `<div class="stg-pick">
-      <div class="sticker stg-preview">${performerSvg(api, pick.dress, pick.acc)}<p class="muted small">${(sv.awards || 0) ? `Awards won: ${sv.awards} 🏆 · ` : ''}Biggest crowd: ${(sv.best || 0).toLocaleString('en-GB')}</p></div>
+      <div class="sticker stg-preview"><img class="stg-big" data-p="${pic(pick.dress, 'a')}" alt="Jessica in the ${esc(api.eras[pick.dress].album)} dress"><p class="muted small">${(sv.awards || 0) ? `MTV Awards won: ${sv.awards} · ` : ''}Biggest crowd: ${(sv.best || 0).toLocaleString('en-GB')}</p></div>
       <div class="stg-opts">
-        <div class="sticker"><h3>1. Choose your dress</h3><div class="rail">${api.eras.map((e, k) => `<button class="hanger ${pick.dress === k ? 'on' : ''}" data-dress="${k}" aria-label="${esc(e.album)} dress">${api.dressSvg(k, 40)}<span style="--era:${e.hex};--era-t:${e.text}">${esc(e.era)}</span></button>`).join('')}</div></div>
-        <div class="sticker"><h3>2. Add accessories</h3><div class="chips">${ACCS.map(([k, l]) => `<button class="tchip ${pick.acc[k] ? 'on' : ''}" data-acc="${k}" aria-pressed="${!!pick.acc[k]}" style="font-size:15px">${l}</button>`).join('')}</div></div>
-        <div class="sticker"><h3>3. Pick your song</h3><div class="songs">${SONGS.map((s, k) => `<button class="song ${pick.song === k ? 'on' : ''}" data-song="${k}" style="--era:${api.eras[s.era].hex};--era-t:${api.eras[s.era].text}">${esc(s.title)}</button>`).join('')}</div>
+        <div class="sticker"><h3>1. Choose your dress</h3><div class="looks">${api.eras.map((e, k) => `<button class="look ${pick.dress === k ? 'on' : ''}" data-dress="${k}" aria-label="${esc(e.album)} dress"><img data-p="${pic(k, 'a')}" alt=""><span style="--era:${e.hex};--era-t:${e.text}">${esc(e.era)}</span></button>`).join('')}</div></div>
+        <div class="sticker"><h3>2. Pick your song</h3><div class="songs">${SONGS.map((s, k) => `<button class="song ${pick.song === k ? 'on' : ''}" data-song="${k}" style="--era:${api.eras[s.era].hex};--era-t:${api.eras[s.era].text}">${esc(s.title)}</button>`).join('')}</div>
           <p class="muted small" style="margin-top:8px">The band plays its own tune for each song. Sing along!</p></div>
         <button class="btn big" data-go="stage">Go on stage</button>
       </div></div>`;
+    host.querySelectorAll('img[data-p]').forEach(im => load(im, im.dataset.p));
   }
   function concert(){
     const song = SONGS[pick.song], ac = api.audio();
-    sv.dress = pick.dress; sv.acc = pick.acc; sv.song = pick.song; api.save();
-    let crowd = 15000, asked = 0, right = 0, cancelQ = null, ended = false;
+    sv.dress = pick.dress; sv.song = pick.song; api.save();
+    let crowd = 15000, asked = 0, right = 0, cancelQ = null, ended = false, pose = 0;
     host.innerHTML = `<div class="stg">
-      <div class="stg-sky">${Array.from({length:6}, (_, i) => `<i class="beam" style="--d:${i * .7}s;left:${8 + i * 17}%;--c:${['#F5A3C7', '#7DB9E8', '#E8B923', '#A77BD6', '#7FE0C2', '#F07A1A'][i]}"></i>`).join('')}
-        <div class="stg-crowd" data-k="crowd">${Array.from({length:360}, () => `<i style="--h:${rnd(360)}"></i>`).join('')}</div></div>
-      <div class="stg-floor"><div class="stg-perf">${performerSvg(api, pick.dress, pick.acc)}<span class="note">♪</span><span class="note n2">♫</span></div></div>
-      <div class="stg-hud"><b>${esc(song.title)}</b><span>Crowd: <b data-k="count">15,000</b></span><div class="meter"><span data-k="fill"></span></div></div>
+      <div class="stg-photos">${['a', 'd', 'a', 't'].map((p, i) => `<img class="${i === 0 ? 'on' : ''}" data-p="${pic(pick.dress, p)}" alt="">`).join('')}</div>
+      <div class="stg-hud"><b>${esc(song.title)}</b><span>Fans: <b data-k="count">15,000</b></span><div class="meter"><span data-k="fill"></span></div></div>
+      <div class="stg-pop" data-k="pop"></div>
       <div class="gq" data-k="q" hidden></div>
       <div class="jg-over" data-k="over" hidden></div></div>`;
-    const $ = k => host.querySelector(`[data-k="${k}"]`), dots = [...host.querySelectorAll('.stg-crowd i')];
-    const paint = () => {
-      $('count').textContent = crowd.toLocaleString('en-GB');
-      $('fill').style.width = Math.min(100, crowd / CAPACITY * 100) + '%';
-      const lit = Math.round(dots.length * crowd / CAPACITY); dots.forEach((d, k) => d.classList.toggle('on', k >= dots.length - lit));   // the front rows fill first
-    };
+    const $ = k => host.querySelector(`[data-k="${k}"]`), imgs = [...host.querySelectorAll('.stg-photos img')], box = host.querySelector('.stg');
+    imgs.forEach(im => load(im, im.dataset.p));
+    const paint = () => { $('count').textContent = crowd.toLocaleString('en-GB'); $('fill').style.width = Math.min(100, crowd / CAPACITY * 100) + '%'; };
     paint();
     const t = tune(ac, song.title, song.bpm), bars = 24, endAt = Date.now() + t.barSec * bars * 1000;
-    show = {stop(){ ended = true; t.stop(); if (cancelQ) cancelQ(); clearInterval(loop); }};
+    box.style.setProperty('--beat', (t.barSec / 4).toFixed(3) + 's');
+    const dance = setInterval(() => { pose = (pose + 1) % imgs.length; imgs.forEach((im, i) => im.classList.toggle('on', i === pose)); }, t.barSec * 1000);
+    show = {stop(){ ended = true; t.stop(); if (cancelQ) cancelQ(); clearInterval(loop); clearInterval(dance); }};
     let nextQ = Date.now() + t.barSec * 2000;
     const loop = setInterval(() => {
       if (ended) return;
@@ -282,8 +260,11 @@ function stage(host, api){
         asked++;
         cancelQ = askBox($('q'), api, 7, ok => {
           cancelQ = null; nextQ = Date.now() + t.barSec * 1000;
-          if (ok) { right++; crowd = Math.min(CAPACITY, crowd + 6000 + rnd(3000)); cheer(ac, false); host.querySelector('.stg').classList.add('roar'); setTimeout(() => host.querySelector('.stg') && host.querySelector('.stg').classList.remove('roar'), 700); }
-          else crowd = Math.max(5000, crowd - 1500);
+          if (ok) {
+            right++; const more = 6000 + rnd(3000); crowd = Math.min(CAPACITY, crowd + more); cheer(ac, false);
+            $('pop').textContent = '+' + more.toLocaleString('en-GB') + ' fans!'; $('pop').classList.remove('go'); void $('pop').offsetWidth; $('pop').classList.add('go');
+            box.classList.add('roar'); setTimeout(() => box.isConnected && box.classList.remove('roar'), 700);
+          } else crowd = Math.max(5000, crowd - 1500);
           paint();
         });
       }
@@ -298,18 +279,19 @@ function stage(host, api){
         <h2>${award ? 'You won an MTV Award!' : 'What a show!'}</h2>
         <p><b>${crowd.toLocaleString('en-GB')}</b> fans came to see you sing ${esc(song.title)}. You got ${right} of ${asked} right.</p>
         <p class="muted">${award ? 'A packed stadium and a trophy for the shelf. Encore!' : `Fill the stadium with ${AWARD_AT.toLocaleString('en-GB')} fans to win the MTV Award. Every right answer brings more people in.`}</p>
-        <div class="row" style="justify-content:center"><button class="btn big" data-go="stage">Sing again</button><button class="btn ghost" data-go="wardrobe">Change outfit or song</button></div></div>`;
+        <div class="row" style="justify-content:center"><button class="btn big" data-go="stage">Sing again</button><button class="btn ghost" data-go="wardrobe">Change dress or song</button></div></div>`;
     }
   }
   host.onclick = e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.dress) { pick.dress = +b.dataset.dress; wardrobe(); }
-    else if (b.dataset.acc) { const k = b.dataset.acc; pick.acc[k] = !pick.acc[k]; if (k === 'hat' && pick.acc.hat) pick.acc.tiara = false; if (k === 'tiara' && pick.acc.tiara) pick.acc.hat = false; wardrobe(); }
     else if (b.dataset.song) { pick.song = +b.dataset.song; wardrobe(); }
     else if (b.dataset.go === 'stage') concert();
     else if (b.dataset.go === 'wardrobe') wardrobe();
   };
   wardrobe();
+  // Fetch every stage photo now, so the show also works with no internet later.
+  for (let d = 0; d < 12; d++) for (const p of ['a', 'd', 't']) api.picture(pic(d, p)).catch(() => {});
   return {destroy(){ if (show) show.stop(); host.onclick = null; host.innerHTML = ''; }};
 }
 

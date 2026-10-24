@@ -929,8 +929,8 @@ function collectionCard(p){
   if (id === 'eras') {
     const ds = Array.from({length:TRAIL_STOPS}, (_, k) => trailDress(p, k)), e = sel !== undefined && sel < TRAIL_STOPS && ERAS[ds[sel]];
     return `<div class="sticker"><div class="card-h"><h3>This week's Eras Tour</h3><span class="muted small">${n} of ${TRAIL_STOPS} dresses</span></div>
-      <div class="rail">${ds.map((d, k) => `<button class="hanger ${k < n ? '' : 'locked'} ${sel === k ? 'on' : ''}" data-act="item" data-i="${k}" aria-label="${esc(ERAS[d].album)}${k < n ? '' : ', not won yet'}">${dressSvg(d, 44, k >= n)}<span style="--era:${ERAS[d].hex};--era-t:${ERAS[d].text}">${esc(ERAS[d].era)}</span></button>`).join('')}</div>
-      ${e ? `<div class="item-detail">${dressSvg(ds[sel], 70, sel >= n)}<div><p class="eyebrow">${esc(e.album)} · ${esc(e.colour)}</p><p>${sel < n ? esc(e.look) : `Win ${sel + 1 - n} more troph${sel + 1 - n === 1 ? 'y' : 'ies'} to unlock this dress.`}</p></div></div>` : ''}
+      <div class="rail">${ds.map((d, k) => `<button class="hanger ${k < n ? '' : 'locked'} ${sel === k ? 'on' : ''}" data-act="item" data-i="${k}" aria-label="${esc(ERAS[d].album)}${k < n ? '' : ', not won yet'}">${dressPhoto(d, k >= n ? 'locked' : '')}<span style="--era:${ERAS[d].hex};--era-t:${ERAS[d].text}">${esc(ERAS[d].era)}</span></button>`).join('')}</div>
+      ${e ? `<div class="item-detail">${dressPhoto(ds[sel], 'big ' + (sel >= n ? 'locked' : ''))}<div><p class="eyebrow">${esc(e.album)} · ${esc(e.colour)}</p><p>${sel < n ? esc(e.look) : `Win ${sel + 1 - n} more troph${sel + 1 - n === 1 ? 'y' : 'ies'} to unlock this dress.`}</p></div></div>` : ''}
       ${goal}${trophyLine(p)}</div>`;
   }
   const pts = [[44,236],[188,228],[256,198],[282,146],[432,128],[452,78],[598,28]];
@@ -1050,7 +1050,7 @@ function scrPlay(){
 function resultItems(r){
   const id = skinId(); let h = '';
   for (const k of r.newItems || []) {
-    if (id === 'eras') { const e = ERAS[trailDress(S.prog, k)]; h += `<div class="callout item-new">${dressSvg(trailDress(S.prog, k), 54)}<div><b>New dress: ${esc(e.album)}!</b> ${esc(e.look)}</div></div>`; }
+    if (id === 'eras') { const e = ERAS[trailDress(S.prog, k)]; h += `<div class="callout item-new">${dressPhoto(trailDress(S.prog, k), 'big')}<div><b>New dress: ${esc(e.album)}!</b> ${esc(e.look)}</div></div>`; }
     else if (id === 'trail') { const j = JUNGLE[k], t = TOOLS[j.tool]; h += `<div class="callout item-new">${toolSvg(j.tool, 54)}<div><b>New tool: ${esc(t.name)}!</b> ${esc(t.use)} Camp ${k + 1} reached: ${esc(j.camp.toLowerCase())}.</div></div>`; }
   }
   if (r.unlocked) h += `<div class="callout mint unlock"><div><b>You completed this week's trail!</b> The ${gameName()} is open: 30 minutes of play.</div><button class="btn" data-act="game">Play now</button></div>`;
@@ -1336,6 +1336,28 @@ async function loadParentData(){
   if (S.screen === 'parent') render();
 }
 
+/* ---------- family photos ---------- */
+// Pictures of the children made for the games (Jessica's stage photos) sit in the private family-photos bucket, never in
+// this public repo. Each device downloads a picture once and keeps it in its own cache, so the games work offline after.
+const PHOTO_CACHE = 'ttc-photos-v1', photoUrls = new Map();
+async function familyPhoto(path){
+  if (photoUrls.has(path)) return photoUrls.get(path);
+  const key = new Request(location.origin + '/__family-photos/' + path), cache = await caches.open(PHOTO_CACHE);
+  let res = await cache.match(key);
+  if (!res) {
+    const c = sbClient(); if (!c) throw new Error('offline');
+    const {data, error} = await c.storage.from('family-photos').download(path);
+    if (error) throw error;
+    res = new Response(data, {headers: {'Content-Type': data.type || 'image/jpeg'}});
+    await cache.put(key, res.clone());
+  }
+  const url = URL.createObjectURL(await res.blob());
+  photoUrls.set(path, url);
+  return url;
+}
+const dressPhoto = (d, cls = '') => `<img class="dress-ph ${cls}" data-photo="stage/era${pad2(d)}-a.jpg" alt="">`;
+function hydratePhotos(){ app.querySelectorAll('img[data-photo]').forEach(im => familyPhoto(im.dataset.photo).then(u => { im.src = u; }).catch(() => {})); }
+
 /* ---------- reward games (games.js) ---------- */
 let gameTimer = null, gameInst = null;
 function audioCtx(){ actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); return actx; }
@@ -1356,7 +1378,7 @@ function startGame(){
   if (p.gameTrail !== trailStart(p)) { p.gameTrail = trailStart(p); p.gameMs = 0; }
   p.game = p.game || {};
   S.screen = 'game'; render(); scrollTo(0, 0);
-  const api = {ask: gameQuestion, sound, audio: audioCtx, photo: photoOk(S.me.photo) ? S.me.photo : null, dressSvg, eras: ERAS, state: p.game, save: () => saveProg().catch(saveFail)};
+  const api = {ask: gameQuestion, sound, audio: audioCtx, photo: photoOk(S.me.photo) ? S.me.photo : null, picture: familyPhoto, dressSvg, eras: ERAS, state: p.game, save: () => saveProg().catch(saveFail)};
   gameInst = (skinId() === 'eras' ? window.TTCGames.stage : window.TTCGames.jungle)(document.getElementById('game-host'), api);
   let ticks = 0;
   gameTimer = setInterval(() => {
@@ -1377,6 +1399,7 @@ const SCREENS = {game:scrGame, gate:scrGate, loading:scrLoading, login:scrLogin,
 let lastScreen = null;
 function render(){
   app.innerHTML = SCREENS[S.screen]();
+  hydratePhotos();
   if (S.screen !== lastScreen || S.focusNext) {
     const af = app.querySelector('[data-autofocus]'); if (af) af.focus();
     S.focusNext = false;
