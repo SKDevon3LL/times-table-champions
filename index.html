@@ -291,6 +291,9 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webk
 .jg-me i{position:absolute;right:-6px;bottom:-6px;font-style:normal;font-size:60%}
 @keyframes jg-claw{0%{opacity:0;transform:translate(-40%,-40%) scale(.6)}25%{opacity:1}100%{opacity:0;transform:translate(10%,10%) scale(1.1)}}
 .jg-me{position:relative}.jg-me.clawed::after{content:'';position:absolute;inset:-20%;pointer-events:none;animation:jg-claw .7s ease-out forwards;background:linear-gradient(135deg,transparent 30%,#fff 31%,#fff 34%,transparent 35%,transparent 45%,#fff 46%,#fff 49%,transparent 50%,transparent 60%,#fff 61%,#fff 64%,transparent 65%);filter:drop-shadow(0 0 3px #f33)}
+.jg-board{position:relative}.jg-board.tiles .jg-c .emo.jg-ogre{visibility:visible;font-size:150%;filter:drop-shadow(0 2px 2px rgba(0,0,0,.6))}
+.jg-fly{position:absolute;z-index:5;font-size:34px;line-height:1;pointer-events:none;margin:-17px 0 0 -17px;transform:none;transition:transform .42s cubic-bezier(.3,.6,.4,1);rotate:var(--ang)}
+.jg-fly.axe{animation:jg-spin .15s linear infinite}@keyframes jg-spin{to{rotate:360deg}}
 @keyframes jg-slither{0%{transform:translateX(-30%) rotate(-12deg) scale(.8);opacity:.4}60%{transform:translateX(8%) rotate(6deg)}100%{transform:none;opacity:1}}
 @keyframes jg-wiggle{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}}
 .jg-snake,.jg-anaconda{display:inline-block;animation:jg-wiggle 1.2s ease-in-out infinite}.jg-snake.moved,.jg-anaconda.moved{animation:jg-slither .45s ease-out,jg-wiggle 1.2s ease-in-out .45s infinite}

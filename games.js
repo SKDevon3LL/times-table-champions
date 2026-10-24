@@ -13,8 +13,8 @@ function askBox(box, api, seconds, done){
   box.innerHTML = `<p class="gq-text">${esc(q.text)} = ?</p><div class="gq-opts">${q.choices.map(v => `<button class="btn big" data-v="${v}">${v}</button>`).join('')}</div><div class="gq-time"><span></span></div>`;
   const bar = box.querySelector('.gq-time span');
   let over = false;
-  const finish = ok => { if (over) return; over = true; clearInterval(tk); box.hidden = true; box.innerHTML = ''; done(ok, q); };
-  const tk = setInterval(() => { const f = 1 - (Date.now() - t0) / (seconds * 1000); bar.style.width = Math.max(0, f * 100) + '%'; if (f <= 0) finish(false); }, 100);
+  const finish = (ok, timeout) => { if (over) return; over = true; clearInterval(tk); box.hidden = true; box.innerHTML = ''; done(ok, q, !!timeout); };
+  const tk = setInterval(() => { const f = 1 - (Date.now() - t0) / (seconds * 1000); bar.style.width = Math.max(0, f * 100) + '%'; if (f <= 0) finish(false, true); }, 100);
   box.onclick = e => { const b = e.target.closest('[data-v]'); if (b) finish(+b.dataset.v === q.ans); };
   return () => { over = true; clearInterval(tk); };
 }
@@ -24,7 +24,7 @@ function askBox(box, api, seconds, done){
 // Every answer is a turn: snakes, panthers and anacondas each close in on their own beat, so a wrong answer lets them gain.
 function jungle(host, api){
   // Snakes always close in on him, every other turn, wherever they are, so he feels cornered (Sam, 24 Oct 2026).
-  const W = 7, H = 9, BOAT = 3, SENSE = {snake:99, panther:3, anaconda:5};
+  const W = 7, H = 9, BOAT = 3, SENSE = {snake:99, panther:3, anaconda:5, ogre:99};
   // Adventure music (an original track made for the game) loops quietly while he plays, when sound is on.
   const music = new Audio('audio/jungle-adventure.mp3'); music.loop = true; music.volume = .35;
   if (api.soundOn && api.soundOn()) music.play().catch(() => {});
@@ -75,18 +75,49 @@ function jungle(host, api){
       const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = b; f.type = 'bandpass'; f.frequency.setValueAtTime(3000, at); f.frequency.exponentialRampToValueAtTime(900, at + .12); g.gain.value = .5;
       s.connect(f); f.connect(g); g.connect(ac.destination); s.start(at); }
   } catch {} };
+  const ogreYell = vol => { if (api.soundOn && !api.soundOn()) return; try {
+    const ac = api.audio(), at = ac.currentTime + .02, len = .8, o = ac.createOscillator(), vib = ac.createOscillator(), vg = ac.createGain(), f = ac.createBiquadFilter(), g = ac.createGain();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(150, at); o.frequency.linearRampToValueAtTime(95, at + len); vib.frequency.value = 7; vg.gain.value = 9; vib.connect(vg); vg.connect(o.frequency);
+    f.type = 'bandpass'; f.frequency.setValueAtTime(700, at); f.frequency.linearRampToValueAtTime(450, at + len); f.Q.value = 1.4;
+    g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + .08); g.gain.exponentialRampToValueAtTime(.0001, at + len);
+    o.connect(f); f.connect(g); g.connect(ac.destination); o.start(at); vib.start(at); o.stop(at + len + .05); vib.stop(at + len + .05);
+  } catch {} };
+  const missile = axe => { if (api.soundOn && !api.soundOn()) return; try {
+    const ac = api.audio(), t0 = ac.currentTime + .02;
+    if (!axe) { const tw = ac.createOscillator(), tg = ac.createGain(); tw.type = 'triangle'; tw.frequency.setValueAtTime(320, t0); tw.frequency.exponentialRampToValueAtTime(140, t0 + .25);
+      tg.gain.setValueAtTime(.4, t0); tg.gain.exponentialRampToValueAtTime(.001, t0 + .3); tw.connect(tg); tg.connect(ac.destination); tw.start(t0); tw.stop(t0 + .32); }
+    const ws = t0 + (axe ? 0 : .08), n = noise(ac, .45), f = ac.createBiquadFilter(), g = ac.createGain(); f.type = 'bandpass'; f.Q.value = 2;
+    f.frequency.setValueAtTime(axe ? 500 : 1800, ws); f.frequency.exponentialRampToValueAtTime(axe ? 1400 : 4500, ws + .4);
+    if (axe) { const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 14; lg.gain.value = .35; lfo.connect(lg); lg.connect(g.gain); lfo.start(ws); lfo.stop(ws + .45); }
+    g.gain.setValueAtTime(.0001, ws); g.gain.exponentialRampToValueAtTime(.5, ws + .3); g.gain.exponentialRampToValueAtTime(.0001, ws + .42);
+    n.connect(f); f.connect(g); g.connect(ac.destination); n.start(ws);
+    const th = ac.createOscillator(), thg = ac.createGain(), tt = ws + .42; th.type = 'sine'; th.frequency.setValueAtTime(axe ? 140 : 220, tt); th.frequency.exponentialRampToValueAtTime(50, tt + .12);
+    thg.gain.setValueAtTime(.7, tt); thg.gain.exponentialRampToValueAtTime(.001, tt + .16); th.connect(thg); thg.connect(ac.destination); th.start(tt); th.stop(tt + .18);
+  } catch {} };
+  // Something flies from the ogre to just beside him on the board: an arrow, or the spinning axe.
+  const fly = (ogre, axe) => { const b = $('board'); if (!b) return;
+    const cell = (r, c) => b.querySelector(`[data-r="${r}"][data-c="${c}"]`), from = cell(ogre.r, ogre.c), to = cell(st.pl.r, st.pl.c); if (!from || !to) return;
+    const bb = b.getBoundingClientRect(), fr = from.getBoundingClientRect(), tr = to.getBoundingClientRect(), el = document.createElement('span');
+    el.className = 'jg-fly' + (axe ? ' axe' : ''); el.textContent = axe ? '🪓' : '➵';
+    const x0 = fr.left - bb.left + fr.width / 2, y0 = fr.top - bb.top + fr.height / 2, x1 = tr.left - bb.left + tr.width * .85, y1 = tr.top - bb.top + tr.height * .15;
+    el.style.left = x0 + 'px'; el.style.top = y0 + 'px'; el.style.setProperty('--ang', Math.atan2(y1 - y0, x1 - x0) + 'rad'); b.appendChild(el);
+    requestAnimationFrame(() => { el.style.transform = `translate(${x1 - x0}px, ${y1 - y0}px)`; });
+    setTimeout(() => el.remove(), 900);
+  };
+  const ogreOf = () => st.preds.find(p => p.kind === 'ogre');
   const pantherNear = () => { const ds = st.preds.filter(p => p.kind === 'panther').map(p => Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c)); return ds.length ? Math.min(...ds) : 99; };
   const snakeNear = () => { const ds = st.preds.filter(p => p.kind !== 'panther').map(p => Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c)); return ds.length ? Math.min(...ds) : 99; };
   let level = 1, st = null, busy = false, cancelQ = null;
   // Hughie's adventure pictures (private family-photos bucket, made from his own photos): start, chop, gold, chase, win, caught.
   const scene = (name, title, text, go, btn) => `<div class="sticker jg-scene"><img class="jg-photo" data-p="jungle/${name}.jpg" alt=""><h2>${title}</h2><p>${text}</p><button class="btn big" data-go="${go}">${btn}</button></div>`;
-  const loadPics = el => el.querySelectorAll('img[data-p]').forEach(im => api.picture(im.dataset.p).then(u => { if (im.isConnected) im.src = u; }).catch(() => {}));
+  const FALLBACK = {'jungle/ogre-pot.jpg': 'jungle/caught.jpg', 'jungle/ogre-chase.jpg': 'jungle/chase.jpg'};
+  const loadPics = el => el.querySelectorAll('img[data-p]').forEach(im => api.picture(im.dataset.p).catch(() => FALLBACK[im.dataset.p] ? api.picture(FALLBACK[im.dataset.p]) : Promise.reject()).then(u => { if (im.isConnected) im.src = u; }).catch(() => {}));
   const backdrop = name => { const im = host.querySelector('.jg-bd'); if (im) { im.dataset.p = `jungle/${name}.jpg`; loadPics(host); } };
   // The action panel beside the board (held sideways) and the blurred backdrop: what Hughie is doing this turn.
   // Each moment also has a 10-second video clip (clips/, made with Google's video model; jungle, creatures and his-eye
   // views, never his face). The side screen mixes them with his own picture (Sam, 24 Oct 2026): the picture for 2.5
   // seconds, then the clip fades in; when the clip ends his picture shows for 3 seconds and the clip plays again.
-  const CLIP = {start:'start', chop:'chop', miss:'miss', hold:'hold', chase:'chase', run:'run', gold:'gold', win:'win', 'snake-attack':'snake', 'panther-attack':'panther'};
+  const CLIP = {'ogre-chase':'ogre', 'ogre-pot':'ogre', start:'start', chop:'chop', miss:'miss', hold:'hold', chase:'chase', run:'run', gold:'gold', win:'win', 'snake-attack':'snake', 'panther-attack':'panther'};
   const clipUrls = new Map();
   const clipUrl = c => clipUrls.get(c) || clipUrls.set(c, fetch(`clips/${c}.mp4`).then(r => r.ok ? r.blob() : Promise.reject()).then(b => URL.createObjectURL(b))).get(c);
   const action = (name, cap) => {
@@ -138,6 +169,7 @@ function jungle(host, api){
     put('panther', level >= 5 ? 2 : level >= 3 ? 3 : 4, 0, far);
     for (let i = 0; i < Math.min(3, 1 + Math.floor(level / 2)); i++) put('snake', 2, 2 + rnd(3), i % 2 ? 0 : W - 1);
     if (level >= 6) put('panther', 3, 1, W - 1 - far);
+    put('ogre', level >= 4 ? 1 : 2, 0, W - 1 - far);   // the ogre starts in the far top corner and never stops coming
     st = {g, goldAt, pl, preds, has:false, turn:0};
     $('lvl').textContent = level;
     msg('Tap a square next to you to chop towards the gold.');
@@ -169,7 +201,7 @@ function jungle(host, api){
       const kind = g[r][c], p = at(preds, r, c), me = pl.r === r && pl.c === c, boat = r === H - 1 && c === BOAT;
       let inner = '';
       if (me) inner = `<span class="jg-me">${api.photo ? `<img src="${api.photo}" alt="">` : '🧒'}${has ? '<i>💰</i>' : ''}</span>`;
-      else if (p) inner = `<span class="emo jg-${p.kind}${p.moved ? ' moved' : ''}">${p.kind === 'panther' ? '🐆' : '🐍'}</span>`;
+      else if (p) inner = `<span class="emo jg-${p.kind}${p.moved ? ' moved' : ''}">${p.kind === 'panther' ? '🐆' : p.kind === 'ogre' ? '👹' : '🐍'}</span>`;
       else if (boat) inner = '<span class="emo">🛶</span>';
       else if (kind === 'gold') inner = '<span class="emo">💰</span>';
       else if (kind === 'rock') inner = '<span class="emo">🪨</span>';
@@ -201,12 +233,12 @@ function jungle(host, api){
       o.innerHTML = scene('win', 'You made it to the boat with the gold!', `Level ${level} done. The jungle gets wilder from here.`, 'next', 'Next level');
       api.sound('win'); loadPics(o); action('win', 'Made it!');
     } else {
-      if (who !== 'panther') hiss(.9, true); else roar(.8, true);
-      o.innerHTML = scene(who === 'panther' ? 'panther-attack' : 'snake-attack', who === 'anaconda' ? 'An anaconda got you!' : who === 'panther' ? 'The panther got you!' : 'Snake attack!', `Right answers keep you ahead of them. Try level ${level} again.`, 'again', 'Try again');
-      api.sound('bad'); loadPics(o); action(who === 'panther' ? 'panther-attack' : 'snake-attack', 'Look out!');
+      if (who === 'ogre') ogreYell(.8); else if (who !== 'panther') hiss(.9, true); else roar(.8, true);
+      o.innerHTML = scene(who === 'ogre' ? 'ogre-pot' : who === 'panther' ? 'panther-attack' : 'snake-attack', who === 'ogre' ? 'The ogre got you! Into the pot!' : who === 'anaconda' ? 'An anaconda got you!' : who === 'panther' ? 'The panther got you!' : 'Snake attack!', `Right answers keep you ahead of them. Try level ${level} again.`, 'again', 'Try again');
+      api.sound('bad'); loadPics(o); action(who === 'ogre' ? 'ogre-pot' : who === 'panther' ? 'panther-attack' : 'snake-attack', 'Look out!');
     }
   }
-  function turn(ok, r, c){
+  function turn(ok, r, c, timeout){
     if (ok) {
       api.sound('ok');
       const stay = r === st.pl.r && c === st.pl.c;
@@ -225,7 +257,13 @@ function jungle(host, api){
         loadPics(o);
       } else { msg(stay ? 'You held your ground!' : st.has ? 'Keep going: back to the boat!' : 'Chop! Keep heading for the gold.'); action(stay ? 'hold' : st.has ? (st.turn % 2 ? 'run' : 'chase') : 'chop', stay ? 'Held it!' : st.has ? 'Run!' : 'Chop!'); }
       if (st.has && r === H - 1 && c === BOAT) { draw(); over(true); return; }
-    } else { api.sound('bad'); msg('Missed! They are getting closer.'); action('miss', 'Missed!'); }
+    } else {
+      api.sound('bad');
+      const og = ogreOf(), od = og ? Math.abs(og.r - st.pl.r) + Math.abs(og.c - st.pl.c) : 99;
+      if (og && od <= 5 && timeout) { ogreYell(.6); missile(true); fly(og, true); draw(); setTimeout(() => over(false, 'ogre'), 450); return; }
+      if (og && od <= 5) { const axe = Math.random() < .5; ogreYell(.45); missile(axe); fly(og, axe); msg(axe ? 'The ogre threw his axe! It nicked your hat!' : 'An arrow! It just missed you!'); action('ogre-chase', 'Duck!'); }
+      else { msg('Missed! They are getting closer.'); action('miss', 'Missed!'); }
+    }
     let who = caught();
     st.preds.forEach(p => { p.moved = false; });
     if (!who) {
@@ -237,6 +275,7 @@ function jungle(host, api){
     const near = snakeNear();
     if (near <= 3) { hiss([0, .7, .45, .25][near]); heartbeat(near); }
     else if (st.preds.some(p => p.moved && p.kind !== 'panther')) hiss(.08);   // a soft rustle as snakes slither about
+    const og2 = ogreOf(); if (og2 && og2.moved && Math.abs(og2.r - st.pl.r) + Math.abs(og2.c - st.pl.c) <= 4) ogreYell(.3);
     const pn = pantherNear();
     if (pn === 1) { roar(.55); claw(); const me = host.querySelector('.jg-me'); if (me) { me.classList.remove('clawed'); void me.offsetWidth; me.classList.add('clawed'); } }
     else if (pn === 2 && st.preds.some(p => p.moved && p.kind === 'panther')) roar(.35);
@@ -255,7 +294,7 @@ function jungle(host, api){
     if (!canGo(r, c)) return;
     busy = true; draw();
     $('board').querySelector(`[data-r="${r}"][data-c="${c}"]`).classList.add('aim');
-    cancelQ = askBox($('q'), api, 10, ok => { cancelQ = null; busy = false; turn(ok, r, c); });
+    cancelQ = askBox($('q'), api, 10, (ok, q, timeout) => { cancelQ = null; busy = false; turn(ok, r, c, timeout); });
   };
   newLevel();
   return {destroy(){ if (cancelQ) cancelQ(); music.pause(); host.querySelectorAll('video').forEach(v => v.pause()); host.onclick = null; host.innerHTML = ''; }};
