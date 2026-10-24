@@ -442,13 +442,13 @@ function stage(host, api){
     const dance = setInterval(() => { pose = (pose + 1) % imgs.length; imgs.forEach((im, i) => im.classList.toggle('on', i === pose)); }, t.barSec * 1000);
     // Stadium clips for the song's own era (Sam, 24 Oct 2026: two per dress, matched to the song she picks): her photos for
     // 4 seconds, then the era's first clip, her photos again, then the second clip, and round again. Made with Google's video
-    // model; the singer is seen from behind or far away, never Jessica's face. The crowd sound plays softly under the band.
+    // model; the singer is seen from behind or far away, never Jessica's face. They play silent: their own made-up singing
+    // clashed with the song (Sam, 24 Oct 2026), so the only music is the song itself.
     const era = String(song.era).padStart(2, '0'), vid = host.querySelector('.stg-clip'); let clipSrc = null, clipTimer = null, which = 0;
     const stopClip = () => { vid.pause(); vid.classList.remove('on'); if (clipSrc) { try { clipSrc.stop(); } catch {} clipSrc = null; } };
     const nextClip = () => { if (ended) return; const k = ['a', 'b'][which++ % 2];
-      Promise.all([fetch(`clips/stage/era${era}-${k}.mp4`).then(r => r.ok ? r.blob() : Promise.reject()), fetch(`clips/stage/era${era}-${k}.m4a`).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null)])
-        .then(async ([b, snd]) => { if (ended) return; vid.src = URL.createObjectURL(b); vid.currentTime = 0; await vid.play().catch(() => {}); vid.classList.add('on');
-          if (snd && !(api.soundOn && !api.soundOn())) { const buf = await ac.decodeAudioData(snd).catch(() => null); if (buf && !ended) { const s = ac.createBufferSource(), g = ac.createGain(); s.buffer = buf; g.gain.value = .35; s.connect(g); g.connect(ac.destination); s.start(); clipSrc = s; } } })
+      fetch(`clips/stage/era${era}-${k}.mp4`).then(r => r.ok ? r.blob() : Promise.reject())
+        .then(async b => { if (ended) return; vid.src = URL.createObjectURL(b); vid.currentTime = 0; await vid.play().catch(() => {}); vid.classList.add('on'); })
         .catch(() => {});
       clipTimer = setTimeout(() => { stopClip(); clipTimer = setTimeout(nextClip, 5000); }, 10000);
     };
