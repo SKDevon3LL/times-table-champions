@@ -91,7 +91,7 @@ function mergeDoc(path, a, b){
     r.days = uniq([...(a.days || []), ...(b.days || [])]).sort().slice(-400);
     r.daily = Object.assign({}, b.daily); for (const [k, v] of Object.entries(a.daily || {})) if (!r.daily[k] || v.pct > r.daily[k].pct) r.daily[k] = v;
     // The Bonus Round: the copy that got further through the day's steps wins; same steps, the one with more facts looked at.
-    const stepsOf = v => Object.keys(v.steps || {}).length;
+    const stepsOf = v => Object.keys(Object.assign({}, v.clock && {clock: 1}, v.explore && {explore: 1}, v.test && {test: 1}, v.steps)).length;
     r.bonus = Object.assign({}, b.bonus); for (const [k, v] of Object.entries(a.bonus || {})) { const o = r.bonus[k]; if (!o || stepsOf(v) > stepsOf(o) || (stepsOf(v) === stepsOf(o) && (v.ex || []).length >= (o.ex || []).length)) r.bonus[k] = v; }
     r.badges = Object.assign({}, b.badges); for (const [k, v] of Object.entries(a.badges || {})) if (!r.badges[k] || v < r.badges[k]) r.badges[k] = v;
     const seen = new Set();
@@ -572,14 +572,16 @@ const bonusSteps = () => [STEP_CLOCK, STEP_EXPLORE,
   ...methodsToday().map(m => ({k:'m:' + m.id, name:`Try: ${m.name}`, sub:`See how it works, then ${METHOD_QS} questions using it.`, act:'method-step', mode:m.id})), STEP_TEST];
 const todayDone = p => { const d = (p.daily || {})[dayStr()]; return !!(d && d.pct >= 80); };
 const bonusToday = p => (p.bonus || {})[dayStr()] || null;
+// Steps done today; a round started on the version before 24 Oct evening kept them as clock/explore/test fields.
+const stepsDone = r => r ? Object.assign({}, r.clock && {clock: r.clock}, r.explore && {explore: r.explore}, r.test && {test: r.test}, r.steps) : {};
 function bonusRound(p){
   const b = p.bonus || (p.bonus = {}), k = dayStr();
   if (!b[k]) { b[k] = {xp:0, ex:[], steps:{}}; const keys = Object.keys(b).sort(); while (keys.length > 60) delete b[keys.shift()]; }
-  if (!b[k].steps) b[k].steps = {};
+  if (!b[k].steps) b[k].steps = stepsDone(b[k]);
   return b[k];
 }
 // How far through today's round they are, in order: a step played before its turn does not count.
-const bonusStep = p => { const r = bonusToday(p), st = bonusSteps(), i = st.findIndex(x => !(r && r.steps && r.steps[x.k])); return i < 0 ? st.length : i; };
+const bonusStep = p => { const d = stepsDone(bonusToday(p)), st = bonusSteps(), i = st.findIndex(x => !d[x.k]); return i < 0 ? st.length : i; };
 const curStep = p => bonusSteps()[bonusStep(p)] || null;
 // Explore counts once five different facts have been looked at, while Explore is the step they are on.
 function exploreLooked(k){
@@ -1299,7 +1301,7 @@ function scrExplore(){
   }
   board += `</div></div>`;
   const lv = level(S.prog.facts[fkey(a, b)]);
-  const p0 = S.prog, cs = todayDone(p0) ? curStep(p0) : null, exDone = !!((bonusToday(p0) || {}).steps || {}).explore;
+  const p0 = S.prog, cs = todayDone(p0) ? curStep(p0) : null, exDone = !!stepsDone(bonusToday(p0)).explore;
   const roundLine = cs && cs.k === 'explore' ? `<p class="callout" style="margin-top:10px">Bonus Round: look closely at ${EXPLORE_FACTS} different facts. ${bonusRound(p0).ex.length} of ${EXPLORE_FACTS} so far.</p>`
     : cs && exDone ? `<p class="callout mint" style="margin-top:10px">Explore done. Next: ${esc(cs.name)}. <button class="btn small" data-act="${cs.act}" data-to="${cs.mode}" data-mode="${cs.mode}">${esc(cs.name)}</button></p>` : '';
   return `${topbar('explore')}<div class="parent-head"><div><p class="eyebrow">Explore</p><h1 class="mega sm">Tap any square</h1><p class="lede">Every answer in the grid is a rectangle of dots. Find the patterns.</p>${roundLine}</div></div>
