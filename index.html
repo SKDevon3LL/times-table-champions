@@ -295,6 +295,8 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webk
 .jg-board{position:relative}.jg-board.tiles .jg-c .emo.jg-ogre{visibility:visible;font-size:150%;filter:drop-shadow(0 2px 2px rgba(0,0,0,.6))}
 .jg-fly{position:absolute;z-index:5;font-size:34px;line-height:1;pointer-events:none;margin:-17px 0 0 -17px;transform:none;transition:transform .42s cubic-bezier(.3,.6,.4,1);rotate:var(--ang)}
 .jg-fly.axe{animation:jg-spin .15s linear infinite}@keyframes jg-spin{to{rotate:360deg}}
+@keyframes jg-swipe{0%{transform:none}35%{transform:translate(var(--dx),var(--dy)) scale(1.35) rotate(-14deg)}55%{transform:translate(calc(var(--dx) * .8),calc(var(--dy) * .8)) scale(1.3) rotate(12deg)}100%{transform:none}}
+.jg-c.swiping{z-index:4;overflow:visible;animation:jg-swipe .6s ease-out}
 @keyframes jg-slither{0%{transform:translateX(-30%) rotate(-12deg) scale(.8);opacity:.4}60%{transform:translateX(8%) rotate(6deg)}100%{transform:none;opacity:1}}
 @keyframes jg-wiggle{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}}
 .jg-snake,.jg-anaconda{display:inline-block;animation:jg-wiggle 1.2s ease-in-out infinite}.jg-snake.moved,.jg-anaconda.moved{animation:jg-slither .45s ease-out,jg-wiggle 1.2s ease-in-out .45s infinite}

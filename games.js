@@ -112,6 +112,17 @@ function jungle(host, api){
     setTimeout(() => el.remove(), 900);
   };
   const ogreOf = () => st.preds.find(p => p.kind === 'ogre');
+  // The ogre's evil laugh (a deep voice, played a little slower so it sounds ogre-sized).
+  let laughBuf = null; fetch('audio/ogre-laugh.m4a').then(r => r.arrayBuffer()).then(b => api.audio().decodeAudioData(b)).then(b => { laughBuf = b; }).catch(() => {});
+  let lastLaugh = 0;
+  const ogreLaugh = () => { if (!laughBuf || (api.soundOn && !api.soundOn()) || Date.now() - lastLaugh < 4000) return; lastLaugh = Date.now(); try {
+    const ac = api.audio(), s = ac.createBufferSource(), g = ac.createGain(); s.buffer = laughBuf; s.playbackRate.value = .85; g.gain.value = .9; s.connect(g); g.connect(ac.destination); s.start(ac.currentTime + .35);
+  } catch {} };
+  // The panther lunges at him and swipes, then springs back to its square.
+  const swipe = () => { const pn = st.preds.find(p => p.kind === 'panther' && Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c) === 1); if (!pn) return;
+    const el = host.querySelector(`.jg-c[data-r="${pn.r}"][data-c="${pn.c}"]`); if (!el) return;
+    el.style.setProperty('--dx', (st.pl.c - pn.c) * 60 + '%'); el.style.setProperty('--dy', (st.pl.r - pn.r) * 60 + '%');
+    el.classList.remove('swiping'); void el.offsetWidth; el.classList.add('swiping'); };
   const pantherNear = () => { const ds = st.preds.filter(p => p.kind === 'panther').map(p => Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c)); return ds.length ? Math.min(...ds) : 99; };
   const snakeNear = () => { const ds = st.preds.filter(p => p.kind !== 'panther').map(p => Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c)); return ds.length ? Math.min(...ds) : 99; };
   let level = 1, st = null, busy = false, cancelQ = null;
@@ -248,7 +259,7 @@ function jungle(host, api){
       o.innerHTML = scene('win', 'You made it to the boat with the gold!', `Level ${level} done. The jungle gets wilder from here.`, 'next', 'Next level');
       api.sound('win'); loadPics(o); action('win', 'Made it!'); setMood(9);
     } else {
-      if (who === 'ogre') ogreYell(.8); else if (who !== 'panther') hiss(.9, true); else roar(.8, true);
+      if (who === 'ogre') { ogreYell(.8); ogreLaugh(); } else if (who !== 'panther') hiss(.9, true); else roar(.8, true);
       o.innerHTML = scene(who === 'ogre' ? 'ogre-pot' : who === 'panther' ? 'panther-attack' : 'snake-attack', who === 'ogre' ? 'The ogre got you! Into the pot!' : who === 'anaconda' ? 'An anaconda got you!' : who === 'panther' ? 'The panther got you!' : 'Snake attack!', `Right answers keep you ahead of them. Try level ${level} again.`, 'again', 'Try again');
       api.sound('bad'); loadPics(o); action(who === 'ogre' ? 'ogre-pot' : who === 'panther' ? 'panther-attack' : 'snake-attack', 'Look out!');
     }
@@ -275,8 +286,8 @@ function jungle(host, api){
     } else {
       api.sound('bad');
       const og = ogreOf(), od = og ? Math.abs(og.r - st.pl.r) + Math.abs(og.c - st.pl.c) : 99;
-      if (og && od <= 5 && timeout) { ogreYell(.6); missile(true); fly(og, true); draw(); setTimeout(() => over(false, 'ogre'), 450); return; }
-      if (og && od <= 5) { const axe = Math.random() < .5; ogreYell(.45); missile(axe); fly(og, axe); msg(axe ? 'The ogre threw his axe! It nicked your hat!' : 'An arrow! It just missed you!'); action('ogre-chase', 'Duck!'); }
+      if (og && od <= 5 && timeout) { ogreYell(.6); ogreLaugh(); missile(true); fly(og, true); draw(); setTimeout(() => over(false, 'ogre'), 450); return; }
+      if (og && od <= 5) { const axe = Math.random() < .5; ogreYell(.45); if (Math.random() < .5) ogreLaugh(); missile(axe); fly(og, axe); msg(axe ? 'The ogre threw his axe! It nicked your hat!' : 'An arrow! It just missed you!'); action('ogre-chase', 'Duck!'); }
       else { msg('Missed! They are getting closer.'); action('miss', 'Missed!'); }
     }
     let who = caught();
@@ -290,9 +301,10 @@ function jungle(host, api){
     const near = snakeNear();
     if (near <= 3) { hiss([0, .7, .45, .25][near]); heartbeat(near); }
     else if (st.preds.some(p => p.moved && p.kind !== 'panther')) hiss(.08);   // a soft rustle as snakes slither about
-    const og2 = ogreOf(); if (og2 && og2.moved && Math.abs(og2.r - st.pl.r) + Math.abs(og2.c - st.pl.c) <= 4) ogreYell(.3);
+    const og2 = ogreOf(), od2 = og2 ? Math.abs(og2.r - st.pl.r) + Math.abs(og2.c - st.pl.c) : 99;
+    if (og2 && og2.moved && od2 <= 4) { if (od2 <= 2) ogreLaugh(); else ogreYell(.3); }
     const pn = pantherNear();
-    if (pn === 1) { roar(.55); claw(); const me = host.querySelector('.jg-me'); if (me) { me.classList.remove('clawed'); void me.offsetWidth; me.classList.add('clawed'); } }
+    if (pn === 1) { roar(.55); claw(); swipe(); const me = host.querySelector('.jg-me'); if (me) { me.classList.remove('clawed'); void me.offsetWidth; me.classList.add('clawed'); } }
     else if (pn === 2 && st.preds.some(p => p.moved && p.kind === 'panther')) roar(.35);
   }
   host.onclick = e => {
