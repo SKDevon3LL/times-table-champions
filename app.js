@@ -113,6 +113,9 @@ const Device = {
   clear(){ try { localStorage.removeItem('ttc.device'); } catch {} }
 };
 const isParentDevice = () => (Device.get() || {}).role === 'parent';
+// On a child's iPad only that child can sign in (Sam, 24 Oct 2026: Hughie set a PIN on Jessica's account from his iPad).
+// Grown-ups' devices, and players with no Google account set, are open to everyone; the database guards PINs as well.
+const notMine = p => { const d = Device.get() || {}; return d.role === 'child' && !!p.email && !!d.email && p.email.toLowerCase() !== d.email.toLowerCase(); };
 const withTimeout = (p, ms) => Promise.race([p, sleep(ms).then(() => { throw new Error('timed out'); })]);
 const Sync = {
   busy:false, timer:null, status:'idle', err:null, lastOk: ls.get('lastSyncOk') || 0,
@@ -856,7 +859,7 @@ function scrLogin(){
   return `${brandBar()}<section class="login">
     <div><h1 class="mega">Who's playing today?</h1><p class="lede">Tap your name, then type your PIN.</p></div>
     ${S.players.length
-      ? `<div class="who">${S.players.map(p => `<button class="who-card ${lf && lf.id === p.id ? 'on' : ''}" data-act="pick-player" data-id="${esc(p.id)}" style="--c:var(--${esc(p.color || 'sky')})">${avatar(p, 76)}<span class="who-name">${esc(p.name)}</span><span class="who-sub">${[p.age ? 'Age ' + esc(p.age) : '', SKINS[p.theme] && p.theme !== 'classic' ? esc(SKINS[p.theme].brand) : ''].filter(Boolean).join(' · ') || '&nbsp;'}</span></button>`).join('')}</div>`
+      ? `<div class="who">${S.players.map(p => `<button class="who-card ${lf && lf.id === p.id ? 'on' : ''}${notMine(p) ? ' not-mine' : ''}" ${notMine(p) ? 'disabled' : ''} data-act="pick-player" data-id="${esc(p.id)}" style="--c:var(--${esc(p.color || 'sky')})">${avatar(p, 76)}<span class="who-name">${esc(p.name)}</span><span class="who-sub">${notMine(p) ? `On ${esc(p.name)}’s own iPad` : [p.age ? 'Age ' + esc(p.age) : '', SKINS[p.theme] && p.theme !== 'classic' ? esc(SKINS[p.theme].brand) : ''].filter(Boolean).join(' · ') || '&nbsp;'}</span></button>`).join('')}</div>`
       : `<div class="sticker form"><h2>No players yet</h2><p class="muted">A grown-up can add players in the Grown-ups area. It takes a minute.</p><button class="btn" data-act="go" data-to="parent">Open the Grown-ups area</button></div>`}
     ${lf ? loginForm(lf) : ''}
     <div class="sticker howvid"><div><h2>New here? Watch how it works</h2><p class="muted">Two and a half minutes with Taylor, your Times Table Coach.</p></div><button class="btn" data-act="howvid">\u25B6 Watch the video</button></div>
@@ -1647,7 +1650,7 @@ const A = {
   },
   setup: el => openSetup(el.dataset.mode),
   item: el => { const i = +el.dataset.i; S.v.item = S.v.item === i ? undefined : i; render(); },
-  'pick-player': el => { S.v.loginFor = el.dataset.id; S.v.email = ''; S.err = null; S.focusNext = true; render(); },
+  'pick-player': el => { const pl = S.players.find(x => x.id === el.dataset.id); if (!pl || notMine(pl)) return; S.v.loginFor = el.dataset.id; S.v.email = ''; S.err = null; S.focusNext = true; render(); },
   'toggle-table': el => { const t = +el.dataset.t, c = S.v.cfg; c.tables = c.tables.includes(t) ? c.tables.filter(x => x !== t) : [...c.tables, t].sort((a, b) => a - b); render(); },
   'all-tables': () => { S.v.cfg.tables = ALL.slice(); render(); },
   'clear-tables': () => { S.v.cfg.tables = []; render(); },
@@ -1695,7 +1698,7 @@ const A = {
 };
 const F = {
   async login(f){
-    const p = S.players.find(x => x.id === f.dataset.id); if (!p) return;
+    const p = S.players.find(x => x.id === f.dataset.id); if (!p || notMine(p)) return;
     const pin = f.pin.value.trim();
     const fail = m => { S.err = m; S.focusNext = true; render(); };
     if (!/^\d{4}$/.test(pin)) return fail('Your PIN needs exactly 4 numbers.');
