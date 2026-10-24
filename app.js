@@ -911,7 +911,7 @@ function scrHome(){
       ${journey(p)}
       <div class="sticker"><div class="card-h"><h3>Your times-table map</h3><button class="link small" data-act="go" data-to="progress">See all progress</button></div>
         ${tablesSplit(p)}
-        <p class="muted small" style="margin-bottom:10px">Each square is one fact, like 7 × 8 = 56. Green means you know it.</p>${heatmap(p, false)}</div>
+        <p class="muted small" style="margin-bottom:10px">Green means you know it.</p>${heatmap(p, false)}</div>
     </div>
   </div>`;
 }
@@ -1040,7 +1040,7 @@ function collectionCard(p){
   const n = itemsOwned(p), sel = S.v.item, open = gameOpen(p), mins = Math.ceil((GAME_MS - gameUsed(p)) / 60000);
   const goal = open ? `<div class="callout mint unlock"><div><b>${id === 'eras' ? 'Your stadium show is open!' : 'The jungle gold is waiting!'}</b> ${mins} minutes of play left.</div><button class="btn" data-act="game">${id === 'eras' ? 'Go on stage' : 'Start the Gold Run'}</button></div>`
     : n >= TRAIL_STOPS && !gameApproved(S.me) ? `<p class="callout">Trail complete! Your ${id === 'eras' ? 'stadium show' : 'Jungle Gold Run'} is waiting for a grown-up to approve it.</p>`
-    : `<p class="muted small">Win ${TRAIL_STOPS - n} more troph${TRAIL_STOPS - n === 1 ? 'y' : 'ies'} by Sunday to unlock ${id === 'eras' ? 'your stadium show' : 'the Jungle Gold Run'}: 30 minutes of play. A new trail starts every Monday.</p>`;
+    : `<p class="muted small">Win ${TRAIL_STOPS - n} more troph${TRAIL_STOPS - n === 1 ? 'y' : 'ies'} by Sunday to unlock ${id === 'eras' ? 'your stadium show' : 'the Jungle Gold Run'}.</p>`;
   if (id === 'eras') {
     const ds = Array.from({length:TRAIL_STOPS}, (_, k) => trailDress(p, k)), e = sel !== undefined && sel < TRAIL_STOPS && ERAS[ds[sel]];
     return `<div class="sticker"><div class="card-h"><h3>This week's Eras Tour</h3><span class="muted small">${n} of ${TRAIL_STOPS} dresses</span></div>
@@ -1342,7 +1342,7 @@ function scrExplore(){
       <p class="eyebrow">${LEVEL_NAMES[lv]} for you</p>
       <p class="fact-big num">${a} × ${b} = ${p}</p>
       ${dotsSvg(a, b)}
-      <p style="font-weight:800">${a} row${a > 1 ? 's' : ''} of ${b} dot${b > 1 ? 's' : ''} makes ${p}. Turn it on its side and it is ${b} rows of ${a}: the same ${p} dots.</p>
+      <p style="font-weight:800">${a} row${a > 1 ? 's' : ''} of ${b} dot${b > 1 ? 's' : ''} makes ${p}.</p>
       <div class="mistakes" style="margin:14px 0"><span>${b} × ${a} = ${p}</span><span>${p} ÷ ${a} = ${b}</span>${a !== b ? `<span>${p} ÷ ${b} = ${a}</span>` : ''}</div>
       <p class="hint" style="margin:0 0 16px">${esc(hint(a, b))}</p>
       <div class="row"><button class="btn" data-act="rec" data-mode="practice" data-tables="${uniq([a, b]).join(',')}">Practise the ${a === b ? a + 's' : a + 's and ' + b + 's'}</button></div>
