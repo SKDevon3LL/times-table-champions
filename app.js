@@ -1355,16 +1355,8 @@ function scrParent(){
         ${d.logins.length ? `<ul class="logins">${d.logins.slice().reverse().slice(0, 100).map(t => `<li>${fmtDateTime(t)}</li>`).join('')}</ul>` : '<p class="muted">No sign-ins yet.</p>'}</div>
     </div>
     ${reportBlocks(d.prog, d.sessions, d.logins, pp)}` : '<p class="muted">Loading…</p>') : '';
-  return `${head}<section>
-    <div class="parent-head"><div><p class="eyebrow">Grown-ups area</p><h1 class="mega sm">Family report</h1></div>
-      <div class="row">${isParentDevice() ? '' : '<button class="btn ghost" data-act="parent-lock">Lock</button>'}<button class="btn ghost" data-act="go" data-to="${back}">Back to the app</button></div></div>
-    ${S.okMsg ? `<p class="callout mint" role="status" style="margin-bottom:18px">${esc(S.okMsg)}</p>` : ''}
-    ${pls.length ? `<div class="overview">${overview}</div>` : '<p class="callout" style="margin-bottom:18px">Add the first player below to get started.</p>'}
-    ${methodsParent()}
-    ${gamesParent(pls)}
-    ${demosParent(pls)}
-    ${pls.length ? `<h2 class="sec">Reports</h2>${detail}` : ''}
-    <h2 class="sec">Settings</h2>
+  // The Settings tab: each player's settings, adding a player, rewards, the grown-up PIN and this device.
+  function settingsTab(){ return `
     <div class="settings">
       ${pls.map(pl => `<form class="sticker form" data-form="edit-player" data-id="${esc(pl.id)}">
         <div class="ov-head">${avatar(pl, 44)}<h3>${esc(pl.name)}</h3></div>
@@ -1395,6 +1387,20 @@ function scrParent(){
         <button class="btn" type="submit">Change PIN</button></form>
     </div>
     <h2 class="sec">This device</h2>${devicePanel()}
+    <h2 class="sec">This device</h2>${devicePanel()}`; }
+  const GTABS = [['family', 'Family report'], ['methods', 'Ways to learn'], ['games', 'Reward games'], ['try', 'Try it yourself'], ['settings', 'Settings']];
+  const gt = GTABS.some(t => t[0] === S.gtab) ? S.gtab : 'family';
+  const waiting = pls.filter(pl => (pl.theme === 'eras' || pl.theme === 'trail') && !gameApproved(pl)).length;
+  return `${head}<section>
+    <div class="parent-head"><div><p class="eyebrow">Grown-ups area</p><h1 class="mega sm">${GTABS.find(t => t[0] === gt)[1]}</h1></div>
+      <div class="row">${isParentDevice() ? '' : '<button class="btn ghost" data-act="parent-lock">Lock</button>'}<button class="btn ghost" data-act="go" data-to="${back}">Back to the app</button></div></div>
+    <nav class="tabs" aria-label="Grown-ups area"><div class="tabs-in">${GTABS.map(([k, l]) => `<button class="tab ${gt === k ? 'on' : ''}" data-act="gtab" data-t="${k}" ${gt === k ? 'aria-current="page"' : ''}>${l}${k === 'games' && waiting ? ` (${waiting} waiting)` : ''}</button>`).join('')}</div></nav>
+    ${S.okMsg ? `<p class="callout mint" role="status" style="margin-bottom:18px">${esc(S.okMsg)}</p>` : ''}
+    ${gt === 'family' ? (pls.length ? `<div class="overview">${overview}</div><h2 class="sec">Reports</h2>${detail}` : '<p class="callout" style="margin-bottom:18px">Add the first player in Settings to get started.</p>') : ''}
+    ${gt === 'methods' ? methodsParent() : ''}
+    ${gt === 'games' ? gamesParent(pls) : ''}
+    ${gt === 'try' ? demosParent(pls) : ''}
+    ${gt === 'settings' ? settingsTab() : ''}
     ${S.v.lightbox ? `<div class="jg-over lightbox" data-act="lightbox"><img data-photo="${esc(S.v.lightbox)}" alt=""></div>` : ''}
   </section>`;
 }
@@ -1592,6 +1598,7 @@ const A = {
   'ex-hl': el => { const v = el.dataset.v === 'sq' ? 'sq' : +el.dataset.v; S.v.ex.hl = S.v.ex.hl === v ? null : v; render(); },
   'parent-lock': () => { S.parentOK = false; go(S.me ? 'home' : 'login'); },
   pp: el => { S.v.pp = el.dataset.id; render(); },
+  gtab: el => { S.gtab = el.dataset.t; S.okMsg = null; render(); scrollTo(0, 0); },
   game: () => startGame(),
   demo: el => startDemo(el.dataset.id, el.dataset.what),
   'game-approve': el => setGameApproval(el.dataset.id, 'approved'),
