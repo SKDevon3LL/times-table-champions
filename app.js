@@ -91,7 +91,7 @@ function mergeDoc(path, a, b){
     r.days = uniq([...(a.days || []), ...(b.days || [])]).sort().slice(-400);
     r.daily = Object.assign({}, b.daily); for (const [k, v] of Object.entries(a.daily || {})) if (!r.daily[k] || v.pct > r.daily[k].pct) r.daily[k] = v;
     // The Bonus Round: the copy that got further through the day's steps wins; same steps, the one with more facts looked at.
-    const stepsOf = v => !v.clock ? 0 : !v.explore ? 1 : !v.test ? 2 : 3;
+    const stepsOf = v => Object.keys(v.steps || {}).length;
     r.bonus = Object.assign({}, b.bonus); for (const [k, v] of Object.entries(a.bonus || {})) { const o = r.bonus[k]; if (!o || stepsOf(v) > stepsOf(o) || (stepsOf(v) === stepsOf(o) && (v.ex || []).length >= (o.ex || []).length)) r.bonus[k] = v; }
     r.badges = Object.assign({}, b.badges); for (const [k, v] of Object.entries(a.badges || {})) if (!r.badges[k] || v < r.badges[k]) r.badges[k] = v;
     const seen = new Set();
@@ -552,35 +552,52 @@ function weeklyGoals(p, sessions, player){
 }
 // The table to work on next: the first in teaching order that isn't fully strong (the 1s look after themselves).
 const focusTable = p => { const plan = planFor(S.me); return (plan && (plan.focus || []).find(t => ALL.includes(t) && strongCount(p, t) < 12)) || TEACH_ORDER.find(t => t !== 1 && strongCount(p, t) < 12) || null; };
-// Today's order (Sam, 24 Oct 2026): the Daily Challenge is today's work. Once it is done, the Bonus Round: Beat the Clock,
-// then Explore (look closely at five facts), then a test, in that order. Finish all three and the points won in them are
-// paid again, so the round is worth double. Each step opens only when the one before it is done; anything played out of
-// order still earns points, just not for the round. A Grown-ups demo runs the round too, on its copy, and saves nothing.
-const BONUS_STEPS = [
-  {k:'clock', name:'Beat the Clock', sub:'How many can you get in 60 seconds?', act:'setup', mode:'clock'},
-  {k:'explore', name:'Explore', sub:'Look closely at 5 facts in the grid.', act:'go', mode:'explore'},
-  {k:'test', name:'Take a test', sub:'20 questions. Finish it and every point from the round is doubled.', act:'setup', mode:'test'},
-];
-const EXPLORE_FACTS = 5;
+// Today's order (Sam, 24 Oct 2026): the Daily Challenge is today's work. Once it is done, the Bonus Round, in order:
+// Beat the Clock, Explore (look closely at five facts), today's ways to learn, then a test. Finish them all and the points
+// won in the round are paid again, so it is worth double. Each step opens only when the one before it is done; anything
+// played out of order still earns points, just not for the round. A Grown-ups demo runs the round too, on its copy, and
+// saves nothing. The approved ways to learn take turns day by day; how many come each day is set by Taylor's weekly plan
+// (plan.methods, 1 to 3), so the round grows as the children cope with it.
+const STEP_CLOCK = {k:'clock', name:'Beat the Clock', sub:'How many can you get in 60 seconds?', act:'setup', mode:'clock'};
+const STEP_EXPLORE = {k:'explore', name:'Explore', sub:'Look closely at 5 facts in the grid.', act:'go', mode:'explore'};
+const STEP_TEST = {k:'test', name:'Take a test', sub:'20 questions. Finish it and every point from the round is doubled.', act:'setup', mode:'test'};
+const EXPLORE_FACTS = 5, METHOD_QS = 5;
+function methodsToday(){
+  const ok = allMethods().filter(m => methodState(m.id) === 'approved'); if (!ok.length) return [];
+  const plan = planFor(S.me), n = Math.min(ok.length, Math.max(1, Math.min(3, (plan && plan.methods) || 1)));
+  const day = Math.round(Date.parse(dayStr() + 'T12:00:00Z') / 864e5), start = (day * n) % ok.length;
+  return Array.from({length:n}, (_, i) => ok[(start + i) % ok.length]);
+}
+const bonusSteps = () => [STEP_CLOCK, STEP_EXPLORE,
+  ...methodsToday().map(m => ({k:'m:' + m.id, name:`Try: ${m.name}`, sub:`See how it works, then ${METHOD_QS} questions using it.`, act:'method-step', mode:m.id})), STEP_TEST];
 const todayDone = p => { const d = (p.daily || {})[dayStr()]; return !!(d && d.pct >= 80); };
 const bonusToday = p => (p.bonus || {})[dayStr()] || null;
 function bonusRound(p){
   const b = p.bonus || (p.bonus = {}), k = dayStr();
-  if (!b[k]) { b[k] = {xp:0, ex:[]}; const keys = Object.keys(b).sort(); while (keys.length > 60) delete b[keys.shift()]; }
+  if (!b[k]) { b[k] = {xp:0, ex:[], steps:{}}; const keys = Object.keys(b).sort(); while (keys.length > 60) delete b[keys.shift()]; }
+  if (!b[k].steps) b[k].steps = {};
   return b[k];
 }
-// How many steps of today's round are done, in order: a test before Beat the Clock does not count.
-const bonusStep = p => { const r = bonusToday(p); return !r || !r.clock ? 0 : !r.explore ? 1 : !r.test ? 2 : 3; };
+// How far through today's round they are, in order: a step played before its turn does not count.
+const bonusStep = p => { const r = bonusToday(p), st = bonusSteps(), i = st.findIndex(x => !(r && r.steps && r.steps[x.k])); return i < 0 ? st.length : i; };
+const curStep = p => bonusSteps()[bonusStep(p)] || null;
 // Explore counts once five different facts have been looked at, while Explore is the step they are on.
 function exploreLooked(k){
-  const p = S.prog; if (!p || !todayDone(p) || bonusStep(p) !== 1) return;
+  const p = S.prog, cur = p && todayDone(p) && curStep(p); if (!cur || cur.k !== 'explore') return;
   const r = bonusRound(p); if (r.ex.includes(k)) return;
   r.ex.push(k);
   if (r.ex.length >= EXPLORE_FACTS) {
-    const got = EXPLORE_FACTS * 10; r.explore = Date.now(); r.xp += got; p.xp += got;
-    toast(`Explore complete! +${got} ${ptsName()}. Next: take a test, and every point from the round is doubled.`); sound('win');
+    const got = EXPLORE_FACTS * 10; r.steps.explore = Date.now(); r.xp += got; p.xp += got;
+    const next = curStep(p);
+    toast(`Explore complete! +${got} ${ptsName()}. Next: ${next ? next.name : 'take a test'}.`); sound('win');
   }
   if (!S.demo) saveProg().catch(saveFail);
+}
+// A way-to-learn step: a short practice round on the focus table with the method shown above every question.
+function startMethodStep(id){
+  const m = allMethods().find(x => x.id === id); if (!m) return;
+  const t = focusTable(S.prog);
+  startPlay('practice', {tables: t ? [t] : [2, 5, 10], count: METHOD_QS, miss: false, div: false, method: id});
 }
 function gameBanner(p){
   if (!gameOpen(p)) return '';
@@ -590,15 +607,15 @@ function gameBanner(p){
 // The home screen's card: today's work, then the Bonus Round as a numbered list, the current step with its button and the
 // later ones locked until it is done.
 function todayCard(p){
-  const d = (p.daily || {})[dayStr()], done = todayDone(p), st = bonusStep(p), r = bonusToday(p) || {ex:[], xp:0};
+  const d = (p.daily || {})[dayStr()], done = todayDone(p), steps = bonusSteps(), st = bonusStep(p), r = bonusToday(p) || {ex:[], xp:0};
   const day = new Date().toLocaleDateString('en-GB', {weekday:'long'}), pts = ptsName(), dn = skin().daily;
-  const head = !done ? {title:"Today's work", text:`Start with ${dn}. Then the Bonus Round, in this order: finish all three and every point you win in them is doubled.`}
-    : st < 3 ? {title:"Today's work complete!", text:`Want more ${pts}? Do the Bonus Round, in this order. Finish all three and every point you win in them is doubled.`}
+  const head = !done ? {title:"Today's work", text:`Start with ${dn}. Then the Bonus Round, in this order: finish them all and every point you win in them is doubled.`}
+    : st < steps.length ? {title:"Today's work complete!", text:`Want more ${pts}? Do the Bonus Round, in this order. Finish them all and every point you win in them is doubled.`}
     : {title:'Bonus Round complete!', text:`Everything done today, with ${r.bonusXp || r.xp} extra ${pts} for finishing the round. Play anything you like for more.`};
   const row = (n, name, sub, state, btn) => `<li class="${state}"><span class="n" aria-hidden="true">${state === 'done' ? '✓' : n}</span><div><b>${esc(name)}</b><small>${esc(sub)}</small></div>${btn}</li>`;
   const btn = (act, mode, label) => `<button class="btn" data-act="${act}" data-to="${mode}" data-mode="${mode}">${label}</button>`;
   const rows = [row(1, dn, done ? `Done today: ${d.pct}%.` : d ? `Best today ${d.pct}%. Score 80% or more to complete it.` : `15 questions on your trickiest facts. Score 80% or more: +50 ${pts}.`, done ? 'done' : 'now', done ? '' : btn('start-daily', '', d ? 'Try again' : 'Start'))];
-  BONUS_STEPS.forEach((s, i) => {
+  steps.forEach((s, i) => {
     const isDone = done && st > i, isNow = done && st === i;
     const sub = isDone ? (s.k === 'explore' ? `Done: ${EXPLORE_FACTS} facts looked at.` : s.k === 'test' ? `Done. Round complete: +${r.bonusXp || 0} ${pts}.` : 'Done.')
       : isNow && s.k === 'explore' && r.ex.length ? `${r.ex.length} of ${EXPLORE_FACTS} facts looked at so far.` : s.sub;
@@ -639,10 +656,10 @@ function openSetup(mode, tables){ S.v.mode = mode; S.v.cfg = cfgFor(mode, tables
 function startPlay(mode, cfg, pool){
   const kinds = mode === 'daily' ? dailyKinds() : ['mul', ...(cfg.miss ? ['miss'] : []), ...(cfg.div ? ['div'] : [])];
   const P = {mode, cfg: clone(cfg), tables: cfg.tables.slice().sort((a, b) => a - b), kinds, pool: pool || null,
-    total: mode === 'test' ? cfg.count : mode === 'daily' ? 15 : (pool && mode === 'practice' ? null : null),
+    total: mode === 'test' ? cfg.count : mode === 'daily' ? 15 : cfg.method ? METHOD_QS : null,
     answers:[], correct:0, streak:0, best:0, input:'', start:Date.now(), fb:null, hint:null, retry:false, locked:false, done:false};
   if (mode === 'clock') P.bestKey = P.tables.join('-') + '|' + P.kinds.join('');
-  if (mode !== 'daily' && !pool && !S.demo) ls.set(`cfg.${mode}.${S.me.id}`, cfg);
+  if (mode !== 'daily' && !pool && !cfg.method && !S.demo) ls.set(`cfg.${mode}.${S.me.id}`, cfg);
   S.play = P; S.screen = 'play';
   if (mode === 'clock') { P.endsAt = Date.now() + 60000; P.timer = setInterval(tick, 100); }
   else P.timer = setInterval(tickElapsed, 1000);
@@ -759,13 +776,16 @@ async function finish(abandoned){
     const b = prog.bests[P.bestKey]; prevBest = b ? b.score : null;
     if (!b || c > b.score) { prog.bests[P.bestKey] = {score:c, t:Date.now()}; newBest = true; }
   }
-  // The Bonus Round: after today's work, Beat the Clock, then Explore, then a test; the test completes it and the round's points are paid again.
+  // The Bonus Round: the step they are on counts when played in its turn; the test is last and pays the round's points again.
   let bonus = null;
-  if (!abandoned && todayDone(prog) && (P.mode === 'clock' || P.mode === 'test')) {
-    const st = bonusStep(prog);
-    if (P.mode === 'clock' && st === 0) { const r = bonusRound(prog); r.clock = Date.now(); r.xp += xp; bonus = {step:1}; }
-    else if (P.mode === 'test' && st === 2) { const r = bonusRound(prog); r.test = Date.now(); r.xp += xp; r.bonusXp = r.xp; r.done = Date.now(); xp += r.bonusXp; bonus = {done:true, base:r.xp, extra:r.bonusXp}; }
-    else if (P.mode === 'test' && st < 2) bonus = {hint:true, next: st === 0 ? 'clock' : 'explore'};
+  if (!abandoned && todayDone(prog)) {
+    const steps = bonusSteps(), i = bonusStep(prog), cur = steps[i];
+    const k = P.mode === 'clock' ? 'clock' : P.mode === 'test' ? 'test' : P.cfg && P.cfg.method && n >= METHOD_QS ? 'm:' + P.cfg.method : null;
+    if (k && cur && cur.k === k) {
+      const r = bonusRound(prog); r.steps[k] = Date.now(); r.xp += xp;
+      if (k === 'test') { r.bonusXp = r.xp; r.done = Date.now(); xp += r.bonusXp; bonus = {done:true, base:r.xp, extra:r.bonusXp}; }
+      else bonus = {step: i + 1, of: steps.length, next: steps[i + 1]};
+    } else if (k && cur && steps.some(x => x.k === k)) bonus = {hint:true, next: cur};
   }
   const itemsBefore = itemsOwned(prog);
   prog.xp += xp; prog.totals.q += n; prog.totals.c += c;
@@ -778,6 +798,7 @@ async function finish(abandoned){
   const wrong = uniq(P.answers.filter(a => !a.ok).map(a => a.k)).slice(0, 12);
   const entry = {t:P.start, mode:P.mode, tables:P.tables, n, c, pct, ms, prize: prize ? prize.id : null, xp, wrong};
   if (P.pool) entry.pool = true;
+  if (P.cfg && P.cfg.method) entry.method = P.cfg.method;
   if (abandoned) entry.ab = true;
   S.sessions.push(entry); ensureLogCur(); S.logCur.sessions.push(entry);
   if (!S.demo) Promise.all([saveProg(), saveLog()]).catch(saveFail);
@@ -1111,6 +1132,7 @@ function scrPlay(){
     <div class="play-main">
       <div class="play-top"><div class="info">${info}</div><button class="btn ghost small" data-act="quit">${P.mode === 'practice' ? 'Finish' : 'Stop'}</button></div>
       ${dots}
+      ${P.cfg && P.cfg.method ? (m => m ? `<div class="callout" style="margin-bottom:12px"><b>${esc(m.name)}.</b> ${esc(m.kid)}${(m.ex || [])[0] ? `<br><span class="muted small">For example: ${esc(m.ex[0])}</span>` : ''}</div>` : '')(allMethods().find(x => x.id === P.cfg.method)) : ''}
       <div class="qcard sticker"><div class="q" aria-label="${esc(qText(q))}">${qh}</div><div class="fb" role="status">${P.fb ? esc(P.fb.text) : ''}</div>${P.hint ? `<p class="hint">${esc(P.hint)}</p>` : ''}</div>
       ${P.mode === 'practice' && !P.hint ? `<div><button class="link" data-act="hint">Show me a trick</button></div>` : ''}
     </div>
@@ -1137,7 +1159,7 @@ function scrResults(){
   const nt = (r.mode === 'test' || r.mode === 'daily') && !r.ab ? nextTier(r.pct) : null;
   const wrongA = r.answers.filter(a => !a.ok);
   const reward = prize && S.family.rewards && S.family.rewards[prize.id];
-  const nextBtn = k => k === 'clock' ? '<button class="btn small" data-act="setup" data-mode="clock">Next: Beat the Clock</button>' : '<button class="btn small" data-act="go" data-to="explore">Next: Explore</button>';
+  const nextBtn = st => st ? `<button class="btn small" data-act="${st.act}" data-to="${st.mode}" data-mode="${st.mode}">Next: ${esc(st.name)}</button>` : '';
   const art = prize ? `<div class="res-medal pop">${medal(prize.id, 170)}<b>${prize.name}</b></div>`
     : `<div class="res-medal"><svg viewBox="0 0 64 64" width="150" height="150" aria-hidden="true"><circle cx="32" cy="32" r="28" fill="color-mix(in srgb, var(--me) 30%, var(--card))" stroke="var(--line)" stroke-width="3"/><path d="${starPath(32, 32, 16, 7)}" fill="var(--me)" stroke="var(--line)" stroke-width="2.5" stroke-linejoin="round"/></svg></div>`;
   return `${topbar('')}<section class="results">
@@ -1147,10 +1169,10 @@ function scrResults(){
       <h1 class="mega sm">${headline}</h1>
       <div><span class="score num">${big}</span> <span class="muted" style="font-weight:800">${sub}</span></div>
       <p class="callout mint">+${r.xp} ${ptsName()}${r.dailyDone ? ` (including 50 bonus ${ptsName()} for completing the Daily Challenge)` : ''}</p>
-      ${r.bonus && r.bonus.done ? `<p class="callout mint">Bonus Round complete! The ${r.bonus.base} ${ptsName()} you won in Beat the Clock, Explore and this test are doubled: +${r.bonus.extra} extra.</p>`
-        : r.bonus && r.bonus.step === 1 ? `<p class="callout">Bonus Round: 1 of 3 done. Next: Explore, then a test, and every point from the round is doubled. ${nextBtn('explore')}</p>`
-        : r.bonus && r.bonus.hint ? `<p class="callout">Bonus Round: do Beat the Clock first, then Explore, then a test, and the points from all three are doubled. ${nextBtn(r.bonus.next)}</p>`
-        : r.dailyDone ? `<p class="callout">Today's work complete! Want more ${ptsName()}? Do the Bonus Round, in this order: Beat the Clock, Explore, then a test. Finish all three and every point you win in them is doubled. ${nextBtn('clock')}</p>` : ''}
+      ${r.bonus && r.bonus.done ? `<p class="callout mint">Bonus Round complete! The ${r.bonus.base} ${ptsName()} you won in the round are doubled: +${r.bonus.extra} extra.</p>`
+        : r.bonus && r.bonus.step ? `<p class="callout">Bonus Round: ${r.bonus.step} of ${r.bonus.of} done. Next: ${esc(r.bonus.next.name)}, and finish them all for double ${ptsName()}. ${nextBtn(r.bonus.next)}</p>`
+        : r.bonus && r.bonus.hint ? `<p class="callout">Bonus Round: do the steps in order for double ${ptsName()}. Next: ${esc(r.bonus.next.name)}. ${nextBtn(r.bonus.next)}</p>`
+        : r.dailyDone ? `<p class="callout">Today's work complete! Want more ${ptsName()}? Do the Bonus Round, in order: ${bonusSteps().map(x => x.name).join(', then ')}. Finish them all and every point you win in them is doubled. ${nextBtn(bonusSteps()[0])}</p>` : ''}
       ${reward ? `<p class="callout">Your reward for a ${prize.name}: <b>${esc(reward)}</b></p>` : ''}
       ${nt ? `<p class="callout">${r.pct < 70 ? 'So close to a prize.' : 'Brilliant work.'} Score ${nt.min}% next time to win a ${nt.name}.</p>` : ''}
       ${resultItems(r)}
@@ -1277,9 +1299,9 @@ function scrExplore(){
   }
   board += `</div></div>`;
   const lv = level(S.prog.facts[fkey(a, b)]);
-  const p0 = S.prog, onStep = todayDone(p0) ? bonusStep(p0) : -1;
-  const roundLine = onStep === 1 ? `<p class="callout" style="margin-top:10px">Bonus Round, step 2: look closely at ${EXPLORE_FACTS} different facts. ${bonusRound(p0).ex.length} of ${EXPLORE_FACTS} so far.</p>`
-    : onStep === 2 ? `<p class="callout mint" style="margin-top:10px">Explore done. Next: take a test, and every point from the round is doubled. <button class="btn small" data-act="setup" data-mode="test">Take a test</button></p>` : '';
+  const p0 = S.prog, cs = todayDone(p0) ? curStep(p0) : null, exDone = !!((bonusToday(p0) || {}).steps || {}).explore;
+  const roundLine = cs && cs.k === 'explore' ? `<p class="callout" style="margin-top:10px">Bonus Round: look closely at ${EXPLORE_FACTS} different facts. ${bonusRound(p0).ex.length} of ${EXPLORE_FACTS} so far.</p>`
+    : cs && exDone ? `<p class="callout mint" style="margin-top:10px">Explore done. Next: ${esc(cs.name)}. <button class="btn small" data-act="${cs.act}" data-to="${cs.mode}" data-mode="${cs.mode}">${esc(cs.name)}</button></p>` : '';
   return `${topbar('explore')}<div class="parent-head"><div><p class="eyebrow">Explore</p><h1 class="mega sm">Tap any square</h1><p class="lede">Every answer in the grid is a rectangle of dots. Find the patterns.</p>${roundLine}</div></div>
   <div class="explore">
     <div class="sticker" style="display:grid;gap:14px">
@@ -1585,6 +1607,7 @@ const A = {
   'toggle-kind': el => { const k = el.dataset.k; S.v.cfg[k] = !S.v.cfg[k]; render(); },
   start: () => startPlay(S.v.mode, S.v.cfg),
   'start-daily': () => startDaily(),
+  'method-step': el => startMethodStep(el.dataset.mode),
   key: el => { press(el.dataset.k); },
   hint: () => { const P = S.play; if (P) { P.hint = hint(P.q.a, P.q.b); render(); } },
   quit: () => quit(),

@@ -41,7 +41,27 @@ function level(f: any) {
 const strongCount = (facts: any, t: number) => ALL.filter(k => level(facts[fkey(t, k)]) >= 3).length;
 const yearOf = (pl: any) => pl.year || Math.min(8, Math.max(3, (pl.age || 9) - 4));
 
-function weekStats(pl: any, prog: any, sessions: any[], plan: any, start: number) {
+// What they did this week, exercise by exercise (Sam, 24 Oct 2026: "which times table and which exercise they did and how
+// many times"). Counted here from the session log, never by the model.
+const tablesText = (ts: number[]) => ts.length === 0 ? "" : ts.length >= 11 ? "all tables" : ts.map(t => `${t}s`).join(", ");
+function activity(sessions: any[], prog: any, start: number, methodNames: Record<string, string>) {
+  const rows = new Map<string, {name: string, times: number, tables: Set<number>, mixed: boolean}>();
+  for (const s of sessions) {
+    if (s.ab) continue;
+    const name = s.mode === "daily" ? "Daily Challenge" : s.mode === "test" ? "Test" : s.mode === "clock" ? "Beat the Clock"
+      : s.method ? `Way to learn: ${methodNames[s.method] || s.method}` : "Practise";
+    const r = rows.get(name) || {name, times: 0, tables: new Set<number>(), mixed: s.mode === "daily"};
+    r.times++; if (s.mode !== "daily") for (const t of s.tables || []) r.tables.add(t);
+    rows.set(name, r);
+  }
+  const explored = Object.values(prog.bonus || {}).filter((v: any) => (v.steps || {}).explore >= start).length;
+  const out = [...rows.values()].map(r => ({name: r.name, times: r.times, tables: r.mixed ? "their trickiest facts, mixed" : tablesText([...r.tables].sort((a, b) => a - b))}));
+  if (explored) out.push({name: "Explore (5 facts, in the Bonus Round)", times: explored, tables: ""});
+  const order = ["Daily Challenge", "Beat the Clock", "Explore", "Way to learn", "Test", "Practise"];
+  return out.sort((a, b) => order.findIndex(o => a.name.startsWith(o)) - order.findIndex(o => b.name.startsWith(o)));
+}
+
+function weekStats(pl: any, prog: any, sessions: any[], plan: any, start: number, methodNames: Record<string, string> = {}) {
   const wk = sessions.filter(s => s.t >= start);
   const q = wk.reduce((s, x) => s + (x.n || 0), 0), c = wk.reduce((s, x) => s + (x.c || 0), 0);
   const days = new Set(wk.map(s => new Date(s.t + 3600e3).toISOString().slice(0, 10))).size;
@@ -59,8 +79,9 @@ function weekStats(pl: any, prog: any, sessions: any[], plan: any, start: number
     tests, trophies: trophies.length, trailDone: trophies.length >= 7,
     gameMinutes: prog.gameTrail >= start ? Math.round((prog.gameMs || 0) / 60000) : 0,
     bonusRounds: Object.values(prog.bonus || {}).filter((v: any) => v.done >= start).length,
+    activity: activity(wk, prog, start, methodNames),
     mastered, of: 78, tables, weakest,
-    lastPlan: plan ? {focus: plan.focus, questions: plan.questions, days: plan.days, mix: plan.mix} : null,
+    lastPlan: plan ? {focus: plan.focus, questions: plan.questions, days: plan.days, mix: plan.mix, methods: plan.methods || 1} : null,
     metTargets: plan ? q >= (plan.questions || 0) && days >= (plan.days || 0) : null,
     game: prog.game || {},
   };
@@ -78,10 +99,10 @@ const PLAN_SCHEMA = {
       required: ["id", "headline", "summary", "idea", "plan"],
       properties: {
         id: {type: "string"}, headline: {type: "string"}, summary: {type: "string"}, idea: {type: "string"},
-        plan: {type: "object", additionalProperties: false, required: ["focus", "mix", "questions", "days", "note", "why"], properties: {
+        plan: {type: "object", additionalProperties: false, required: ["focus", "mix", "questions", "days", "methods", "note", "why"], properties: {
           focus: {type: "array", items: {type: "integer"}},
           mix: {type: "object", additionalProperties: false, required: ["miss", "div", "scale", "scale100"], properties: {miss: {type: "boolean"}, div: {type: "boolean"}, scale: {type: "boolean"}, scale100: {type: "boolean"}}},
-          questions: {type: "integer"}, days: {type: "integer"}, note: {type: "string"}, why: {type: "string"},
+          questions: {type: "integer"}, days: {type: "integer"}, methods: {type: "integer"}, note: {type: "string"}, why: {type: "string"},
         }},
       },
     }},
@@ -92,7 +113,7 @@ const SYSTEM = `You are Taylor, the children's Times Table Coach, for a family's
 
 Each Sunday you read each child's week and do two things.
 
-1. Set next week's plan, matched to what they actually did. Make it a step harder when they met this week's targets with good accuracy (85% or more): more questions, the next table that is not yet strong, or the next question type their school year allows. Hold it, or ease it slightly, when they missed the targets, so the challenge stays reachable. Over 52 weeks every table should become strong and quick (the national Multiplication Tables Check allows 6 seconds a question). Focus on two or three tables at most. Question types: miss = missing numbers (6 × ? = 42), div = division, scale = ×10 facts (70 × 8), scale100 = ×100 facts; only use the ones their school year allows (given). questions = the week's question target (100 to 600), days = days to play (3 to 7).
+1. Set next week's plan, matched to what they actually did. Make it a step harder when they met this week's targets with good accuracy (85% or more): more questions, the next table that is not yet strong, or the next question type their school year allows. Hold it, or ease it slightly, when they missed the targets, so the challenge stays reachable. Over 52 weeks every table should become strong and quick (the national Multiplication Tables Check allows 6 seconds a question). Focus on two or three tables at most. Question types: miss = missing numbers (6 × ? = 42), div = division, scale = ×10 facts (70 × 8), scale100 = ×100 facts; only use the ones their school year allows (given). questions = the week's question target (100 to 600), days = days to play (3 to 7). methods = how many of the approved ways to learn go into each day's Bonus Round (1 to 3; they take turns day by day): start at 1, add one when they completed Bonus Rounds on most days they played, never more than one extra a week, and drop one when they did not finish any.
 The note is for the child: one or two short, encouraging sentences, no more than 25 words. The why is one sentence for the grown-ups.
 
 2. Write the weekly email to the grown-ups it is going to, who are named in the message: Sam and Abbey are the parents; Hayley is the children's maths tutor and is only among them when named. Greet only the people it goes to. Write as Taylor in the first person, and never call yourself just "coach" or "your coach". Keep it short, because it is read on a phone. The intro is at most two sentences and begins "It's me, Taylor, your Times Table Coach,". For each child: the headline is under ten words and does not repeat the child's name; the summary is two or three sentences, at most 60 words, saying what went well and the one thing to work on next; the idea is one sentence with one concrete thing to try this week, such as a method or a quick game for a specific fact (for Hayley's sessions when Hayley is named, otherwise something to try at home). The signoff is one short sentence ending "Taylor, your Times Table Coach". British English. Warm and plain; use the numbers given, never invent any. No markdown, no dashes as punctuation.`;
@@ -109,7 +130,8 @@ function clampPlan(p: any, year: number, prev: any, stats: any) {
   }
   const mix: any = {};
   for (const k of ["miss", "div", "scale", "scale100"]) mix[k] = allowed.includes(k) && !!(p.mix || {})[k];
-  return {focus, mix, questions, days, note: String(p.note || "").slice(0, 200), why: String(p.why || "").slice(0, 300)};
+  const before = (prev && prev.methods) || 1, methods = Math.max(1, Math.min(3, before + 1, Math.round(p.methods || before)));
+  return {focus, mix, questions, days, methods, note: String(p.note || "").slice(0, 200), why: String(p.why || "").slice(0, 300)};
 }
 
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]!));
@@ -123,6 +145,7 @@ function emailHtml(week: number, ai: any, rows: any[], forHayley: boolean) {
     return `<div style="border:2px solid #1B2140;border-radius:14px;padding:14px 16px;margin:16px 0;background:#FFFFFF">
       <h2 style="margin:0;font-size:19px">${String(c.headline || "").toLowerCase().includes(stats.name.toLowerCase()) ? esc(c.headline) : `${esc(stats.name)}: ${esc(c.headline)}`}</h2>
       <p style="margin:6px 0 0;font-size:14px;color:#555">${esc(nums)}</p>
+      ${stats.activity.length ? `<table style="border-collapse:collapse;width:100%;font-size:14px;margin-top:10px">${stats.activity.map((a: any) => `<tr><td style="padding:3px 8px 3px 0">${esc(a.name)}${a.tables ? `<span style="color:#555">: ${esc(a.tables)}</span>` : ""}</td><td style="padding:3px 0;text-align:right;font-weight:700;white-space:nowrap">${a.times} time${a.times === 1 ? "" : "s"}</td></tr>`).join("")}</table>` : ""}
       <p style="margin:10px 0 0;line-height:1.5">${esc(c.summary)}</p>
       ${c.idea ? `<p style="margin:10px 0 0;line-height:1.5"><b>${forHayley ? "Idea for Hayley's sessions" : "Try at home"}:</b> ${esc(c.idea)}</p>` : ""}
       <p style="margin:12px 0 0;padding:8px 12px;border-radius:10px;background:#FFF4CC"><b>Next week:</b> ${plan.focus.length ? `the ${list(plan.focus)}, ` : ""}${plan.questions} questions over ${plan.days} days.</p>
@@ -149,10 +172,11 @@ Deno.serve(async (req) => {
   const by = (pre: string) => docs!.filter(d => d.path.startsWith(pre)).map(d => ({id: d.path.slice(pre.length), ...d.data}));
   const players = by("players/"), progress = Object.fromEntries(by("progress/").map(p => [p.id, p])), plans = Object.fromEntries(by("plans/").map(p => [p.id, p]));
   const methods = by("methods/").filter((m: any) => m.status === "approved").map((m: any) => m.custom ? `${m.name} (added by ${m.author || "a grown-up"}: ${m.kid})` : m.id);
+  const methodNames: Record<string, string> = Object.fromEntries(by("methods/").map((m: any) => [m.id, m.name || (m.id.charAt(0).toUpperCase() + m.id.slice(1)).replace(/-/g, " ")]));
   const rows = players.map((pl: any) => {
     const sessions = by("logs/").filter((l: any) => l.player === pl.id).flatMap((l: any) => l.sessions || []);
     const plan = plans[pl.id] && plans[pl.id].week === week ? plans[pl.id] : null;
-    return {id: pl.id, pl, stats: weekStats(pl, progress[pl.id] || {}, sessions, plan, start), prevPlan: plan};
+    return {id: pl.id, pl, stats: weekStats(pl, progress[pl.id] || {}, sessions, plan, start, methodNames), prevPlan: plan};
   });
 
   const settings = docs!.find(d => d.path === "settings/report")?.data || {};
