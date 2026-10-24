@@ -407,8 +407,14 @@ function stage(host, api){
     <circle cx="41" cy="30" r="13" fill="url(#moon-chrome)" stroke="var(--line)" stroke-width="2"/>
     <path d="M33 26 Q41 20 49 26 Q51 34 41 36 Q31 34 33 26 Z" fill="#2B2F3A" stroke="var(--line)" stroke-width="1.4"/><path d="M36 26 Q40 23 44 25" stroke="#FFFFFF" stroke-width="1.6" fill="none" opacity=".8"/>
   </svg>`;
+  // Before a song is chosen the stadium waits for her: thousands of fans whisper "Jessica... Jessica...", louder and
+  // louder, then a huge cheer (Sam, 24 Oct 2026). Plays once each time she arrives on this screen; stops when the show starts.
+  let chant = null;
+  const stopChant = () => { if (chant) { const c = chant; chant = null; const f = setInterval(() => { c.volume = Math.max(0, c.volume - .1); if (c.volume <= 0) { clearInterval(f); c.pause(); } }, 60); } };
+  const playChant = () => { if (chant || (api.soundOn && !api.soundOn())) return; chant = new Audio('audio/stadium-chant.m4a'); chant.volume = 1; chant.play().catch(() => { chant = null; }); };
   function wardrobe(){
     if (show) { show.stop(); show = null; }
+    playChant();
     host.innerHTML = `<div class="stg-pick">
       <div class="sticker stg-preview"><img class="stg-big" data-p="${pic(pick.dress, 'a')}" alt="Jessica in the ${esc(api.eras[pick.dress].album)} dress"><p class="muted small">${(sv.awards || 0) ? `MTV Awards won: ${sv.awards} · ` : ''}Biggest crowd: ${(sv.best || 0).toLocaleString('en-GB')}</p></div>
       <div class="stg-opts">
@@ -424,6 +430,7 @@ function stage(host, api){
     host.querySelectorAll('img[data-p]').forEach(im => load(im, im.dataset.p));
   }
   function concert(){
+    stopChant();
     const song = songs()[pick.song] || SONGS[4], ac = api.audio();
     sv.dress = pick.dress; sv.song = pick.song; api.save();
     let crowd = 15000, asked = 0, right = 0, cancelQ = null, ended = false, pose = 0;
@@ -501,7 +508,7 @@ function stage(host, api){
   wardrobe();
   // Fetch every stage photo now, so the show also works with no internet later.
   for (let d = 0; d < 12; d++) for (const p of ['a', 'd', 't']) api.picture(pic(d, p)).catch(() => {});
-  return {destroy(){ if (show) show.stop(); host.onclick = null; host.onsubmit = null; host.innerHTML = ''; }};
+  return {destroy(){ if (show) show.stop(); stopChant(); host.onclick = null; host.onsubmit = null; host.innerHTML = ''; }};
 }
 
 window.TTCGames = {jungle, stage};
