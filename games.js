@@ -23,7 +23,8 @@ function askBox(box, api, seconds, done){
 // Chop a path to the gold (one right answer = one chop), then get back to the boat before the anacondas come out of the river.
 // Every answer is a turn: snakes, panthers and anacondas each close in on their own beat, so a wrong answer lets them gain.
 function jungle(host, api){
-  const W = 7, H = 9, BOAT = 3, SENSE = {snake:2, panther:3, anaconda:5};
+  // Snakes always close in on him, every other turn, wherever they are, so he feels cornered (Sam, 24 Oct 2026).
+  const W = 7, H = 9, BOAT = 3, SENSE = {snake:99, panther:3, anaconda:5};
   // Adventure music (an original track made for the game) loops quietly while he plays, when sound is on.
   const music = new Audio('audio/jungle-adventure.mp3'); music.loop = true; music.volume = .35;
   if (api.soundOn && api.soundOn()) music.play().catch(() => {});
@@ -36,6 +37,32 @@ function jungle(host, api){
     if (strike) { const o = ac.createOscillator(), og = ac.createGain(); o.type = 'square'; o.frequency.setValueAtTime(180, ac.currentTime); o.frequency.exponentialRampToValueAtTime(50, ac.currentTime + .18);
       og.gain.setValueAtTime(.45, ac.currentTime); og.gain.exponentialRampToValueAtTime(.001, ac.currentTime + .2); o.connect(og); og.connect(ac.destination); o.start(); o.stop(ac.currentTime + .22); }
   } catch {} };
+  // A heartbeat that quickens as a snake gets closer.
+  const heartbeat = near => { if (api.soundOn && !api.soundOn()) return; try {
+    const ac = api.audio(), gap = [0, .28, .36, .44][near] || .44;
+    for (const [t, v] of [[0, .5], [gap * .45, .35]]) { const o = ac.createOscillator(), g = ac.createGain(), at = ac.currentTime + .05 + t;
+      o.type = 'sine'; o.frequency.setValueAtTime(70, at); o.frequency.exponentialRampToValueAtTime(40, at + .15);
+      g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(v, at + .02); g.gain.exponentialRampToValueAtTime(.0001, at + .2);
+      o.connect(g); g.connect(ac.destination); o.start(at); o.stop(at + .22); }
+  } catch {} };
+  // Panthers snarl as they close in, swipe their claws when right beside him, and roar when they catch him.
+  const roar = (vol, big) => { if (api.soundOn && !api.soundOn()) return; try {
+    const ac = api.audio(), at = ac.currentTime + .02, len = big ? 1.6 : .7;
+    const o = ac.createOscillator(), o2 = ac.createOscillator(), lfo = ac.createOscillator(), lg = ac.createGain(), f = ac.createBiquadFilter(), g = ac.createGain();
+    o.type = 'sawtooth'; o2.type = 'square'; o.frequency.setValueAtTime(big ? 120 : 95, at); o.frequency.linearRampToValueAtTime(big ? 70 : 80, at + len);
+    o2.frequency.setValueAtTime(big ? 61 : 48, at); lfo.frequency.value = big ? 22 : 30; lg.gain.value = .5;
+    lfo.connect(lg); lg.connect(g.gain); f.type = 'lowpass'; f.frequency.setValueAtTime(big ? 1400 : 700, at); f.frequency.linearRampToValueAtTime(400, at + len);
+    g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + (big ? .15 : .08)); g.gain.exponentialRampToValueAtTime(.0001, at + len);
+    o.connect(f); o2.connect(f); f.connect(g); g.connect(ac.destination); for (const x of [o, o2, lfo]) { x.start(at); x.stop(at + len + .05); }
+  } catch {} };
+  const claw = () => { if (api.soundOn && !api.soundOn()) return; try {
+    const ac = api.audio();
+    for (let k = 0; k < 3; k++) { const at = ac.currentTime + .05 + k * .09, b = ac.createBuffer(1, ac.sampleRate * .12, ac.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+      const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = b; f.type = 'bandpass'; f.frequency.setValueAtTime(3000, at); f.frequency.exponentialRampToValueAtTime(900, at + .12); g.gain.value = .5;
+      s.connect(f); f.connect(g); g.connect(ac.destination); s.start(at); }
+  } catch {} };
+  const pantherNear = () => { const ds = st.preds.filter(p => p.kind === 'panther').map(p => Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c)); return ds.length ? Math.min(...ds) : 99; };
   const snakeNear = () => { const ds = st.preds.filter(p => p.kind !== 'panther').map(p => Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c)); return ds.length ? Math.min(...ds) : 99; };
   let level = 1, st = null, busy = false, cancelQ = null;
   // Hughie's adventure pictures (private family-photos bucket, made from his own photos): start, chop, gold, chase, win, caught.
@@ -79,7 +106,7 @@ function jungle(host, api){
     const put = (kind, every, r, c) => { if (g[r][c] === 'rock' || g[r][c] === 'gold') g[r][c] = 'jungle'; preds.push({kind, every, r, c}); };
     const far = goldAt.c < W / 2 ? W - 1 : 0;
     put('panther', level >= 5 ? 2 : level >= 3 ? 3 : 4, 0, far);
-    for (let i = 0; i < Math.min(3, 1 + Math.floor(level / 2)); i++) put('snake', 3, 2 + rnd(3), i % 2 ? 0 : W - 1);
+    for (let i = 0; i < Math.min(3, 1 + Math.floor(level / 2)); i++) put('snake', 2, 2 + rnd(3), i % 2 ? 0 : W - 1);
     if (level >= 6) put('panther', 3, 1, W - 1 - far);
     st = {g, goldAt, pl, preds, has:false, turn:0};
     $('lvl').textContent = level;
@@ -112,7 +139,7 @@ function jungle(host, api){
       const kind = g[r][c], p = at(preds, r, c), me = pl.r === r && pl.c === c, boat = r === H - 1 && c === BOAT;
       let inner = '';
       if (me) inner = `<span class="jg-me">${api.photo ? `<img src="${api.photo}" alt="">` : '🧒'}${has ? '<i>💰</i>' : ''}</span>`;
-      else if (p) inner = `<span class="emo jg-${p.kind}">${p.kind === 'panther' ? '🐆' : '🐍'}</span>`;
+      else if (p) inner = `<span class="emo jg-${p.kind}${p.moved ? ' moved' : ''}">${p.kind === 'panther' ? '🐆' : '🐍'}</span>`;
       else if (boat) inner = '<span class="emo">🛶</span>';
       else if (kind === 'gold') inner = '<span class="emo">💰</span>';
       else if (kind === 'rock') inner = '<span class="emo">🪨</span>';
@@ -121,6 +148,7 @@ function jungle(host, api){
       h += `<button class="${cls}" data-r="${r}" data-c="${c}" aria-label="Row ${r + 1}, column ${c + 1}">${inner}</button>`;
     }
     $('board').innerHTML = h;
+    $('board').dataset.near = Math.min(snakeNear(), 9);   // the board glows amber, then red, as a snake closes in
     if (!busy && boxedIn()) msg('Boxed in! Tap yourself to hold your ground.');
   }
   function stepPred(p){
@@ -128,10 +156,10 @@ function jungle(host, api){
       .filter(o => o.r >= 0 && o.r < H && o.c >= 0 && o.c < W && st.g[o.r][o.c] !== 'rock' && (p.kind === 'anaconda' || st.g[o.r][o.c] !== 'river') && !at(st.preds, o.r, o.c));
     if (!opts.length) return;
     const d = o => Math.abs(o.r - st.pl.r) + Math.abs(o.c - st.pl.c), best = Math.min(...opts.map(d));
-    if (d(p) > SENSE[p.kind] + (p.kind === 'panther' && level >= 3 ? 1 : 0)) return;   // they only hunt when he comes close
+    if (d(p) > SENSE[p.kind] + (p.kind === 'panther' && level >= 3 ? 1 : 0)) return;   // panthers and anacondas only hunt when he comes close
     const pick = shuffle(opts.filter(o => d(o) === best))[0];
     if (best >= d(p)) return;   // never wander away
-    p.r = pick.r; p.c = pick.c;
+    p.r = pick.r; p.c = pick.c; p.moved = true;
   }
   const caught = () => st.preds.find(p => p.r === st.pl.r && p.c === st.pl.c);
   function over(win, who){
@@ -143,8 +171,8 @@ function jungle(host, api){
       o.innerHTML = scene('win', 'You made it to the boat with the gold!', `Level ${level} done. The jungle gets wilder from here.`, 'next', 'Next level');
       api.sound('win');
     } else {
-      if (who !== 'panther') hiss(.9, true);
-      o.innerHTML = scene(who === 'panther' ? 'caught' : 'snake-attack', who === 'anaconda' ? 'An anaconda got you!' : who === 'panther' ? 'The panther got you!' : 'Snake attack!', `Right answers keep you ahead of them. Try level ${level} again.`, 'again', 'Try again');
+      if (who !== 'panther') hiss(.9, true); else roar(.8, true);
+      o.innerHTML = scene(who === 'panther' ? 'panther-attack' : 'snake-attack', who === 'anaconda' ? 'An anaconda got you!' : who === 'panther' ? 'The panther got you!' : 'Snake attack!', `Right answers keep you ahead of them. Try level ${level} again.`, 'again', 'Try again');
       api.sound('bad');
     }
   }
@@ -169,13 +197,19 @@ function jungle(host, api){
       if (st.has && r === H - 1 && c === BOAT) { draw(); over(true); return; }
     } else { api.sound('bad'); msg('Missed! They are getting closer.'); action('miss', 'Missed!'); }
     let who = caught();
+    st.preds.forEach(p => { p.moved = false; });
     if (!who) {
       st.turn++;
       for (const p of st.preds) if (st.turn % p.every === 0 || !ok) { stepPred(p); if (p.r === st.pl.r && p.c === st.pl.c) { who = p; break; } }
     }
     draw();
     if (who) { over(false, who.kind); return; }
-    const near = snakeNear(); if (near <= 3) hiss([0, .7, .45, .25][near]);
+    const near = snakeNear();
+    if (near <= 3) { hiss([0, .7, .45, .25][near]); heartbeat(near); }
+    else if (st.preds.some(p => p.moved && p.kind !== 'panther')) hiss(.08);   // a soft rustle as snakes slither about
+    const pn = pantherNear();
+    if (pn === 1) { roar(.55); claw(); const me = host.querySelector('.jg-me'); if (me) { me.classList.remove('clawed'); void me.offsetWidth; me.classList.add('clawed'); } }
+    else if (pn === 2 && st.preds.some(p => p.moved && p.kind === 'panther')) roar(.35);
   }
   host.onclick = e => {
     const go = e.target.closest('[data-go]');
