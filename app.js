@@ -230,7 +230,7 @@ const SKINS = {
   classic: {brand:'Times Table Champions', daily:'Daily Challenge', confetti:'rect',
     levels:['Number Cadet','Times Explorer','Fact Finder','Speed Spotter','Pattern Pro','Number Ninja','Maths Marvel','Table Titan','Grand Master','Times Table Expert'],
     praise:['Yes!','Brilliant!','Spot on!','Nailed it!','Super!','Correct!','Fantastic!'], streak: n => `${n} in a row!`, prizes:{}},
-  eras: {brand:'Times Table Eras', label:'Eras (Taylor Swift fan theme)', daily:'Tonight\u2019s Setlist', confetti:'star',
+  eras: {brand:'Times Table Eras', label:'Eras (Taylor Swift fan theme)', daily:'Tonight\u2019s Setlist', confetti:'star', points:'Poundelas',
     levels:['Opening Act','Rising Star','Sparkle Squad','In the Spotlight','Chart Topper','Headliner','Sold-Out Show','Stadium Star','Encore Legend','Times Table Icon'],
     praise:['Fearless!','Sparkling!','Iconic!','Legendary!','Encore!','Showstopper!','Gold star!'], streak: n => `${n} in a row. That\u2019s a whole new era!`,
     prizes:{bronze:'Bronze Star', silver:'Silver Sparkle', gold:'Gold Record', diamond:'Diamond Tiara'}},
@@ -240,6 +240,7 @@ const SKINS = {
     prizes:{bronze:'Bronze Badge', silver:'Silver Compass Medal', gold:'Gold Summit Cup', diamond:'Diamond Crown'}},
 };
 const skinId = () => (S.me && SKINS[S.me.theme]) ? S.me.theme : 'classic';
+const ptsName = () => skin().points || 'XP';   // what the child's points are called on screen
 const skin = () => SKINS[skinId()];
 const TIERS = [
   {id:'bronze',  min:70,  base:'Bronze Medal',  xp:20},
@@ -541,7 +542,7 @@ function nextStep(p){
   if (gameOpen(p)) return {eyebrow:'You completed the trail', title: skinId() === 'eras' ? 'Your stadium show is ready!' : 'The jungle gold is waiting!',
     text:`${Math.ceil((GAME_MS - gameUsed(p)) / 60000)} minutes of play left. When they run out, a new trail starts.`, cta:'Play now', act:'game'};
   if (!d || d.pct < 80) return {eyebrow:`${skin().daily} · ${day}`, title: d ? 'Have another go?' : '15 questions on your trickiest facts',
-    text: d ? `Your best today is ${d.pct}%. Score 80% or more to complete it.` : 'Score 80% or more to complete it and earn 50 bonus XP.', cta: d ? 'Try again' : 'Start the challenge', act:'start-daily'};
+    text: d ? `Your best today is ${d.pct}%. Score 80% or more to complete it.` : `Score 80% or more to complete it and earn 50 bonus ${ptsName()}.`, cta: d ? 'Try again' : 'Start the challenge', act:'start-daily'};
   const t = focusTable(p), done = `${skin().daily} done: ${d.pct}%.`;
   if (!t) return {eyebrow:'Do this next', title:'Go for the Diamond Crown', text:`${done} Every table is strong. Score 100% on a test with all twelve tables.`, cta:'All-tables test', act:'rec', mode:'test', tables:ALL};
   const k = strongCount(p, t);
@@ -781,7 +782,7 @@ function scrHome(){
   <section class="hero-home">
     <div class="hello"><p class="eyebrow">Week ${challengeWeek()} of 52 · Level ${L.n} · ${esc(L.title)}</p><h1 class="mega">Hi ${esc(me.name)}!</h1>
       <div class="xpbar" role="progressbar" aria-label="Progress to next level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(L.frac*100)}"><span style="width:${(L.frac*100).toFixed(1)}%"></span></div>
-      <p class="muted small">${p.xp} XP${L.next ? ` · ${L.next - p.xp} XP until you become a ${esc(L.nextTitle)}` : ' · You reached the top level!'}</p></div>
+      <p class="muted small">${p.xp} ${ptsName()}${L.next ? ` · ${L.next - p.xp} ${ptsName()} until you become a ${esc(L.nextTitle)}` : ' · You reached the top level!'}</p></div>
     <div class="stats">${stat(streak, streak === 1 ? 'day in a row' : 'days in a row')}${stat(om + '%', 'tables mastered')}${stat(prizeTotal(p), 'prizes won')}</div>
   </section>
   <div class="grid-home">
@@ -1073,7 +1074,7 @@ function scrResults(){
       <p class="eyebrow">${MODE_NAMES[r.mode]} · ${esc(tablesLabel(r))}</p>
       <h1 class="mega sm">${headline}</h1>
       <div><span class="score num">${big}</span> <span class="muted" style="font-weight:800">${sub}</span></div>
-      <p class="callout mint">+${r.xp} XP${r.dailyDone ? ' (including 50 bonus XP for completing the Daily Challenge)' : ''}</p>
+      <p class="callout mint">+${r.xp} ${ptsName()}${r.dailyDone ? ` (including 50 bonus ${ptsName()} for completing the Daily Challenge)` : ''}</p>
       ${reward ? `<p class="callout">Your reward for a ${prize.name}: <b>${esc(reward)}</b></p>` : ''}
       ${nt ? `<p class="callout">${r.pct < 70 ? 'So close to a prize.' : 'Brilliant work.'} Score ${nt.min}% next time to win a ${nt.name}.</p>` : ''}
       ${resultItems(r)}
