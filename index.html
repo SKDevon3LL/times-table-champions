@@ -126,8 +126,8 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webk
 .modes{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .mode{display:grid;gap:4px;text-align:left;background:color-mix(in srgb,var(--c) 26%,var(--card));border:2.5px solid var(--line);border-radius:18px;box-shadow:4px 4px 0 var(--shadow);padding:16px;transition:transform .12s}
 .mode:hover{transform:translateY(-3px) rotate(.6deg)}
-.mode .glyph{font-family:var(--display);font-size:40px;line-height:1;color:var(--ink)}
-.mode b{font-size:19px;font-weight:900}
+.mode .glyph{font-family:var(--display);font-size:20px;line-height:1;color:var(--ink);opacity:.7}
+.mode b{font-size:24px;font-weight:900;line-height:1.1}
 .mode span{font-size:14px;color:var(--muted);font-weight:700}
 .recs{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:14px}
 .recs li{display:grid;gap:8px;padding-top:14px;border-top:2px dashed var(--grid)}
@@ -242,6 +242,10 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webk
 .pill.practice{background:color-mix(in srgb,var(--mint) 45%,var(--card))}
 .pill.clock{background:color-mix(in srgb,var(--tomato) 45%,var(--card))}
 .pill.daily{background:color-mix(in srgb,var(--grape) 45%,var(--card))}
+.trophy-line{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:2px dashed var(--grid)}
+.trophy-line > span:not(.muted){display:inline-flex;align-items:center;gap:4px}
+.trophy-line b{font-family:var(--display);font-weight:400;font-size:20px}
+.trophy-line .locked svg{opacity:.28;filter:grayscale(1)}
 .pill.approved{background:color-mix(in srgb,var(--mint) 45%,var(--card))}
 .pill.rejected{background:var(--card);color:var(--muted)}
 .prizelog{display:flex;gap:6px;flex-wrap:wrap}

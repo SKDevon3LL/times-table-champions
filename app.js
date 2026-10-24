@@ -494,10 +494,10 @@ function recommendations(p, sessions){
   if (scored[0] && scored[0].acc < .9) out.push({text:`Your ${scored[0].t}s are the trickiest right now: ${Math.round(scored[0].acc*100)}% right so far. A Practice round with tricks will help.`, mode:'practice', tables:[scored[0].t], cta:`Practise the ${scored[0].t}s`});
   const tricky = ALLKEYS.map(k => ({k, f:p.facts[k]})).filter(x => x.f && x.f.n >= 2 && x.f.c / x.f.n < .8).sort((a, b) => a.f.c/a.f.n - b.f.c/b.f.n).slice(0, 3);
   if (tricky.length) out.push({text:`Watch out for ${tricky.map(x => fmtKey(x.k)).join(', ')}. Today's Daily Challenge picks facts like these.`, mode:'daily', tables:[], cta:'Daily Challenge'});
-  const slow = ALLKEYS.map(k => ({k, f:p.facts[k]})).filter(x => x.f && x.f.c > 0 && x.f.ms > 6000).sort((a, b) => b.f.ms - a.f.ms).slice(0, 2);
+  const slow = ALLKEYS.filter(k => !k.startsWith('1x')).map(k => ({k, f:p.facts[k]})).filter(x => x.f && x.f.c > 0 && x.f.ms > 6000).sort((a, b) => b.f.ms - a.f.ms).slice(0, 2);
   if (slow.length) {
     const tabs = uniq(slow.flatMap(x => x.k.split('x').map(Number))).filter(t => t !== 1 && t !== 10).slice(0, 3);
-    out.push({text:`You know ${fmtKey(slow[0].k)}, but it takes about ${(slow[0].f.ms/1000).toFixed(1)} seconds. Beat the Clock will make it quicker.`, mode:'clock', tables: tabs.length ? tabs : [2,5,10], cta:'Beat the Clock'});
+    out.push({text:`You know ${fmtKey(slow[0].k)}, but it takes you about ${Math.round(slow[0].f.ms/1000)} seconds. Beat the Clock will make it quicker.`, mode:'clock', tables: tabs.length ? tabs : [2,5,10], cta:'Beat the Clock'});
   }
   const lastTest = [...sessions].reverse().find(s => s.mode === 'test' && !s.ab);
   if (lastTest && lastTest.pct < 70) out.push({text:`Your last test was ${lastTest.pct}%. Practise those tables, then go for a Bronze Medal at 70%.`, mode:'practice', tables:lastTest.tables, cta:'Practise them'});
@@ -506,10 +506,6 @@ function recommendations(p, sessions){
   if (next) out.push({text:`Ready for something new? Try the ${next}s next.`, mode:'practice', tables:[next], cta:`Start the ${next}s`});
   if (overallMastery(p) >= .85 && !p.prizes.diamond) out.push({text:'You are close to expert level. Go for a Diamond Crown: 100% on an all-tables test.', mode:'test', tables:ALL, cta:'All-tables test'});
   if (skinId() === 'eras' && itemsOwned(p) >= 12 && !p.ball) out.unshift({text:'Your wardrobe is full! Score 100% on an all-tables test to win the Ultimate Eras Gown and go to the Ball.', mode:'test', tables:ALL, cta:'Go for the gown'});
-  if (skinId() === 'trail') {
-    const i = TEACH_ORDER.findIndex((t, k) => !campSurvived(p, k));
-    if (i >= 0 && strongCount(p, TEACH_ORDER[i]) === 12 && itemsOwned(p) <= i) out.unshift({text:`The ${TEACH_ORDER[i]}s are strong, but camp ${i + 1} needs the ${TOOLS[i].name}. Win a trophy in a test to pack it.`, mode:'test', tables:[TEACH_ORDER[i]], cta:'Win a trophy'});
-  }
   return out.slice(0, 3);
 }
 function weeklyGoals(p, sessions, player){
@@ -524,6 +520,19 @@ function weeklyGoals(p, sessions, player){
   ];
   if (quest) goals.push({name:`Quest: make all twelve ${quest}s facts strong`, cur: strongCount(p, quest), goal:12});
   return goals;
+}
+// The table to work on next: the first in teaching order that isn't fully strong (the 1s look after themselves).
+const focusTable = p => TEACH_ORDER.find(t => t !== 1 && strongCount(p, t) < 12) || null;
+// The one thing to do next on the home screen: today's challenge first, then the next table, then a trophy on it.
+function nextStep(p){
+  const d = p.daily[dayStr()], day = new Date().toLocaleDateString('en-GB', {weekday:'long'});
+  if (!d || d.pct < 80) return {eyebrow:`${skin().daily} · ${day}`, title: d ? 'Have another go?' : '15 questions on your trickiest facts',
+    text: d ? `Your best today is ${d.pct}%. Score 80% or more to complete it.` : 'Score 80% or more to complete it and earn 50 bonus XP.', cta: d ? 'Try again' : 'Start the challenge', act:'start-daily'};
+  const t = focusTable(p), done = `${skin().daily} done: ${d.pct}%.`;
+  if (!t) return {eyebrow:'Do this next', title:'Go for the Diamond Crown', text:`${done} Every table is strong. Score 100% on a test with all twelve tables.`, cta:'All-tables test', act:'rec', mode:'test', tables:ALL};
+  const k = strongCount(p, t);
+  if (k < 9) return {eyebrow:'Do this next', title:`Practise the ${t}s`, text:`${done} Next up: the ${t}s. ${k} of 12 facts are strong so far.`, cta:`Practise the ${t}s`, act:'rec', mode:'practice', tables:[t]};
+  return {eyebrow:'Do this next', title:`Win a trophy on the ${t}s`, text:`${done} Your ${t}s are nearly there: ${k} of 12 strong. Score 70% or more in a test to win a trophy.`, cta:`Test the ${t}s`, act:'rec', mode:'test', tables:[t]};
 }
 function weakPairs(p, n){
   const keys = ALLKEYS.filter(k => !k.startsWith('1x')).map(k => {
@@ -544,7 +553,9 @@ function go(to){
 function cfgFor(mode, tables){
   const saved = ls.get(`cfg.${mode}.${S.me.id}`) || {};
   const c = Object.assign({tables:[2,5,10], count:20, miss:false, div:false}, saved);
+  S.v.suggested = null;
   if (tables && tables.length) c.tables = tables.slice();
+  else if (mode !== 'clock') { const t = focusTable(S.prog); if (t) { c.tables = [t]; S.v.suggested = t; } }
   return c;
 }
 function openSetup(mode, tables){ S.v.mode = mode; S.v.cfg = cfgFor(mode, tables); go('setup'); }
@@ -683,7 +694,7 @@ async function finish(abandoned){
 function brandBar(){ return `<header class="top"><div class="brand">${logo()}<span>Times Table Champions</span></div></header>`; }
 function topbar(cur){
   const me = S.me;
-  const tabs = [['home','Home','go'],['practice','Practise','setup'],['test','Test','setup'],['clock','Beat the Clock','setup'],['explore','Explore','go'],['progress','My progress','go']];
+  const tabs = [['home','Home','go'],['progress','My progress','go']];
   return `<header class="top"><div class="brand">${logo()}<span>${esc(skin().brand)}</span></div>
     <div class="top-right">
       <span class="sync" id="sync-chip">${esc(syncText())}</span>
@@ -737,7 +748,7 @@ function scrGate(){
 
 function scrHome(){
   const p = S.prog, me = S.me, L = lvlInfo(p.xp), streak = streakDays(p), om = Math.round(overallMastery(p) * 100);
-  const d = p.daily[dayStr()];
+  const n = nextStep(p);
   return `${topbar('home')}
   <section class="hero-home">
     <div class="hello"><p class="eyebrow">Level ${L.n} · ${esc(L.title)}</p><h1 class="mega">Hi ${esc(me.name)}!</h1>
@@ -747,10 +758,8 @@ function scrHome(){
   </section>
   <div class="grid-home">
     <div class="col">
-      <div class="daily sticker"><div><p class="eyebrow">${esc(skin().daily)} · ${new Date().toLocaleDateString('en-GB', {weekday:'long'})}</p>
-        <h2>${d ? (d.pct >= 80 ? 'Challenge complete!' : 'Have another go?') : '15 questions on your trickiest facts'}</h2>
-        <p>${d ? `Your best today is ${d.pct}%.${d.pct >= 80 ? ' A new challenge arrives tomorrow.' : ' Score 80% or more to complete it.'}` : 'Score 80% or more to complete it and earn 50 bonus XP.'}</p></div>
-        <button class="btn big" data-act="start-daily">${d ? 'Play again' : 'Start the challenge'}</button></div>
+      <div class="daily sticker"><div><p class="eyebrow">${esc(n.eyebrow)}</p><h2>${esc(n.title)}</h2><p>${esc(n.text)}</p></div>
+        <button class="btn big" data-act="${n.act}"${n.mode ? ` data-mode="${n.mode}" data-tables="${n.tables.join(',')}"` : ''}>${esc(n.cta)}</button></div>
       <div class="modes">
         ${modeTile('practice', '7×8', 'Practise', 'No timer. Tricks when you get stuck.', 'mint')}
         ${modeTile('test', '90%', 'Take a test', 'Win medals at 70, 80, 90 and 100%.', 'sun')}
@@ -761,10 +770,8 @@ function scrHome(){
     </div>
     <div class="col">
       ${journey(p)}
-      ${collectionCard(p)}
-      ${trophyShelf(p)}
-      ${weeklyCard(p, S.sessions, me)}
-      <div class="sticker"><div class="card-h"><h3>Your times-table map</h3><button class="link small" data-act="go" data-to="progress">See all progress</button></div>${heatmap(p, true)}</div>
+      <div class="sticker"><div class="card-h"><h3>Your times-table map</h3><button class="link small" data-act="go" data-to="progress">See all progress</button></div>
+        <p class="muted small" style="margin-bottom:10px">Each square is one fact, like 7 × 8 = 56. Green means you know it.</p>${heatmap(p, false)}</div>
     </div>
   </div>`;
 }
@@ -805,8 +812,7 @@ const ERA_COLS = ERAS.map(e => e.hex);
 const ERA_TEXT = ERAS.map(e => e.text);
 const itemsOwned = p => Math.min(12, prizeTotal(p));
 const allTablesTest = s => s.mode === 'test' && !s.ab && s.tables && s.tables.length === 12;
-// Hughie survives a camp when that table is strong and he carries that camp's tool.
-const campSurvived = (p, i) => strongCount(p, TEACH_ORDER[i]) === 12 && itemsOwned(p) > i;
+const trophyLine = p => `<div class="trophy-line">${TIERS.map(t => `<span class="${p.prizes[t.id] ? '' : 'locked'}" title="${esc(t.name)}">${medal(t.id, 28)}<b class="num">${p.prizes[t.id] || 0}</b></span>`).join('')}<span class="muted small">Win a trophy in a test or a Daily Challenge (70% or more) to move on.</span></div>`;
 
 function dressSvg(i, size, locked){
   const L = 'var(--line)', sw = 2.2;
@@ -894,55 +900,50 @@ function collectionCard(p){
       : n >= 12 ? `<p class="callout"><b>Your wardrobe is full!</b> Score 100% on a test with all twelve tables to win the Ultimate Eras Gown and go to the Ball.</p>`
       : `<p class="muted small">Every trophy you win adds the next era's tour dress, in album order. Collect all twelve, then score 100% on an all-tables test to win the Ultimate Eras Gown and go to the Ball.</p>`;
     const e = sel !== undefined && ERAS[sel];
-    return `<div class="sticker"><div class="card-h"><h3>Your Eras wardrobe</h3><span class="muted small">${n} of 12 dresses</span></div>
+    return `<div class="sticker"><div class="card-h"><h3>Your Eras Tour</h3><span class="muted small">${n} of 12 dresses</span></div>
       <div class="rail">${ERAS.map((x, k) => `<button class="hanger ${k < n ? '' : 'locked'} ${sel === k ? 'on' : ''}" data-act="item" data-i="${k}" aria-label="${esc(x.album)}${k < n ? '' : ', not won yet'}">${dressSvg(k, 46, k >= n)}<span style="--era:${x.hex};--era-t:${x.text}">${esc(x.era)}</span></button>`).join('')}</div>
       ${e ? `<div class="item-detail">${dressSvg(sel, 70, sel >= n)}<div><p class="eyebrow">${esc(e.album)} · ${esc(e.colour)}</p><p>${sel < n ? esc(e.look) : `Win ${sel + 1 - n} more troph${sel + 1 - n === 1 ? 'y' : 'ies'} to unlock this dress.`}</p></div></div>` : ''}
-      ${goal}</div>`;
-  }
-  const survived = TEACH_ORDER.filter((t, i) => campSurvived(p, i)).length;
-  const tl = sel !== undefined && TOOLS[sel];
-  return `<div class="sticker"><div class="card-h"><h3>Your survival kit</h3><span class="muted small">${n} of 12 tools</span></div>
-    <div class="kit">${TOOLS.map((x, k) => `<button class="slot-btn ${k < n ? '' : 'locked'} ${sel === k ? 'on' : ''}" data-act="item" data-i="${k}" aria-label="${esc(x.name)}${k < n ? '' : ', not won yet'}">${toolSvg(k, 44, k >= n)}<span>${k < n ? esc(x.name) : '?'}</span></button>`).join('')}</div>
-    ${tl ? `<div class="item-detail">${toolSvg(sel, 60, sel >= n)}<div><p class="eyebrow">Camp ${sel + 1} · the ${TEACH_ORDER[sel]}s · ${esc(tl.camp)}</p><p>${sel < n ? `<b>${esc(tl.name)}.</b> ${esc(tl.use)}` : `Win ${sel + 1 - n} more troph${sel + 1 - n === 1 ? 'y' : 'ies'} to get this tool.`}</p></div></div>` : ''}
-    ${survived === 12 ? `<p class="callout mint"><b>You survived the adventure!</b> Every camp reached, every tool packed. You're a real Times Table Explorer.</p>`
-      : `<p class="muted small">Every trophy you win adds the next tool. To survive a camp you need its table strong <b>and</b> its tool in your kit. Camps survived: <b>${survived} of 12</b>.</p>`}</div>`;
-}
-function journey(p){
-  const id = skinId(); if (id === 'classic') return '';
-  const done = ALL.filter(t => strongCount(p, t) === 12).length;
-  if (id === 'eras') {
-    const bx = t => 40 + (t - 1) * (560 / 11), by = t => { const u = (t - 1) / 11; return 30 + 4 * u * (1 - u) * 70; };
-    let beads = '';
-    ALL.forEach(t => {
-      const k = strongCount(p, t), full = k === 12, x = bx(t), y = by(t), i = t - 1;
-      beads += `<g><title>The ${t}s, ${ERAS[i].album} colours: ${k} of 12 facts strong</title>
-        <rect x="${(x - 21).toFixed(1)}" y="${(y - 21).toFixed(1)}" width="42" height="42" rx="${full ? 21 : 10}" fill="${ERA_COLS[i]}" fill-opacity="${(.28 + .72 * k / 12).toFixed(2)}" stroke="var(--line)" stroke-width="2.5"/>
-        <text x="${x.toFixed(1)}" y="${(y + 7).toFixed(1)}" text-anchor="middle" font-size="19" fill="${k >= 6 ? ERA_TEXT[i] : 'var(--ink)'}">${t}</text>
-        ${full ? `<path d="${starPath(x + 17, y - 17, 8, 3.2)}" fill="var(--sun)" stroke="var(--line)" stroke-width="1.5" stroke-linejoin="round"/>` : ''}</g>`;
-    });
-    return `<div class="sticker journey"><div class="card-h"><h3>Your friendship bracelet</h3><span class="muted small">${done} of 12 beads sparkling</span></div>
-      <svg viewBox="0 0 640 140" role="img" aria-label="Friendship bracelet with a bead for each times table; ${done} fully mastered">
-        <path d="M8 20 Q320 ${30 + 2 * 70} 632 20" fill="none" stroke="var(--muted)" stroke-width="3" stroke-dasharray="1 7" stroke-linecap="round"/>${beads}</svg>
-      <p class="muted small">Each bead is a times table in its album's colour, from Debut for the 1s to Showgirl for the 12s. It fills up as the facts get strong and gets a star when all twelve are.</p></div>`;
+      ${goal}${trophyLine(p)}</div>`;
   }
   const pts = [[44,236],[118,214],[188,228],[256,198],[204,164],[282,146],[362,160],[432,128],[372,98],[452,78],[530,62],[598,28]];
-  const nextIdx = TEACH_ORDER.findIndex((t, i) => !campSurvived(p, i));
   let g = `<polygon points="0,270 110,150 200,205 330,85 420,160 520,30 640,130 640,270" fill="var(--mint)" fill-opacity=".22"/>
     <polygon points="300,112 330,85 360,112 345,106 330,116 315,106" fill="var(--card)"/>
     <polyline points="${pts.map(q => q.join(',')).join(' ')}" fill="none" stroke="var(--me)" stroke-width="4" stroke-dasharray="2 9" stroke-linecap="round"/>`;
-  TEACH_ORDER.forEach((t, i) => {
-    const [x, y] = pts[i], k = strongCount(p, t), full = k === 12, safe = campSurvived(p, i);
-    g += `<g><title>Camp ${i + 1}, ${TOOLS[i].camp}: the ${t}s ${k} of 12 strong; needs the ${TOOLS[i].name}${itemsOwned(p) > i ? ' (packed)' : ''}</title>
-      <circle cx="${x}" cy="${y}" r="17" fill="${full ? 'var(--mint)' : 'var(--card)'}" stroke="var(--line)" stroke-width="2.5"/>
-      ${!full && k ? `<circle cx="${x}" cy="${y}" r="12" fill="none" stroke="var(--mint)" stroke-width="5" stroke-dasharray="${(75.4 * k / 12).toFixed(1)} 75.4" transform="rotate(-90 ${x} ${y})"/>` : ''}
-      <text x="${x}" y="${y + 6}" text-anchor="middle" font-size="15" fill="var(--ink)">${t}</text>
-      ${safe ? `<path d="M${x + 8} ${y - 14} V${y - 38} L${x + 26} ${y - 31} L${x + 8} ${y - 25}" fill="var(--me)" stroke="var(--line)" stroke-width="2" stroke-linejoin="round"/>` : ''}
-      ${i === nextIdx ? `<path d="M${x} ${y - 22} c-9 -10 -13 -15 -13 -21 a13 13 0 0 1 26 0 c0 6 -4 11 -13 21z" fill="var(--me)" stroke="var(--line)" stroke-width="2"/><circle cx="${x}" cy="${y - 43}" r="4.5" fill="var(--card)"/>` : ''}</g>`;
+  pts.forEach(([x, y], i) => {
+    const got = n > i;
+    g += `<g><title>Camp ${i + 1}: ${esc(TOOLS[i].camp)}${got ? ' (reached)' : ''}</title>
+      <circle cx="${x}" cy="${y}" r="17" fill="${got ? 'var(--mint)' : 'var(--card)'}" stroke="var(--line)" stroke-width="2.5"/>
+      <text x="${x}" y="${y + 6}" text-anchor="middle" font-size="15" fill="var(--ink)">${i + 1}</text>
+      ${got ? `<path d="M${x + 8} ${y - 14} V${y - 38} L${x + 26} ${y - 31} L${x + 8} ${y - 25}" fill="var(--me)" stroke="var(--line)" stroke-width="2" stroke-linejoin="round"/>` : ''}
+      ${i === n ? `<path d="M${x} ${y - 22} c-9 -10 -13 -15 -13 -21 a13 13 0 0 1 26 0 c0 6 -4 11 -13 21z" fill="var(--me)" stroke="var(--line)" stroke-width="2"/><circle cx="${x}" cy="${y - 43}" r="4.5" fill="var(--card)"/>` : ''}</g>`;
   });
-  const nt = TEACH_ORDER[nextIdx], ntool = TOOLS[nextIdx];
-  return `<div class="sticker journey"><div class="card-h"><h3>Your trail map</h3><span class="muted small">${TEACH_ORDER.filter((t, i) => campSurvived(p, i)).length} of 12 camps survived</span></div>
-    <svg viewBox="0 0 640 270" role="img" aria-label="Trail map with a camp for each times table; ${done} reached">${g}</svg>
-    <p class="muted small">${nt ? `Next camp: ${esc(ntool.camp.toLowerCase())}. You need the ${nt}s strong${strongCount(p, nt) === 12 ? ' (done!)' : ''} and the ${esc(ntool.name)}${itemsOwned(p) > nextIdx ? ' (packed!)' : ' (win a trophy)'}.` : 'You reached the summit and survived the adventure!'}</p></div>`;
+  const tl = sel !== undefined && TOOLS[sel];
+  return `<div class="sticker journey"><div class="card-h"><h3>Your adventure</h3><span class="muted small">${n} of 12 camps</span></div>
+    <svg viewBox="0 0 640 270" role="img" aria-label="Trail map: ${n} of 12 camps reached">${g}</svg>
+    <p style="font-weight:800;margin:6px 0 4px">${n >= 12 ? 'You reached the summit with every tool packed. You are a real Times Table Explorer!' : `Next: camp ${n + 1}, ${esc(TOOLS[n].camp.toLowerCase())}. Win a trophy to pack the ${esc(TOOLS[n].name)} and get there.`}</p>
+    <div class="kit">${TOOLS.map((x, k) => `<button class="slot-btn ${k < n ? '' : 'locked'} ${sel === k ? 'on' : ''}" data-act="item" data-i="${k}" aria-label="${esc(x.name)}${k < n ? '' : ', not won yet'}">${toolSvg(k, 36, k >= n)}<span>${k < n ? esc(x.name) : '?'}</span></button>`).join('')}</div>
+    ${tl ? `<div class="item-detail">${toolSvg(sel, 60, sel >= n)}<div><p class="eyebrow">Camp ${sel + 1} · ${esc(tl.camp)}</p><p>${sel < n ? `<b>${esc(tl.name)}.</b> ${esc(tl.use)}` : `Win ${sel + 1 - n} more troph${sel + 1 - n === 1 ? 'y' : 'ies'} to get this tool.`}</p></div></div>` : ''}
+    ${trophyLine(p)}</div>`;
+}
+// Home's one reward card: Jessica's Eras Tour or Hughie's adventure, and the plain trophy cabinet for the classic look.
+function journey(p){ return skinId() === 'classic' ? trophyShelf(p) : collectionCard(p); }
+// Jessica's friendship bracelet: a bead per table that fills as its facts get strong. Shown on My progress.
+function bracelet(p){
+  if (skinId() !== 'eras') return '';
+  const done = ALL.filter(t => strongCount(p, t) === 12).length;
+  const bx = t => 40 + (t - 1) * (560 / 11), by = t => { const u = (t - 1) / 11; return 30 + 4 * u * (1 - u) * 70; };
+  let beads = '';
+  ALL.forEach(t => {
+    const k = strongCount(p, t), full = k === 12, x = bx(t), y = by(t), i = t - 1;
+    beads += `<g><title>The ${t}s, ${ERAS[i].album} colours: ${k} of 12 facts strong</title>
+      <rect x="${(x - 21).toFixed(1)}" y="${(y - 21).toFixed(1)}" width="42" height="42" rx="${full ? 21 : 10}" fill="${ERA_COLS[i]}" fill-opacity="${(.28 + .72 * k / 12).toFixed(2)}" stroke="var(--line)" stroke-width="2.5"/>
+      <text x="${x.toFixed(1)}" y="${(y + 7).toFixed(1)}" text-anchor="middle" font-size="19" fill="${k >= 6 ? ERA_TEXT[i] : 'var(--ink)'}">${t}</text>
+      ${full ? `<path d="${starPath(x + 17, y - 17, 8, 3.2)}" fill="var(--sun)" stroke="var(--line)" stroke-width="1.5" stroke-linejoin="round"/>` : ''}</g>`;
+  });
+  return `<div class="sticker journey"><div class="card-h"><h3>Your friendship bracelet</h3><span class="muted small">${done} of 12 beads sparkling</span></div>
+    <svg viewBox="0 0 640 140" role="img" aria-label="Friendship bracelet with a bead for each times table; ${done} fully mastered">
+      <path d="M8 20 Q320 ${30 + 2 * 70} 632 20" fill="none" stroke="var(--muted)" stroke-width="3" stroke-dasharray="1 7" stroke-linecap="round"/>${beads}</svg>
+    <p class="muted small">Each bead is a times table in its album's colour, from Debut for the 1s to Showgirl for the 12s. It fills up as the facts get strong and gets a star when all twelve are.</p></div>`;
 }
 function trophyShelf(p){
   const badges = ALL.filter(t => p.badges['t' + t]);
@@ -979,7 +980,8 @@ function scrSetup(){
     <div><h1 class="mega sm">${info[0]}</h1><p class="lede">${info[1]}</p></div>
     <div class="sticker" style="display:grid;gap:18px">
       <div><div class="card-h"><h3>Which times tables?</h3><div class="row"><button class="btn ghost small" data-act="all-tables">All</button><button class="btn ghost small" data-act="clear-tables">Clear</button></div></div>
-        <div class="chips">${ALL.map(t => `<button class="tchip ${c.tables.includes(t) ? 'on' : ''}" data-act="toggle-table" data-t="${t}" aria-pressed="${c.tables.includes(t)}">×${t}</button>`).join('')}</div></div>
+        <div class="chips">${ALL.map(t => `<button class="tchip ${c.tables.includes(t) ? 'on' : ''}" data-act="toggle-table" data-t="${t}" aria-pressed="${c.tables.includes(t)}">×${t}</button>`).join('')}</div>
+        ${S.v.suggested && c.tables.length === 1 && c.tables[0] === S.v.suggested ? `<p class="muted small" style="margin-top:10px">We picked the ${S.v.suggested}s for you: they're the ones to work on next. Tap any table to change.</p>` : ''}</div>
       ${m === 'test' ? `<div><h3>How many questions?</h3><div class="chips" style="margin-top:10px">${[10,20,30].map(n => `<button class="tchip ${c.count === n ? 'on' : ''}" data-act="set-count" data-n="${n}" aria-pressed="${c.count === n}">${n}</button>`).join('')}</div></div>` : ''}
       <div style="display:grid;gap:6px"><h3>Extra question types</h3>
         <button class="toggle" data-act="toggle-kind" data-k="miss" aria-pressed="${!!c.miss}"><span class="sw"></span>Missing numbers, like 6 × ? = 42</button>
@@ -1079,7 +1081,8 @@ function tableBars(p){
   [0, .5, 1].forEach(v => { g += `<line x1="${L}" x2="${L + iw}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)" stroke-width="1.5"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${v * 100}%</text>`; });
   ALL.forEach((t, i) => {
     const st = tableStats(p, t), cx = L + i * bw + bw / 2, w = bw * .64;
-    if (st.acc === null) g += `<rect x="${(cx - w/2).toFixed(1)}" y="${y(.06)}" width="${w.toFixed(1)}" height="${(ih * .06).toFixed(1)}" fill="none" stroke="var(--muted)" stroke-dasharray="3 3" rx="3"/>`;
+    const tried = ALL.filter(k => { const f = p.facts[fkey(t, k)]; return f && f.n; }).length;
+    if (st.acc === null || tried < 6) g += `<rect x="${(cx - w/2).toFixed(1)}" y="${y(.06)}" width="${w.toFixed(1)}" height="${(ih * .06).toFixed(1)}" fill="none" stroke="var(--muted)" stroke-dasharray="3 3" rx="3"/>`;
     else {
       const col = st.acc >= .9 ? 'var(--mint)' : st.acc >= .7 ? 'var(--sun)' : 'var(--tomato)';
       g += `<rect x="${(cx - w/2).toFixed(1)}" y="${y(st.acc).toFixed(1)}" width="${w.toFixed(1)}" height="${(st.acc * ih).toFixed(1)}" fill="${col}" stroke="var(--line)" stroke-width="2" rx="4"><title>×${t}: ${Math.round(st.acc*100)}% of ${st.n} answers right</title></rect><text class="lbl" x="${cx.toFixed(1)}" y="${(y(st.acc) - 6).toFixed(1)}" text-anchor="middle">${Math.round(st.acc * 100)}</text>`;
@@ -1120,7 +1123,7 @@ function reportBlocks(p, sessions, logins, player){
     </div>
     <div class="sticker"><div class="card-h"><h3>Test and challenge scores</h3><span class="muted small">Dashed lines show the prize targets</span></div>${scoreChart(sessions)}</div>
     <div class="two">
-      <div class="sticker"><div class="card-h"><h3>Right answers by table</h3><span class="muted small">Every answer so far</span></div>${tableBars(p)}</div>
+      <div class="sticker"><div class="card-h"><h3>Right answers by table</h3><span class="muted small">Dashed: fewer than 6 of its facts tried yet</span></div>${tableBars(p)}</div>
       <div class="sticker"><div class="card-h"><h3>Times-table map</h3><span class="muted small">Strong = right 3 times in a row, under 5s</span></div>${heatmap(p, false)}</div>
     </div>
     <div class="two">
@@ -1135,10 +1138,15 @@ function reportBlocks(p, sessions, logins, player){
   </div>`;
 }
 function scrProgress(){
+  const p = S.prog, acc = p.totals.q ? Math.round(p.totals.c / p.totals.q * 100) + '%' : '–';
   return `${topbar('progress')}<div class="parent-head"><div><p class="eyebrow">My progress</p><h1 class="mega sm">How you're doing, ${esc(S.me.name)}</h1></div></div>
-  <div class="sticker" style="margin-bottom:24px"><p class="eyebrow">Coach's tips</p><ul class="recs">${recommendations(S.prog, S.sessions).map(recItem).join('')}</ul></div>
-  <div style="margin-bottom:24px">${collectionCard(S.prog)}</div>
-  ${reportBlocks(S.prog, S.sessions, S.logins)}`;
+  <div class="report">
+    <div class="sumrow">${stat(streakDays(p), streakDays(p) === 1 ? 'day in a row' : 'days in a row')}${stat(p.totals.q, 'questions answered')}${stat(acc, 'answers right')}${stat(prizeTotal(p), 'trophies won')}</div>
+    <div class="two">${trophyShelf(p)}${weeklyCard(p, S.sessions, S.me)}</div>
+    ${bracelet(p)}
+    <div class="sticker"><div class="card-h"><h3>Your times-table map</h3><span class="muted small">Green means you know it: right 3 times in a row, quickly</span></div>${heatmap(p, false)}</div>
+    <div class="sticker"><div class="card-h"><h3>Everything you've done</h3><span class="muted small">Latest 40</span></div>${histTable(S.sessions)}</div>
+  </div>`;
 }
 
 function dotsSvg(a, b){
@@ -1243,8 +1251,9 @@ function scrParent(){
     <div class="parent-head"><div><p class="eyebrow">Grown-ups area</p><h1 class="mega sm">Family report</h1></div>
       <div class="row">${isParentDevice() ? '' : '<button class="btn ghost" data-act="parent-lock">Lock</button>'}<button class="btn ghost" data-act="go" data-to="${back}">Back to the app</button></div></div>
     ${S.okMsg ? `<p class="callout mint" role="status" style="margin-bottom:18px">${esc(S.okMsg)}</p>` : ''}
-    ${pls.length ? `<div class="overview">${overview}</div>${detail}` : '<p class="callout" style="margin-bottom:18px">Add the first player below to get started.</p>'}
+    ${pls.length ? `<div class="overview">${overview}</div>` : '<p class="callout" style="margin-bottom:18px">Add the first player below to get started.</p>'}
     ${methodsParent()}
+    ${pls.length ? `<h2 class="sec">Reports</h2>${detail}` : ''}
     <h2 class="sec">Settings</h2>
     <div class="settings">
       ${pls.map(pl => `<form class="sticker form" data-form="edit-player" data-id="${esc(pl.id)}">
