@@ -95,7 +95,7 @@ Each Sunday you read each child's week and do two things.
 1. Set next week's plan, matched to what they actually did. Make it a step harder when they met this week's targets with good accuracy (85% or more): more questions, the next table that is not yet strong, or the next question type their school year allows. Hold it, or ease it slightly, when they missed the targets, so the challenge stays reachable. Over 52 weeks every table should become strong and quick (the national Multiplication Tables Check allows 6 seconds a question). Focus on two or three tables at most. Question types: miss = missing numbers (6 × ? = 42), div = division, scale = ×10 facts (70 × 8), scale100 = ×100 facts; only use the ones their school year allows (given). questions = the week's question target (100 to 600), days = days to play (3 to 7).
 The note is for the child: one or two short, encouraging sentences, no more than 25 words. The why is one sentence for the grown-ups.
 
-2. Write the weekly email to Sam and Abbey (the parents) and Hayley, their maths tutor. British English. Warm, plain and specific; use the numbers given, never invent any. The summary is three to five sentences per child. Wins and watch are short points (up to three each). Tutor is one to three concrete suggestions Hayley could use in a session, such as a method or a game for a specific fact. No markdown, no dashes as punctuation.`;
+2. Write the weekly email to the grown-ups it is going to, who are named in the message: Sam and Abbey are the parents; Hayley is the children's maths tutor and is only among them when named. Greet only the people it goes to. British English. Warm, plain and specific; use the numbers given, never invent any. The summary is three to five sentences per child. Wins and watch are short points (up to three each). Tutor is one to three concrete suggestions Hayley could use in a session, such as a method or a game for a specific fact. No markdown, no dashes as punctuation.`;
 
 function clampPlan(p: any, year: number, prev: any, stats: any) {
   const allowed = YEAR_KINDS[year] || [];
@@ -159,13 +159,17 @@ Deno.serve(async (req) => {
     return {id: pl.id, pl, stats: weekStats(pl, progress[pl.id] || {}, sessions, plan, start), prevPlan: plan};
   });
 
+  const settings = docs!.find(d => d.path === "settings/report")?.data || {};
+  const recipients: string[] = to ? [to] : (settings.to && settings.to.length ? settings.to : DEFAULT_TO);
+  const NAMES: Record<string, string> = {"sam@myfirstjobinfilm.com": "Sam", "abbey@myfirstjobinfilm.com": "Abbey", "hayleybac@gmail.com": "Hayley"};
+  const toNames = recipients.map(e => NAMES[e.toLowerCase()] || e.split("@")[0]).join(", ");
   const client = new Anthropic({apiKey: Deno.env.get("ANTHROPIC_API_KEY")});
   const res: any = await client.beta.messages.create({
     model: "claude-opus-5-5", max_tokens: 16000,
     betas: ["server-side-fallback-2026-07-01"], fallbacks: "default",
     output_config: {effort: "medium", format: {type: "json_schema", schema: PLAN_SCHEMA}},
     system: SYSTEM,
-    messages: [{role: "user", content: `Week ${week} of 52 has just ended. Methods the grown-ups approved for the children: ${methods.join(", ") || "none yet"}.\n` +
+    messages: [{role: "user", content: `Week ${week} of 52 has just ended. This email goes to: ${toNames}. Methods the grown-ups approved for the children: ${methods.join(", ") || "none yet"}.\n` +
       rows.map(r => `Child id ${r.id}, allowed question types for Year ${r.stats.year}: ${(YEAR_KINDS[r.stats.year] || []).join(", ") || "multiplication only"}.\n${JSON.stringify(r.stats)}`).join("\n\n")}],
   } as any);
   if (res.stop_reason === "refusal") return new Response("Claude declined: " + JSON.stringify(res.stop_details), {status: 502});
@@ -187,8 +191,6 @@ Deno.serve(async (req) => {
     const {error: e2} = await db.from("docs").upsert(writes);
     if (e2) return new Response("write failed: " + e2.message, {status: 500});
   }
-  const settings = docs!.find(d => d.path === "settings/report")?.data || {};
-  const recipients = to ? [to] : (settings.to && settings.to.length ? settings.to : DEFAULT_TO);
   const send = await fetch("https://api.resend.com/emails", {
     method: "POST", headers: {Authorization: `Bearer ${Deno.env.get("RESEND_API_KEY")}`, "Content-Type": "application/json"},
     body: JSON.stringify({from: FROM, to: recipients, subject, html, reply_to: "sam@myfirstjobinfilm.com"}),
