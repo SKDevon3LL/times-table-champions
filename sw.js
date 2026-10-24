@@ -1,6 +1,6 @@
 // Keeps the whole app on the device so it opens with no internet.
 // Bump VERSION whenever any file below changes; the iPads pick up the new copy the next time they are online.
-const VERSION = 'ttc-2026-10-24c';
+const VERSION = 'ttc-2026-10-24d';
 const FILES = [
   './', './index.html', './app.js', './manifest.webmanifest',
   './vendor/supabase.js', './vendor/fonts.css',
@@ -9,7 +9,7 @@ const FILES = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES.map(f => new Request(f, {cache: 'reload'})))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -18,7 +18,8 @@ self.addEventListener('activate', e => {
     .then(() => self.clients.claim()));
 });
 
-// Same-site files: answer from the device at once, refresh the copy in the background.
+// Same-site files: answer from the device at once, refresh the copy in the background (past the browser's own
+// 10-minute cache, so a new version lands on the next open, not two opens later).
 // Everything else (the sign-in and sync service) goes straight to the network.
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
@@ -26,7 +27,7 @@ self.addEventListener('fetch', e => {
   e.respondWith(caches.open(VERSION).then(async cache => {
     const key = e.request.mode === 'navigate' ? './index.html' : e.request;
     const hit = await cache.match(key, { ignoreSearch: true });
-    const fresh = fetch(e.request).then(res => {
+    const fresh = fetch(e.request, {cache: 'no-cache'}).then(res => {
       if (res.ok && res.type === 'basic') cache.put(key, res.clone());
       return res;
     }).catch(() => null);
