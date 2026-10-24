@@ -25,7 +25,11 @@ function askBox(box, api, seconds, done){
 function jungle(host, api){
   const W = 7, H = 9, BOAT = 3, SENSE = {snake:2, panther:3, anaconda:5};
   let level = 1, st = null, busy = false, cancelQ = null;
-  host.innerHTML = `<div class="jg">
+  // Hughie's adventure pictures (private family-photos bucket, made from his own photos): start, chop, gold, chase, win, caught.
+  const scene = (name, title, text, go, btn) => `<div class="sticker jg-scene"><img class="jg-photo" data-p="jungle/${name}.jpg" alt=""><h2>${title}</h2><p>${text}</p><button class="btn big" data-go="${go}">${btn}</button></div>`;
+  const loadPics = el => el.querySelectorAll('img[data-p]').forEach(im => api.picture(im.dataset.p).then(u => { if (im.isConnected) im.src = u; }).catch(() => {}));
+  const backdrop = name => { const im = host.querySelector('.jg-bd'); if (im) { im.dataset.p = `jungle/${name}.jpg`; loadPics(host); } };
+  host.innerHTML = `<img class="jg-bd" alt=""><div class="jg">
     <div class="jg-bar"><b>Level <span data-k="lvl">1</span></b><span class="jg-msg" data-k="msg"></span><b>Gold <span data-k="gold">${api.state.gold || 0}</span></b></div>
     <div class="jg-board" data-k="board" style="--w:${W}"></div>
     <div class="gq" data-k="q" hidden></div>
@@ -59,6 +63,11 @@ function jungle(host, api){
     $('lvl').textContent = level;
     msg('Tap a square next to you to chop towards the gold.');
     draw();
+    backdrop('chop');
+    busy = true;
+    const o = $('over'); o.hidden = false;
+    o.innerHTML = scene('start', `Level ${level}`, level === 1 ? 'Chop a path to the gold, then get back to the boat. Every right answer swings your machete.' : 'The jungle is wilder now. Keep your answers sharp!', 'begin', 'Start the adventure');
+    loadPics(o);
   }
   const msg = t => { $('msg').textContent = t; };
   const near = (a, b) => Math.abs(a.r - b.r) + Math.abs(a.c - b.c) === 1;
@@ -108,10 +117,10 @@ function jungle(host, api){
     o.hidden = false;
     if (win) {
       api.state.gold = (api.state.gold || 0) + 1; api.save(); $('gold').textContent = api.state.gold;
-      o.innerHTML = `<div class="sticker"><p class="jg-big">🛶💰</p><h2>You made it to the boat with the gold!</h2><p>Level ${level} done. The jungle gets wilder from here.</p><button class="btn big" data-go="next">Next level</button></div>`;
+      o.innerHTML = scene('win', 'You made it to the boat with the gold!', `Level ${level} done. The jungle gets wilder from here.`, 'next', 'Next level');
       api.sound('win');
     } else {
-      o.innerHTML = `<div class="sticker"><p class="jg-big">${who === 'panther' ? '🐆' : '🐍'}</p><h2>${who === 'anaconda' ? 'An anaconda got you!' : who === 'panther' ? 'The panther got you!' : 'A snake got you!'}</h2><p>Right answers keep you ahead of them. Try level ${level} again.</p><button class="btn big" data-go="again">Try again</button></div>`;
+      o.innerHTML = scene('caught', who === 'anaconda' ? 'An anaconda got you!' : who === 'panther' ? 'The panther got you!' : 'A snake got you!', `Right answers keep you ahead of them. Try level ${level} again.`, 'again', 'Try again');
       api.sound('bad');
     }
   }
@@ -127,6 +136,11 @@ function jungle(host, api){
         st.preds.push({kind:'anaconda', every:ev, r:H - 1, c:0}, {kind:'anaconda', every:ev, r:H - 1, c:W - 1});
         if (level >= 3) st.preds.push({kind:'anaconda', every:3, r:H - 1, c:BOAT + (Math.random() < .5 ? -2 : 2)});
         msg('You got the gold! Run back to the boat before the anacondas get you!');
+        backdrop('chase');
+        busy = true;
+        const o = $('over'); o.hidden = false;
+        o.innerHTML = scene('gold', 'You found the gold!', 'Now run back to the boat. The anacondas are coming out of the river!', 'run', 'Run for the boat!');
+        loadPics(o);
       } else msg(stay ? 'You held your ground!' : st.has ? 'Keep going: back to the boat!' : 'Chop! Keep heading for the gold.');
       if (st.has && r === H - 1 && c === BOAT) { draw(); over(true); return; }
     } else { api.sound('bad'); msg('Missed! They are getting closer.'); }
@@ -140,7 +154,12 @@ function jungle(host, api){
   }
   host.onclick = e => {
     const go = e.target.closest('[data-go]');
-    if (go) { $('over').hidden = true; busy = false; if (go.dataset.go === 'next') level++; newLevel(); return; }
+    if (go) {
+      $('over').hidden = true; busy = false;
+      if (go.dataset.go === 'begin' || go.dataset.go === 'run') { draw(); return; }
+      if (go.dataset.go === 'next') level++;
+      newLevel(); return;
+    }
     const cell = e.target.closest('.jg-c');
     if (!cell) return;
     const r = +cell.dataset.r, c = +cell.dataset.c;
