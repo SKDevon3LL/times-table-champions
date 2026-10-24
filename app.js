@@ -239,7 +239,7 @@ const SKINS = {
     levels:['Opening Act','Rising Star','Sparkle Squad','In the Spotlight','Chart Topper','Headliner','Sold-Out Show','Stadium Star','Encore Legend','Times Table Icon'],
     praise:['Fearless!','Sparkling!','Iconic!','Legendary!','Encore!','Showstopper!','Gold star!'], streak: n => `${n} in a row. That\u2019s a whole new era!`,
     prizes:{bronze:'Bronze Star', silver:'Silver Sparkle', gold:'Gold Record', diamond:'Diamond Tiara'}},
-  trail: {brand:'Times Table Trail', label:'Trail (outdoor adventure theme)', daily:'Today\u2019s Expedition', confetti:'leaf',
+  trail: {brand:'Times Table Trail', label:'Trail (outdoor adventure theme)', daily:'Today\u2019s Expedition', confetti:'leaf', points:'Poundelas',
     levels:['Trail Starter','Path Finder','Hill Walker','River Crosser','Forest Ranger','Ridge Runner','Peak Bagger','Summit Seeker','Mountain Guide','Times Table Explorer'],
     praise:['Summit!','Trail blazer!','Spot on!','Onwards!','Expert tracker!','Nailed it!','Top explorer!'], streak: n => `${n} in a row. You\u2019re climbing fast!`,
     prizes:{bronze:'Bronze Badge', silver:'Silver Compass Medal', gold:'Gold Summit Cup', diamond:'Diamond Crown'}},
