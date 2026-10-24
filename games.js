@@ -23,8 +23,9 @@ function askBox(box, api, seconds, done){
 // Chop a path to the gold (one right answer = one chop), then get back to the boat before the anacondas come out of the river.
 // Every answer is a turn: snakes, panthers and anacondas each close in on their own beat, so a wrong answer lets them gain.
 function jungle(host, api){
-  // Snakes always close in on him, every other turn, wherever they are, so he feels cornered (Sam, 24 Oct 2026).
-  const W = 7, H = 9, BOAT = 3, SENSE = {snake:99, panther:3, anaconda:5, ogre:99};
+  // Every creature stalks him from anywhere on the board (Sam, 24 Oct 2026): snakes every other turn, panthers creeping on
+  // their own slower beat, the ogre every other turn (every turn from level 4), anacondas from the moment they leave the river.
+  const W = 7, H = 9, BOAT = 3, SENSE = {snake:99, panther:99, anaconda:99, ogre:99};
   // Adventure music (an original track made for the game) loops quietly while he plays, when sound is on.
   // As a snake, panther, anaconda or the ogre closes in, the music turns from the adventure track to a tense chase track
   // (Sam, 24 Oct 2026): blended by distance, and a touch faster when one is right beside him.
@@ -244,7 +245,7 @@ function jungle(host, api){
       .filter(o => o.r >= 0 && o.r < H && o.c >= 0 && o.c < W && st.g[o.r][o.c] !== 'rock' && (p.kind === 'anaconda' || st.g[o.r][o.c] !== 'river') && !at(st.preds, o.r, o.c));
     if (!opts.length) return;
     const d = o => Math.abs(o.r - st.pl.r) + Math.abs(o.c - st.pl.c), best = Math.min(...opts.map(d));
-    if (d(p) > SENSE[p.kind] + (p.kind === 'panther' && level >= 3 ? 1 : 0)) return;   // panthers and anacondas only hunt when he comes close
+    if (d(p) > SENSE[p.kind]) return;
     const pick = shuffle(opts.filter(o => d(o) === best))[0];
     if (best >= d(p)) return;   // never wander away
     p.r = pick.r; p.c = pick.c; p.moved = true;
