@@ -183,6 +183,10 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webk
 .setup{display:grid;gap:22px;max-width:760px}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
 .tchip{min-width:58px;padding:10px 12px;border:2.5px solid var(--line);border-radius:14px;background:var(--card);font-family:var(--display);font-size:22px;line-height:1}
+.tchip.strong:not(.on){background:color-mix(in srgb,var(--mint) 45%,var(--card))}
+.tsplit{display:grid;gap:10px;margin:4px 0 14px}.tsplit b{font-size:15px}.tchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.tc{border:2px solid var(--line);border-radius:999px;padding:5px 11px;font-weight:900;font-size:15px;background:color-mix(in srgb,var(--sun) 45%,var(--card))}.tc small{font-weight:700;opacity:.75}
+.tc.strong{background:color-mix(in srgb,var(--mint) 55%,var(--card))}
 .tchip.on{background:var(--me);color:var(--on-accent);box-shadow:3px 3px 0 var(--shadow);transform:translate(-1px,-1px)}
 .toggle{display:flex;align-items:center;gap:12px;font-weight:800;background:none;border:0;padding:4px 0;text-align:left}
 .toggle .sw{width:46px;height:26px;border:2.5px solid var(--line);border-radius:999px;position:relative;background:var(--card2);flex:none}

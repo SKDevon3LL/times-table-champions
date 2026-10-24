@@ -554,6 +554,13 @@ function weeklyGoals(p, sessions, player){
 // the easy 10s). Once every table is strong, any test can win one. The Daily Challenge always can: it picks their weakest facts.
 const notStrong = (p, tables) => tables.filter(t => t !== 1 && strongCount(p, t) < 12);
 const trophyTest = (p, tables) => notStrong(p, tables).length > 0 || notStrong(p, ALL).length === 0;
+// Which tables are strong (all 12 facts strong) and which need practice, shown plainly on the home and progress pages and
+// on the table chips (Sam, 24 Oct 2026). A table to practise is a button that starts a Practice round on it.
+function tablesSplit(p){
+  const strong = ALL.filter(t => t !== 1 && strongCount(p, t) === 12), weak = ALL.filter(t => t !== 1 && strongCount(p, t) < 12);
+  return `<div class="tsplit"><div><b>Strong \u2713</b><div class="tchips">${strong.length ? strong.map(t => `<span class="tc strong">${t}s</span>`).join('') : '<span class="muted small">None yet: keep going!</span>'}</div></div>
+    <div><b>Need practice</b><div class="tchips">${weak.map(t => `<button class="tc" data-act="rec" data-mode="practice" data-tables="${t}" title="Practise the ${t}s">${t}s <small>${strongCount(p, t)}/12</small></button>`).join('') || '<span class="muted small">Nothing: every table is strong!</span>'}</div></div></div>`;
+}
 // The table to work on next: the first in teaching order that isn't fully strong (the 1s look after themselves).
 const focusTable = p => { const plan = planFor(S.me); return (plan && (plan.focus || []).find(t => ALL.includes(t) && strongCount(p, t) < 12)) || TEACH_ORDER.find(t => t !== 1 && strongCount(p, t) < 12) || null; };
 // Today's order (Sam, 24 Oct 2026): the Daily Challenge is today's work. Once it is done, the Bonus Round, in order:
@@ -897,6 +904,7 @@ function scrHome(){
     <div class="col">
       ${journey(p)}
       <div class="sticker"><div class="card-h"><h3>Your times-table map</h3><button class="link small" data-act="go" data-to="progress">See all progress</button></div>
+        ${tablesSplit(p)}
         <p class="muted small" style="margin-bottom:10px">Each square is one fact, like 7 × 8 = 56. Green means you know it.</p>${heatmap(p, false)}</div>
     </div>
   </div>`;
@@ -1110,7 +1118,8 @@ function scrSetup(){
     <div><h1 class="mega sm">${info[0]}</h1><p class="lede">${info[1]}</p></div>
     <div class="sticker" style="display:grid;gap:18px">
       <div><div class="card-h"><h3>Which times tables?</h3><div class="row"><button class="btn ghost small" data-act="all-tables">All</button><button class="btn ghost small" data-act="clear-tables">Clear</button></div></div>
-        <div class="chips">${ALL.map(t => `<button class="tchip ${c.tables.includes(t) ? 'on' : ''}" data-act="toggle-table" data-t="${t}" aria-pressed="${c.tables.includes(t)}">×${t}</button>`).join('')}</div>
+        <div class="chips">${ALL.map(t => { const st = t !== 1 && strongCount(S.prog, t) === 12; return `<button class="tchip ${c.tables.includes(t) ? 'on' : ''} ${st ? 'strong' : ''}" data-act="toggle-table" data-t="${t}" aria-pressed="${c.tables.includes(t)}" aria-label="${t} times table${st ? ', strong' : ', needs practice'}">×${t}${st ? ' \u2713' : ''}</button>`; }).join('')}</div>
+        <p class="muted small" style="margin-top:8px">\u2713 means that table is strong already. The others need practice.</p>
         ${S.v.suggested && c.tables.length === 1 && c.tables[0] === S.v.suggested ? `<p class="muted small" style="margin-top:10px">We picked the ${S.v.suggested}s for you: they're the ones to work on next. Tap any table to change.</p>` : ''}</div>
       ${m === 'test' ? `<div><h3>How many questions?</h3><div class="chips" style="margin-top:10px">${[10,20,30].map(n => `<button class="tchip ${c.count === n ? 'on' : ''}" data-act="set-count" data-n="${n}" aria-pressed="${c.count === n}">${n}</button>`).join('')}</div></div>` : ''}
       <div style="display:grid;gap:6px"><h3>Extra question types</h3>
@@ -1283,7 +1292,7 @@ function scrProgress(){
     <div class="sumrow">${stat(streakDays(p), streakDays(p) === 1 ? 'day in a row' : 'days in a row')}${stat(p.totals.q, 'questions answered')}${stat(acc, 'answers right')}${stat(prizeTotal(p), 'trophies won')}</div>
     <div class="two">${trophyShelf(p)}${weeklyCard(p, S.sessions, S.me)}</div>
     ${bracelet(p)}
-    <div class="sticker"><div class="card-h"><h3>Your times-table map</h3><span class="muted small">Green means you know it: right 3 times in a row, quickly</span></div>${heatmap(p, false)}</div>
+    <div class="sticker"><div class="card-h"><h3>Your times-table map</h3><span class="muted small">Green means you know it: right 3 times in a row, quickly</span></div>${tablesSplit(p)}${heatmap(p, false)}</div>
     <div class="sticker"><div class="card-h"><h3>Everything you've done</h3><span class="muted small">Latest 40</span></div>${histTable(S.sessions)}</div>
   </div>`;
 }
