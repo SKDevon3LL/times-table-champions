@@ -29,13 +29,26 @@ function jungle(host, api){
   const music = new Audio('audio/jungle-adventure.mp3'); music.loop = true; music.volume = .35;
   if (api.soundOn && api.soundOn()) music.play().catch(() => {});
   // Snakes hiss louder as they slither closer, and strike with a snap when they catch him.
+  const noise = (ac, len) => { const b = ac.createBuffer(1, Math.ceil(ac.sampleRate * len), ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; const n = ac.createBufferSource(); n.buffer = b; return n; };
+  // A cobra: a breathy hiss that pulses (louder the closer it is); the strike rears up with a rising hiss, then a sharp
+  // spitting burst, a whoosh and a snap of the jaws.
   const hiss = (vol, strike) => { if (api.soundOn && !api.soundOn()) return; try {
-    const ac = api.audio(), len = strike ? .9 : .6, b = ac.createBuffer(1, ac.sampleRate * len, ac.sampleRate), d = b.getChannelData(0);
-    for (let i = 0; i < d.length; i++) { const t = i / d.length; d[i] = (Math.random() * 2 - 1) * Math.min(1, t * 12) * (1 - t) * (1 + .5 * Math.sin(i / 90)); }
-    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = b; f.type = 'bandpass'; f.frequency.value = 5200; f.Q.value = .9; g.gain.value = vol;
-    s.connect(f); f.connect(g); g.connect(ac.destination); s.start();
-    if (strike) { const o = ac.createOscillator(), og = ac.createGain(); o.type = 'square'; o.frequency.setValueAtTime(180, ac.currentTime); o.frequency.exponentialRampToValueAtTime(50, ac.currentTime + .18);
-      og.gain.setValueAtTime(.45, ac.currentTime); og.gain.exponentialRampToValueAtTime(.001, ac.currentTime + .2); o.connect(og); og.connect(ac.destination); o.start(); o.stop(ac.currentTime + .22); }
+    const ac = api.audio(), t0 = ac.currentTime + .02, len = strike ? .55 : .7;
+    const n = noise(ac, len + .1), hp = ac.createBiquadFilter(), bp = ac.createBiquadFilter(), g = ac.createGain(), trem = ac.createOscillator(), tg = ac.createGain();
+    hp.type = 'highpass'; hp.frequency.value = 2500; bp.type = 'bandpass'; bp.Q.value = .7;
+    bp.frequency.setValueAtTime(strike ? 3500 : 5500, t0); bp.frequency.linearRampToValueAtTime(strike ? 8000 : 6500, t0 + len);
+    trem.frequency.value = strike ? 9 : 6; tg.gain.value = vol * .35; trem.connect(tg); tg.connect(g.gain);
+    g.gain.setValueAtTime(.0001, t0); g.gain.exponentialRampToValueAtTime(vol * (strike ? .9 : .7), t0 + (strike ? len * .9 : .12)); g.gain.exponentialRampToValueAtTime(.0001, t0 + len);
+    n.connect(hp); hp.connect(bp); bp.connect(g); g.connect(ac.destination); n.start(t0); n.stop(t0 + len + .05); trem.start(t0); trem.stop(t0 + len);
+    if (strike) {
+      const ts = t0 + len;
+      const spit = noise(ac, .08), sg = ac.createGain(), sf = ac.createBiquadFilter(); sf.type = 'highpass'; sf.frequency.value = 1200;
+      sg.gain.setValueAtTime(1, ts); sg.gain.exponentialRampToValueAtTime(.001, ts + .08); spit.connect(sf); sf.connect(sg); sg.connect(ac.destination); spit.start(ts);
+      const wh = noise(ac, .35), wf = ac.createBiquadFilter(), wg = ac.createGain(); wf.type = 'lowpass'; wf.frequency.setValueAtTime(4000, ts); wf.frequency.exponentialRampToValueAtTime(300, ts + .3);
+      wg.gain.setValueAtTime(.6, ts); wg.gain.exponentialRampToValueAtTime(.001, ts + .35); wh.connect(wf); wf.connect(wg); wg.connect(ac.destination); wh.start(ts);
+      const o = ac.createOscillator(), og = ac.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(900, ts + .05); o.frequency.exponentialRampToValueAtTime(120, ts + .12);
+      og.gain.setValueAtTime(.7, ts + .05); og.gain.exponentialRampToValueAtTime(.001, ts + .14); o.connect(og); og.connect(ac.destination); o.start(ts + .05); o.stop(ts + .16);
+    }
   } catch {} };
   // A heartbeat that quickens as a snake gets closer.
   const heartbeat = near => { if (api.soundOn && !api.soundOn()) return; try {
@@ -169,11 +182,11 @@ function jungle(host, api){
     if (win) {
       api.state.gold = (api.state.gold || 0) + 1; api.save(); $('gold').textContent = api.state.gold;
       o.innerHTML = scene('win', 'You made it to the boat with the gold!', `Level ${level} done. The jungle gets wilder from here.`, 'next', 'Next level');
-      api.sound('win');
+      api.sound('win'); loadPics(o);
     } else {
       if (who !== 'panther') hiss(.9, true); else roar(.8, true);
       o.innerHTML = scene(who === 'panther' ? 'panther-attack' : 'snake-attack', who === 'anaconda' ? 'An anaconda got you!' : who === 'panther' ? 'The panther got you!' : 'Snake attack!', `Right answers keep you ahead of them. Try level ${level} again.`, 'again', 'Try again');
-      api.sound('bad');
+      api.sound('bad'); loadPics(o);
     }
   }
   function turn(ok, r, c){
