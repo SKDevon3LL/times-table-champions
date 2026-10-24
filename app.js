@@ -709,6 +709,11 @@ function buildQ(a, b, kind){
   if (kind === 'scale100') return {a, b, kind, parts:[a * 100, '×', b, '=', '?'], answer:p * 100, key};
   return {a, b, kind:'mul', parts:[a, '×', b, '=', '?'], answer:p, key};
 }
+// Uplift for harder tables (Sam, 24 Oct 2026): a right answer is worth 15 on the 6s, 7s, 8s, 9s and 12s, 12 on the 3s and
+// 4s, 10 on the rest (the fact's harder table counts), and 5 more for missing numbers, division or x10 and x100 facts.
+const TABLE_PTS = {3:12, 4:12, 6:15, 7:15, 8:15, 9:15, 12:15};
+const tablePts = t => TABLE_PTS[t] || 10;
+const answerPts = q => Math.max(tablePts(q.a), tablePts(q.b)) + (q.kind && q.kind !== 'mul' ? 5 : 0);
 const qText = (q, fill) => q.parts.map(x => x === '?' ? (fill ?? '?') : x).join(' ');
 function nextQ(){
   const P = S.play; if (!P || P.done) return;
@@ -740,7 +745,7 @@ function submit(){
     return;
   }
   updateFact(q.key, ok, ms);
-  P.answers.push({k:q.key, t:qText(q), a:q.answer, g:given, ok, ms});
+  P.answers.push({k:q.key, t:qText(q), a:q.answer, g:given, ok, ms, pts: ok ? answerPts(q) : 0});
   if (ok) {
     P.correct++; P.streak++; P.best = Math.max(P.best, P.streak); sound('ok');
     P.fb = {ok:true, text: P.streak >= 5 && P.streak % 5 === 0 ? skin().streak(P.streak) : skin().praise[Math.floor(Math.random() * skin().praise.length)]};
@@ -778,7 +783,8 @@ async function finish(abandoned){
   const pct = Math.round(c / n * 100), ms = Date.now() - P.start, prog = S.prog, today = dayStr();
   const prize = (!abandoned && (P.mode === 'daily' || (P.mode === 'test' && P.trophyOK))) ? tierFor(pct) : null;
   const noTrophy = !abandoned && P.mode === 'test' && !P.trophyOK && !!tierFor(pct);
-  let xp = c * 10 + (prize ? prize.xp : 0);
+  const earned = P.answers.reduce((s, x) => s + (x.pts || 0), 0), uplift = Math.max(0, earned - c * 10);
+  let xp = earned + (prize ? prize.xp : 0);
   let dailyDone = false;
   if (P.mode === 'daily' && !abandoned) {
     const prev = prog.daily[today];
@@ -817,7 +823,7 @@ async function finish(abandoned){
   if (abandoned) entry.ab = true;
   S.sessions.push(entry); ensureLogCur(); S.logCur.sessions.push(entry);
   if (!S.demo) Promise.all([saveProg(), saveLog()]).catch(saveFail);
-  S.result = Object.assign({}, entry, {answers:P.answers, newBest, prevBest, newBadges, newItems, unlocked, dailyDone, bonus, noTrophy, cfg:P.cfg, poolPairs:P.pool, best:P.best});
+  S.result = Object.assign({}, entry, {answers:P.answers, newBest, prevBest, newBadges, newItems, unlocked, dailyDone, bonus, noTrophy, uplift, cfg:P.cfg, poolPairs:P.pool, best:P.best});
   S.play = null; S.screen = 'results'; render(); scrollTo(0, 0);
   if (prize) { confetti(prize.id); sound('win'); }
   else if (newBest) confetti('gold');
@@ -892,11 +898,11 @@ function scrHome(){
   <div class="grid-home">
     <div class="col">
       ${gameBanner(p)}${todayCard(p)}
-      <div class="extra-h"><h2>Extra practice</h2><p>Not part of today's work or the weekly plan: play any of these whenever you like. Every right answer earns 10 ${ptsName()}, and a test at 70% or more on a table that isn't strong yet also wins a trophy for your ${skinId() === 'eras' ? 'Eras Tour' : skinId() === 'trail' ? 'jungle trail' : 'weekly trail'}.</p></div>
+      <div class="extra-h"><h2>Extra practice</h2><p>Not part of today's work or the weekly plan: play any of these whenever you like. Every right answer earns ${ptsName()}, more on harder tables like the 7s and 8s, and a test at 70% or more on a table that isn't strong yet also wins a trophy for your ${skinId() === 'eras' ? 'Eras Tour' : skinId() === 'trail' ? 'jungle trail' : 'weekly trail'}.</p></div>
       <div class="modes">
-        ${modeTile('practice', '7×8', 'Practise', `No timer, tricks when you get stuck. 10 ${ptsName()} a right answer.`, 'mint')}
+        ${modeTile('practice', '7×8', 'Practise', `No timer, tricks when you get stuck. More ${ptsName()} on harder tables.`, 'mint')}
         ${modeTile('test', '90%', 'Take a test', "70% or more on a table that isn't strong yet wins a trophy.", 'sun')}
-        ${modeTile('clock', '60s', 'Beat the Clock', `Beat your best in 60 seconds. 10 ${ptsName()} a right answer.`, 'tomato')}
+        ${modeTile('clock', '60s', 'Beat the Clock', `Beat your best in 60 seconds. More ${ptsName()} on harder tables.`, 'tomato')}
         ${modeTile('explore', '12²', 'Explore', 'See the patterns in every table, just for fun.', 'sky')}
       </div>
       <div class="sticker"><p class="eyebrow">From Taylor, your Times Table Coach</p>${planFor(me) && planFor(me).note ? `<p class="callout" style="margin-top:10px">${esc(planFor(me).note)}</p>` : ''}<ul class="recs">${recommendations(p, S.sessions).map(recItem).join('')}</ul></div>
@@ -1118,8 +1124,9 @@ function scrSetup(){
     <div><h1 class="mega sm">${info[0]}</h1><p class="lede">${info[1]}</p></div>
     <div class="sticker" style="display:grid;gap:18px">
       <div><div class="card-h"><h3>Which times tables?</h3><div class="row"><button class="btn ghost small" data-act="all-tables">All</button><button class="btn ghost small" data-act="clear-tables">Clear</button></div></div>
-        <div class="chips">${ALL.map(t => { const st = t !== 1 && strongCount(S.prog, t) === 12; return `<button class="tchip ${c.tables.includes(t) ? 'on' : ''} ${st ? 'strong' : ''}" data-act="toggle-table" data-t="${t}" aria-pressed="${c.tables.includes(t)}" aria-label="${t} times table${st ? ', strong' : ', needs practice'}">×${t}${st ? ' \u2713' : ''}</button>`; }).join('')}</div>
+        <div class="chips">${ALL.map(t => { const st = t !== 1 && strongCount(S.prog, t) === 12; return `<button class="tchip ${c.tables.includes(t) ? 'on' : ''} ${st ? 'strong' : ''}" data-act="toggle-table" data-t="${t}" aria-pressed="${c.tables.includes(t)}" aria-label="${t} times table${st ? ', strong' : ', needs practice'}${tablePts(t) > 10 ? `, ${tablePts(t)} points a right answer` : ''}">×${t}${st ? ' \u2713' : ''}${tablePts(t) > 10 ? `<small class="up">+${(tablePts(t) - 10) * 10}%</small>` : ''}</button>`; }).join('')}</div>
         <p class="muted small" style="margin-top:8px">\u2713 means that table is strong already. The others need practice.</p>
+        <p class="muted small" style="margin-top:4px">Harder tables earn more: 15 ${ptsName()} a right answer on the 6s, 7s, 8s, 9s and 12s, 12 on the 3s and 4s, 10 on the rest. Missing numbers and division add 5.</p>
         ${S.v.suggested && c.tables.length === 1 && c.tables[0] === S.v.suggested ? `<p class="muted small" style="margin-top:10px">We picked the ${S.v.suggested}s for you: they're the ones to work on next. Tap any table to change.</p>` : ''}</div>
       ${m === 'test' ? `<div><h3>How many questions?</h3><div class="chips" style="margin-top:10px">${[10,20,30].map(n => `<button class="tchip ${c.count === n ? 'on' : ''}" data-act="set-count" data-n="${n}" aria-pressed="${c.count === n}">${n}</button>`).join('')}</div></div>` : ''}
       <div style="display:grid;gap:6px"><h3>Extra question types</h3>
@@ -1187,7 +1194,7 @@ function scrResults(){
       <p class="eyebrow">${MODE_NAMES[r.mode]} · ${esc(tablesLabel(r))}</p>
       <h1 class="mega sm">${headline}</h1>
       <div><span class="score num">${big}</span> <span class="muted" style="font-weight:800">${sub}</span></div>
-      <p class="callout mint">+${r.xp} ${ptsName()}${r.dailyDone ? ` (including 50 bonus ${ptsName()} for completing the Daily Challenge)` : ''}</p>
+      <p class="callout mint">+${r.xp} ${ptsName()}${[r.uplift ? `${r.uplift} extra for harder tables` : '', r.dailyDone ? `50 bonus for completing the Daily Challenge` : ''].filter(Boolean).map((x, i, a) => (i ? '' : ' (including ') + x + (i === a.length - 1 ? ')' : ' and ')).join('')}</p>
       ${r.bonus && r.bonus.done ? `<p class="callout mint">Bonus Round complete! The ${r.bonus.base} ${ptsName()} you won in the round are doubled: +${r.bonus.extra} extra.</p>`
         : r.bonus && r.bonus.step ? `<p class="callout">Bonus Round: ${r.bonus.step} of ${r.bonus.of} done. Next: ${esc(r.bonus.next.name)}, and finish them all for double ${ptsName()}. ${nextBtn(r.bonus.next)}</p>`
         : r.bonus && r.bonus.hint ? `<p class="callout">Bonus Round: do the steps in order for double ${ptsName()}. Next: ${esc(r.bonus.next.name)}. ${nextBtn(r.bonus.next)}</p>`
