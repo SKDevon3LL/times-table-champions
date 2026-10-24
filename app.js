@@ -960,7 +960,7 @@ const trailDress = (p, i) => (Math.floor(trailStart(p) / (7 * 864e5)) * TRAIL_ST
 const JUNGLE = [[0, 'Load the boat on the river'], [1, 'Find the jungle trail'], [2, 'Choose the right path'], [3, 'Fill up at the waterfall'],
   [4, 'Walk through the dark forest'], [6, 'Swing across the ravine'], [12, 'Reach the edge of the gold jungle']].map(([tool, camp]) => ({tool, camp}));
 const allTablesTest = s => s.mode === 'test' && !s.ab && s.tables && s.tables.length === 12;
-const trophyLine = p => `<div class="trophy-line">${TIERS.map(t => `<span class="${p.prizes[t.id] ? '' : 'locked'}" title="${esc(t.name)}">${medal(t.id, 28)}<b class="num">${p.prizes[t.id] || 0}</b></span>`).join('')}<span class="muted small">Win a trophy in a test or a Daily Challenge (70% or more) to move on.</span></div>`;
+const trophyLine = p => `<div class="trophy-line">${TIERS.map(t => `<span class="${p.prizes[t.id] ? '' : 'locked'}" title="${esc(t.name)}">${medal(t.id, 28)}<b class="num">${p.prizes[t.id] || 0}</b></span>`).join('')}<span class="muted small">Win a trophy to move on: 70% or more in the Daily Challenge, or in a test with a table that isn't strong yet.</span></div>`;
 
 function dressSvg(i, size, locked){
   const L = 'var(--line)', sw = 2.2;
