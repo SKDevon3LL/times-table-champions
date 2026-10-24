@@ -126,18 +126,25 @@ function jungle(host, api){
   // seconds, then the clip fades in; when the clip ends his picture shows for 3 seconds and the clip plays again.
   const CLIP = {'ogre-chase':'ogre', 'ogre-pot':'ogre', start:'start', chop:'chop', miss:'miss', hold:'hold', chase:'chase', run:'run', gold:'gold', win:'win', 'snake-attack':'snake', 'panther-attack':'panther'};
   const clipUrls = new Map();
+  // Each clip's own action sound (clips/<name>.m4a, from the original video) plays through the game's audio in step with
+  // it (Sam, 24 Oct 2026). Played this way rather than by the video itself, which an iPad may silence when it starts alone.
+  const clipSounds = new Map(); let clipSrc = null;
+  const clipSound = c => clipSounds.get(c) || clipSounds.set(c, fetch(`clips/${c}.m4a`).then(r => r.ok ? r.arrayBuffer() : Promise.reject()).then(b => api.audio().decodeAudioData(b))).get(c);
+  const stopClipSound = () => { if (clipSrc) { try { clipSrc.stop(); } catch {} clipSrc = null; } };
+  const playClipSound = c => { stopClipSound(); if (api.soundOn && !api.soundOn()) return;
+    clipSound(c).then(buf => { const ac = api.audio(), s = ac.createBufferSource(), g = ac.createGain(); s.buffer = buf; g.gain.value = .8; s.connect(g); g.connect(ac.destination); s.start(); clipSrc = s; }).catch(() => {}); };
   const clipUrl = c => clipUrls.get(c) || clipUrls.set(c, fetch(`clips/${c}.mp4`).then(r => r.ok ? r.blob() : Promise.reject()).then(b => URL.createObjectURL(b))).get(c);
   const action = (name, cap) => {
     const a = $('act'); if (!a) { backdrop(name); return; }
     a.querySelector('img').dataset.p = `jungle/${name}.jpg`; a.querySelector('b').textContent = cap; backdrop(name);
     const v = a.querySelector('video'), c = CLIP[name], go = (a._go || 0) + 1; a._go = go; a.dataset.clip = c || '';
-    clearTimeout(a._t); a.classList.remove('has-clip'); v.pause();
+    clearTimeout(a._t); a.classList.remove('has-clip'); v.pause(); stopClipSound();
     if (!c) return;
-    const play = () => { if (a._go !== go || !a.isConnected) return; v.currentTime = 0; v.play().catch(() => {}); a.classList.add('has-clip'); };
-    v.onended = () => { if (a._go !== go) return; a.classList.remove('has-clip'); a._t = setTimeout(play, 3000); };
+    const play = () => { if (a._go !== go || !a.isConnected) return; v.currentTime = 0; v.play().catch(() => {}); a.classList.add('has-clip'); playClipSound(c); };
+    v.onended = () => { if (a._go !== go) return; stopClipSound(); a.classList.remove('has-clip'); a._t = setTimeout(play, 3000); };
     clipUrl(c).then(u => { if (a._go !== go) return; if (v.src !== u) v.src = u; a._t = setTimeout(play, 2500); }).catch(() => {});
   };
-  setTimeout(() => Object.values(CLIP).forEach(c => clipUrl(c).catch(() => {})), 1500);   // fetch the rest in the background
+  setTimeout(() => Object.values(CLIP).forEach(c => { clipUrl(c).catch(() => {}); clipSound(c).catch(() => {}); }), 1500);   // fetch the rest in the background
 
   // The board's picture tiles: shown once every one is on the device, the emoji until then.
   const TILES = ['jungle1', 'jungle2', 'path', 'rock', 'gold', 'river', 'boat', 'snake', 'panther', 'anaconda'];
@@ -305,7 +312,7 @@ function jungle(host, api){
     cancelQ = askBox($('q'), api, 10, (ok, q, timeout) => { cancelQ = null; busy = false; turn(ok, r, c, timeout); });
   };
   newLevel();
-  return {destroy(){ if (cancelQ) cancelQ(); music.pause(); danger.pause(); clearInterval(fader); host.querySelectorAll('video').forEach(v => v.pause()); host.onclick = null; host.innerHTML = ''; }};
+  return {destroy(){ if (cancelQ) cancelQ(); music.pause(); danger.pause(); clearInterval(fader); stopClipSound(); host.querySelectorAll('video').forEach(v => v.pause()); host.onclick = null; host.innerHTML = ''; }};
 }
 
 /* ---------- Jessica: the Eras Stadium Show ---------- */
