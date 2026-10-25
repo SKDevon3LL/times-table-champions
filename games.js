@@ -457,8 +457,11 @@ function stage(host, api){
       fetch(`clips/stage/era${era}-${k}.mp4`).then(r => r.ok ? r.blob() : Promise.reject())
         .then(async b => { if (ended) return; vid.src = URL.createObjectURL(b); vid.currentTime = 0; await vid.play().catch(() => {}); vid.classList.add('on'); })
         .catch(() => {});
-      clipTimer = setTimeout(() => { stopClip(); clipTimer = setTimeout(nextClip, 5000); }, 10000);
+      clipTimer = setTimeout(clipDone, 10000);
     };
+    // a clip shorter than 10 seconds (two were trimmed to keep a face out) hands back to the photos when it ends, not frozen
+    const clipDone = () => { if (ended) return; clearTimeout(clipTimer); stopClip(); clipTimer = setTimeout(nextClip, 5000); };
+    vid.onended = clipDone;
     clipTimer = setTimeout(nextClip, 4000);
     show = {stop(){ ended = true; t.stop(); if (cancelQ) cancelQ(); clearInterval(loop); clearInterval(dance); clearTimeout(clipTimer); stopClip(); }};
     let nextQ = Date.now() + t.barSec * 2000;
