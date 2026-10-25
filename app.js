@@ -95,6 +95,7 @@ function mergeDoc(path, a, b){
     r.bonus = Object.assign({}, b.bonus); for (const [k, v] of Object.entries(a.bonus || {})) { const o = r.bonus[k]; if (!o || stepsOf(v) > stepsOf(o) || (stepsOf(v) === stepsOf(o) && (v.ex || []).length >= (o.ex || []).length)) r.bonus[k] = v; }
     const rs = new Set(); r.recites = [...(a.recites || []), ...(b.recites || [])].filter(x => { const k = x.t + ':' + x.table; if (rs.has(k)) return false; rs.add(k); return true; }).sort((x, y) => y.t - x.t).slice(0, 400);
     r.reciteAw = Object.assign({}, b.reciteAw, a.reciteAw);
+    r.reciteBest = Object.assign({}, b.reciteBest); for (const [k, v] of Object.entries(a.reciteBest || {})) if (!r.reciteBest[k] || v.ms < r.reciteBest[k].ms) r.reciteBest[k] = v;
     r.badges = Object.assign({}, b.badges); for (const [k, v] of Object.entries(a.badges || {})) if (!r.badges[k] || v < r.badges[k]) r.badges[k] = v;
     const seen = new Set();
     r.prizeLog = [...(a.prizeLog || []), ...(b.prizeLog || [])].filter(x => { const k = x.t + x.tier; if (seen.has(k)) return false; seen.add(k); return true; }).sort((x, y) => y.t - x.t).slice(0, 80);
@@ -594,6 +595,9 @@ const bonusToday = p => (p.bonus || {})[dayStr()] || null;
 // same table three times in a row pays points (once a day per table), a table said six times in a week pays more, and
 // every table said three times opens the reward game. The counts start again each week, and after the game's 30 minutes.
 const RECITE_RUN = 3, RECITE_SIX = 6, RECITE_GAME = 3;
+// A personal best pays twice the table's points; the first time a table is said only sets the mark.
+const reciteBest = (p, t) => ((p.reciteBest || {})[t] || null);
+const fmtClock = ms => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${pad2(s % 60)}`; };
 const reciteCount = (p, table, t0 = weekStart()) => (p.recites || []).filter(x => x.t >= t0 && x.table === table).length;
 const recitedToday = p => (p.recites || []).some(x => dayStr(x.t) === dayStr());
 const reciteAllDone = p => ALL.every(t => reciteCount(p, t, trailStart(p)) >= RECITE_GAME);
@@ -621,7 +625,10 @@ function startRecite(table){
   reciteStop();
   const run = S.v.rcRun; S.v.rc = {mode: table ? 'say' : 'pick', table: table || null, i: 0, ptr: 0, fb: null, typed: '', typing: false, from: Date.now()};
   S.v.rcRun = run;
-  if (table) { S.screen = 'recite'; reciteListen(); render(); scrollTo(0, 0); } else go('recite');
+  if (table) {
+    S.screen = 'recite'; reciteListen(); render(); scrollTo(0, 0);
+    const rc = S.v.rc; rc.tick = setInterval(() => { const el = document.getElementById('rc-time'); if (S.v.rc !== rc || rc.mode !== 'say') { clearInterval(rc.tick); return; } if (el) el.textContent = fmtClock(Date.now() - rc.from); }, 250);
+  } else go('recite');
 }
 function reciteListen(){
   const rc = S.v.rc, SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -643,7 +650,7 @@ function reciteListen(){
   r.onend = () => { if (S.v.rc === rc && rc.mode === 'say' && rc.listening && !rc.typing) { rc.ptr = 0; try { r.start(); } catch {} } };
   try { r.start(); } catch { rc.typing = true; rc.why = "This iPad can't listen here, so type the answers."; }
 }
-function reciteStop(){ const rc = S.v.rc; if (rc && rc.rec) { rc.listening = false; try { rc.rec.abort(); } catch {} rc.rec = null; } }
+function reciteStop(){ const rc = S.v.rc; if (rc) clearInterval(rc.tick); if (rc && rc.rec) { rc.listening = false; try { rc.rec.abort(); } catch {} rc.rec = null; } }
 // A line counts when the last number heard since the line before is its answer, after at least one other number (the
 // table and the times), so "two times one" does not tick 2 × 1 before "is two" is said.
 function reciteHeard(nums, final){
@@ -666,14 +673,20 @@ function reciteFinish(){
   const run = S.v.rcRun = S.v.rcRun && S.v.rcRun.table === t ? {table: t, n: S.v.rcRun.n + 1} : {table: t, n: 1};
   let xp = 0; const got = [];
   if (run.n >= RECITE_RUN && !aw[`run:${dayStr()}:${t}`]) { const x = tablePts(t) * 3; aw[`run:${dayStr()}:${t}`] = now; xp += x; got.push(`3 in a row: +${x} ${ptsName()}`); }
+  const ms = now - rc.from, best = reciteBest(p, t), bests = p.reciteBest || (p.reciteBest = {});
+  let pb = null;
+  if (!best) { bests[t] = {ms, t: now}; pb = {first: true, ms}; }
+  else if (ms < best.ms) { const x = tablePts(t) * 2; bests[t] = {ms, t: now}; xp += x; pb = {ms, prev: best.ms, x}; got.push(`New personal best! +${x} ${ptsName()}`); }
+  else pb = {ms, best: best.ms};
   if (reciteCount(p, t) >= RECITE_SIX && !aw[`six:${weekStart()}:${t}`]) { const x = tablePts(t) * 5; aw[`six:${weekStart()}:${t}`] = now; xp += x; got.push(`The ${t}s 6 times this week: +${x} ${ptsName()}`); }
   const keys = Object.keys(aw).sort((a, b) => aw[a] - aw[b]); while (keys.length > 300) delete aw[keys.shift()];
   p.xp += xp;
   if (!p.days.includes(dayStr())) { p.days.push(dayStr()); if (p.days.length > 400) p.days.shift(); }
-  const entry = {t: rc.from, mode: 'recite', tables: [t], n: 12, c: 12, pct: 100, ms: now - rc.from, xp};
+  const entry = {t: rc.from, mode: 'recite', tables: [t], n: 12, c: 12, pct: 100, ms, xp};
+  if (pb && pb.x) entry.pb = true;
   if (rc.usedTyping) entry.typed = true;
   S.sessions.push(entry); ensureLogCur(); S.logCur.sessions.push(entry);
-  Object.assign(rc, {mode: 'end', got, xp, firstToday, unlocked: skinId() !== 'classic' && !allBefore && reciteAllDone(p) && itemsOwned(p) < TRAIL_STOPS});
+  Object.assign(rc, {mode: 'end', got, xp, firstToday, pb, unlocked: skinId() !== 'classic' && !allBefore && reciteAllDone(p) && itemsOwned(p) < TRAIL_STOPS});
   if (!S.demo) Promise.all([saveProg(), saveLog()]).catch(saveFail);
   render(); scrollTo(0, 0);
   if (got.length || rc.unlocked) { confetti('gold'); sound('win'); } else sound('win');
@@ -690,9 +703,9 @@ function scrRecite(){
   if (rc.mode === 'pick') {
     const sug = reciteSuggest(p), t0 = trailStart(p), all = reciteAllDone(p);
     const tiles = ALL.map(t => { const n = reciteCount(p, t, t0), wk = reciteCount(p, t);
-      return `<button class="rc-tile ${t === sug ? 'sug' : ''} ${n >= RECITE_GAME ? 'full' : ''}" data-act="recite-go" data-t="${t}" aria-label="The ${t} times table, said ${wk} times this week"><b>×${t}</b><span class="rc-dots" aria-hidden="true">${[0, 1, 2].map(i => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>${wk ? `<small>${wk} this week</small>` : ''}</button>`; }).join('');
+      return `<button class="rc-tile ${t === sug ? 'sug' : ''} ${n >= RECITE_GAME ? 'full' : ''}" data-act="recite-go" data-t="${t}" aria-label="The ${t} times table, said ${wk} times this week"><b>×${t}</b><span class="rc-dots" aria-hidden="true">${[0, 1, 2].map(i => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>${wk ? `<small>${wk} this week</small>` : ''}${reciteBest(p, t) ? `<small>Best ${fmtClock(reciteBest(p, t).ms)}</small>` : ''}</button>`; }).join('');
     return `${topbar('')}<div class="parent-head"><div><p class="eyebrow">Today's work</p><h1 class="mega sm">Say it out loud</h1><p class="lede">Pick a table. Say each line, like "2 times 3 is 6". It goes green when I hear you.</p></div></div>
-      <ul class="rc-rules"><li>3 in a row: <b>bonus ${pts}</b></li><li>6 times this week: <b>more ${pts}</b></li><li>Every table 3 times: <b>${skinId() === 'classic' ? 'a star week' : 'your game opens'}</b></li></ul>
+      <ul class="rc-rules"><li>Beat your best time: <b>bonus ${pts}</b></li><li>3 in a row: <b>bonus ${pts}</b></li><li>6 times this week: <b>more ${pts}</b></li><li>Every table 3 times: <b>${skinId() === 'classic' ? 'a star week' : 'your game opens'}</b></li></ul>
       ${all && skinId() !== 'classic' ? `<p class="callout mint">Every table said 3 times this week!${gameOpen(p) ? ` <button class="btn small" data-act="game">Play now</button>` : gameApproved(S.me) ? '' : ' Your game is waiting for a grown-up to approve it.'}</p>` : ''}
       <div class="rc-tiles">${tiles}</div>`;
   }
@@ -700,6 +713,7 @@ function scrRecite(){
     const run = S.v.rcRun || {n: 1}, left = RECITE_RUN - run.n, after = ALL.filter(t => reciteCount(p, t, trailStart(p)) < RECITE_GAME).length;
     return `${topbar('')}<section class="results"><div class="res-body">
       <p class="eyebrow">Said out loud · ×${rc.table}</p><h1 class="mega sm">You said the ${rc.table} times table!</h1>
+      <div><span class="score num">${fmtClock(rc.pb.ms)}</span> <span class="muted" style="font-weight:800">${rc.pb.first ? 'Your first time. Beat it next time for bonus ' + pts + '!' : rc.pb.prev ? `Your best was ${fmtClock(rc.pb.prev)}` : `Your best is ${fmtClock(rc.pb.best)}`}</span></div>
       ${run.n > 1 ? `<p class="chip">${run.n} in a row</p>` : ''}
       ${rc.got.map(g => `<p class="callout mint">${esc(g)}</p>`).join('')}
       ${rc.firstToday ? `<p class="callout">${todayDone(p) ? "Today's work done! Now the Bonus Round." : `Now do ${esc(skin().daily)} to finish today's work.`}</p>` : ''}
@@ -714,7 +728,7 @@ function scrRecite(){
     return `<li class="${st}">${t} × ${k} = <b>${j < rc.i ? t * k : j === rc.i ? (rc.typing ? esc(rc.typed || '?') : '?') : ''}</b></li>`; }).join('');
   const keys = rc.typing ? `<div class="pad" role="group" aria-label="Number pad">${[1,2,3,4,5,6,7,8,9].map(n => `<button data-act="rkey" data-k="${n}">${n}</button>`).join('')}<button class="del" data-act="rkey" data-k="back" aria-label="Delete">⌫</button><button data-act="rkey" data-k="0">0</button><button class="ok" data-act="rkey" data-k="ok" aria-label="Check">✓</button></div>` : '';
   return `${top}<section class="play rc-say ${rc.fb ? 'is-bad' : ''}"><div class="play-main">
-    <div class="play-top"><div class="info"><span>Say it out loud · the ${t}s</span></div><button class="btn ghost small" data-act="recite-stop">Stop</button></div>
+    <div class="play-top"><div class="info"><span>Say it out loud · the ${t}s</span><span class="num rc-clock" id="rc-time">${fmtClock(Date.now() - rc.from)}</span>${reciteBest(p, t) ? `<span class="muted num">Best ${fmtClock(reciteBest(p, t).ms)}</span>` : ''}</div><button class="btn ghost small" data-act="recite-stop">Stop</button></div>
     <div class="pbar-wrap"><div class="pbar" role="progressbar" aria-label="How much is left"><span style="width:${(rc.i / 12 * 100).toFixed(1)}%"></span></div><b class="num">${12 - rc.i} to go</b></div>
     <p class="rc-mic ${rc.typing ? 'off' : ''}" role="status">${rc.typing ? esc(rc.why || 'Type each answer.') : `🎤 Listening… say "${t} times ${rc.i + 1} is…"`}</p>
     ${rc.fb ? `<p class="callout" role="alert">${esc(rc.fb)}</p>` : ''}
