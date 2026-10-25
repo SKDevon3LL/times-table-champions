@@ -490,11 +490,15 @@ function stage(host, api){
       sv.best = Math.max(sv.best || 0, crowd); if (award) sv.awards = (sv.awards || 0) + 1; api.save();
       if (award) { cheer(ac, true); api.sound('win'); }
       const o = $('over'); o.hidden = false;
-      o.innerHTML = `<div class="sticker">${award ? awardSvg(90) : ''}
+      // A win ends on Jessica on stage holding the award, in the dress she wore (Sam, 25 Oct 2026); the drawn award stands in
+      // until the photo has loaded, or if it cannot.
+      o.innerHTML = `<div class="sticker">${award ? `<div class="stg-win">${awardSvg(90)}<img alt="Jessica on stage holding her MTV Award" hidden></div>` : ''}
         <h2>${award ? 'You won an MTV Award!' : 'What a show!'}</h2>
         <p><b>${crowd.toLocaleString('en-GB')}</b> fans came to see you sing ${esc(song.title)}. You got ${right} of ${asked} right.</p>
         <p class="muted">${award ? 'A packed stadium and a trophy for the shelf. Encore!' : `Fill the stadium with ${AWARD_AT.toLocaleString('en-GB')} fans to win the MTV Award. Every right answer brings more people in.`}</p>
         <div class="row" style="justify-content:center"><button class="btn big" data-go="stage">Sing again</button><button class="btn ghost" data-go="wardrobe">Change dress or song</button></div></div>`;
+      const win = o.querySelector('.stg-win img');
+      if (win) api.picture(pic(pick.dress, 'w')).then(u => { if (!win.isConnected) return; win.onload = () => { win.hidden = false; const s = win.parentNode.querySelector('svg'); if (s) s.remove(); }; win.src = u; }).catch(() => {});
     }
   }
   host.onclick = e => {
