@@ -48,7 +48,7 @@ function activity(sessions: any[], prog: any, start: number, methodNames: Record
   const rows = new Map<string, {name: string, times: number, tables: Set<number>, mixed: boolean}>();
   for (const s of sessions) {
     if (s.ab) continue;
-    const name = s.mode === "daily" ? "Daily Challenge" : s.mode === "test" ? "Test" : s.mode === "clock" ? "Beat the Clock"
+    const name = s.mode === "daily" ? "Daily Challenge" : s.mode === "recite" ? "Said out loud (a whole table)" : s.mode === "test" ? "Test" : s.mode === "clock" ? "Beat the Clock"
       : s.method ? `Way to learn: ${methodNames[s.method] || s.method}` : "Practise";
     const r = rows.get(name) || {name, times: 0, tables: new Set<number>(), mixed: s.mode === "daily"};
     r.times++; if (s.mode !== "daily") for (const t of s.tables || []) r.tables.add(t);
@@ -57,7 +57,7 @@ function activity(sessions: any[], prog: any, start: number, methodNames: Record
   const explored = Object.values(prog.bonus || {}).filter((v: any) => ((v.steps || {}).explore || v.explore) >= start).length;
   const out = [...rows.values()].map(r => ({name: r.name, times: r.times, tables: r.mixed ? "their trickiest facts, mixed" : tablesText([...r.tables].sort((a, b) => a - b))}));
   if (explored) out.push({name: "Explore (5 facts, in the Bonus Round)", times: explored, tables: ""});
-  const order = ["Daily Challenge", "Beat the Clock", "Explore", "Way to learn", "Test", "Practise"];
+  const order = ["Daily Challenge", "Said out loud", "Beat the Clock", "Explore", "Way to learn", "Test", "Practise"];
   return out.sort((a, b) => order.findIndex(o => a.name.startsWith(o)) - order.findIndex(o => b.name.startsWith(o)));
 }
 

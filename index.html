@@ -125,6 +125,18 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webk
 .today .eyebrow{color:var(--ink);opacity:.75}
 .today.game-ready{display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:color-mix(in srgb,var(--mint) 45%,var(--card))}
 .today.game-ready > div{flex:1 1 260px;min-width:0}
+.rc-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
+.rc-tile{border:2.5px solid var(--line);border-radius:14px;background:var(--card);padding:10px 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:4px;cursor:pointer;color:var(--ink);font:inherit}
+.rc-tile b{font-family:var(--display);font-size:24px}.rc-tile small{font-size:12px;opacity:.75}.rc-tile.sug{box-shadow:4px 4px 0 var(--shadow);background:color-mix(in srgb,var(--sun) 70%,var(--card))}
+.rc-tile.full{background:color-mix(in srgb,var(--mint) 45%,var(--card))}
+.rc-tile .rc-dots{display:flex;gap:4px}.rc-tile .rc-dots i{width:10px;height:10px;border-radius:50%;border:2px solid var(--line);background:var(--card)}.rc-tile .rc-dots i.on{background:var(--mint)}
+.rc-rules{list-style:none;padding:0;margin:10px 0 0;display:flex;flex-wrap:wrap;gap:8px}.rc-rules li{border:2px solid var(--line);border-radius:999px;padding:4px 12px;background:var(--card);font-size:14px}
+.rc-lines{list-style:none;margin:10px 0;padding:0;display:grid;gap:6px}
+.rc-lines li{font-family:var(--display);font-size:22px;padding:6px 14px;border:2.5px solid var(--line);border-radius:12px;background:var(--card);opacity:.55}
+.rc-lines li.done{background:color-mix(in srgb,var(--mint) 60%,var(--card));opacity:1}
+.rc-lines li.now{font-size:34px;opacity:1;background:color-mix(in srgb,var(--sun) 70%,var(--card));box-shadow:4px 4px 0 var(--shadow)}
+.rc-mic{font-weight:800;margin:10px 0 0}.rc-mic.off{opacity:.8}
+@media (max-width:420px){.rc-tiles{grid-template-columns:repeat(3,minmax(0,1fr))}.rc-lines li{font-size:18px}.rc-lines li.now{font-size:26px}}
 .todo{list-style:none;margin:0;padding:0;display:grid;gap:10px}
 .todo li{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 12px;border:2.5px solid var(--line);border-radius:14px;background:var(--card)}
 .todo li.now{box-shadow:4px 4px 0 var(--shadow);background:color-mix(in srgb,var(--sun) 70%,var(--card))}

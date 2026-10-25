@@ -93,6 +93,8 @@ function mergeDoc(path, a, b){
     // The Bonus Round: the copy that got further through the day's steps wins; same steps, the one with more facts looked at.
     const stepsOf = v => Object.keys(Object.assign({}, v.clock && {clock: 1}, v.explore && {explore: 1}, v.test && {test: 1}, v.steps)).length;
     r.bonus = Object.assign({}, b.bonus); for (const [k, v] of Object.entries(a.bonus || {})) { const o = r.bonus[k]; if (!o || stepsOf(v) > stepsOf(o) || (stepsOf(v) === stepsOf(o) && (v.ex || []).length >= (o.ex || []).length)) r.bonus[k] = v; }
+    const rs = new Set(); r.recites = [...(a.recites || []), ...(b.recites || [])].filter(x => { const k = x.t + ':' + x.table; if (rs.has(k)) return false; rs.add(k); return true; }).sort((x, y) => y.t - x.t).slice(0, 400);
+    r.reciteAw = Object.assign({}, b.reciteAw, a.reciteAw);
     r.badges = Object.assign({}, b.badges); for (const [k, v] of Object.entries(a.badges || {})) if (!r.badges[k] || v < r.badges[k]) r.badges[k] = v;
     const seen = new Set();
     r.prizeLog = [...(a.prizeLog || []), ...(b.prizeLog || [])].filter(x => { const k = x.t + x.tier; if (seen.has(k)) return false; seen.add(k); return true; }).sort((x, y) => y.t - x.t).slice(0, 80);
@@ -285,7 +287,7 @@ const yearOf = pl => (pl && pl.year) || Math.min(8, Math.max(3, ((pl && pl.age) 
 // hard the Daily Challenge mixes, the week's targets and a line for the child. It only counts in the week it was written for.
 const planFor = pl => { const x = pl && S.plans[pl.id]; return x && x.week === challengeWeek() ? x : null; };
 const prizeTotal = p => TIERS.reduce((s, t) => s + (p.prizes[t.id] || 0), 0);
-const MODE_NAMES = {practice:'Practice', test:'Test', clock:'Beat the Clock', daily:'Daily Challenge'};
+const MODE_NAMES = {practice:'Practice', test:'Test', clock:'Beat the Clock', daily:'Daily Challenge', recite:'Said out loud'};
 const tablesLabel = (s) => s.mode === 'daily' || s.pool ? 'Trickiest facts' : (s.tables.length === 12 ? 'All tables' : s.tables.map(t => '×' + t).join(' '));
 
 function hint(a, b){
@@ -586,6 +588,140 @@ const bonusSteps = () => [STEP_CLOCK, STEP_EXPLORE,
   ...methodsToday().map(m => ({k:'m:' + m.id, name:`Try: ${m.name}`, sub:`Learn the trick, then ${METHOD_QS} questions.`, act:'method-step', mode:m.id})), STEP_TEST];
 const todayDone = p => { const d = (p.daily || {})[dayStr()]; return !!(d && d.pct >= 80); };
 const bonusToday = p => (p.bonus || {})[dayStr()] || null;
+
+// Say it out loud (Sam, 25 Oct 2026): the child says a whole times table out loud ("two times three is six", or "two
+// threes are six") and each line goes green when the iPad hears its answer. One table a day is part of today's work. The
+// same table three times in a row pays points (once a day per table), a table said six times in a week pays more, and
+// every table said three times opens the reward game. The counts start again each week, and after the game's 30 minutes.
+const RECITE_RUN = 3, RECITE_SIX = 6, RECITE_GAME = 3;
+const reciteCount = (p, table, t0 = weekStart()) => (p.recites || []).filter(x => x.t >= t0 && x.table === table).length;
+const recitedToday = p => (p.recites || []).some(x => dayStr(x.t) === dayStr());
+const reciteAllDone = p => ALL.every(t => reciteCount(p, t, trailStart(p)) >= RECITE_GAME);
+const workDone = p => todayDone(p) && recitedToday(p);
+const reciteSuggest = p => ALL.slice().sort((a, b) => reciteCount(p, a, trailStart(p)) - reciteCount(p, b, trailStart(p)) || TEACH_ORDER.indexOf(a) - TEACH_ORDER.indexOf(b))[0];
+// Numbers in what was heard: digits, words ("a hundred and forty four") and the chanted plurals ("seven eights").
+const NUMW = {zero:0, one:1, won:1, two:2, too:2, three:3, four:4, five:5, six:6, seven:7, eight:8, ate:8, nine:9, ten:10, eleven:11, twelve:12,
+  thirteen:13, fourteen:14, fifteen:15, sixteen:16, seventeen:17, eighteen:18, nineteen:19,
+  ones:1, twos:2, threes:3, fours:4, fives:5, sixes:6, sevens:7, eights:8, nines:9, tens:10, elevens:11, twelves:12};
+const NUMT = {twenty:20, thirty:30, forty:40, fifty:50, sixty:60, seventy:70, eighty:80, ninety:90};
+function spokenNums(txt){
+  const out = []; let cur = null; const flush = () => { if (cur !== null) out.push(cur); cur = null; };
+  for (const w of String(txt).toLowerCase().replace(/(\d)\s*[x×*]\s*(\d)/g, '$1 times $2').split(/[^a-z0-9]+/).filter(Boolean)) {
+    const d = w.match(/^(\d+)s?$/);
+    if (d) { flush(); out.push(+d[1]); }
+    else if (w in NUMT) { if (cur !== null && cur >= 100 && cur % 100 === 0) cur += NUMT[w]; else { flush(); cur = NUMT[w]; } }
+    else if (w in NUMW) { const v = NUMW[w]; if (cur !== null && ((cur >= 100 && cur % 100 === 0) || (cur % 100 >= 20 && cur % 10 === 0 && v < 10))) cur += v; else { flush(); cur = v; } }
+    else if (w === 'hundred') cur = (cur || 1) * 100;
+    else if (w === 'and' && cur !== null && cur >= 100) continue;
+    else flush();
+  }
+  flush(); return out;
+}
+function startRecite(table){
+  reciteStop();
+  const run = S.v.rcRun; S.v.rc = {mode: table ? 'say' : 'pick', table: table || null, i: 0, ptr: 0, fb: null, typed: '', typing: false, from: Date.now()};
+  S.v.rcRun = run;
+  if (table) { S.screen = 'recite'; reciteListen(); render(); scrollTo(0, 0); } else go('recite');
+}
+function reciteListen(){
+  const rc = S.v.rc, SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { rc.typing = true; rc.why = "This iPad can't listen here, so type the answers."; return; }
+  let r; try { r = new SR(); } catch { rc.typing = true; rc.why = "This iPad can't listen here, so type the answers."; return; }
+  r.lang = 'en-GB'; r.continuous = true; r.interimResults = true; rc.rec = r; rc.listening = true; rc.ptr = 0;
+  r.onresult = e => {
+    if (S.v.rc !== rc || rc.mode !== 'say' || rc.typing) return;
+    let txt = ''; for (let i = 0; i < e.results.length; i++) txt += ' ' + e.results[i][0].transcript;
+    reciteHeard(spokenNums(txt), e.results[e.results.length - 1].isFinal);
+  };
+  r.onerror = e => {
+    if (S.v.rc !== rc) return;
+    if (['not-allowed', 'service-not-allowed', 'audio-capture'].includes(e.error)) {
+      rc.typing = true; rc.listening = false; rc.why = 'The microphone is off, so type the answers.'; if (S.screen === 'recite') render();
+    }
+  };
+  // iPads stop listening after a pause: start again, with a fresh count of what was heard.
+  r.onend = () => { if (S.v.rc === rc && rc.mode === 'say' && rc.listening && !rc.typing) { rc.ptr = 0; try { r.start(); } catch {} } };
+  try { r.start(); } catch { rc.typing = true; rc.why = "This iPad can't listen here, so type the answers."; }
+}
+function reciteStop(){ const rc = S.v.rc; if (rc && rc.rec) { rc.listening = false; try { rc.rec.abort(); } catch {} rc.rec = null; } }
+// A line counts when the last number heard since the line before is its answer, after at least one other number (the
+// table and the times), so "two times one" does not tick 2 × 1 before "is two" is said.
+function reciteHeard(nums, final){
+  const rc = S.v.rc, ans = rc.table * (rc.i + 1), fresh = nums.slice(rc.ptr);
+  if (fresh.length >= 2 && fresh[fresh.length - 1] === ans) { rc.ptr = nums.length; reciteLine(true); }
+  else if (final && fresh.length >= 3) { rc.ptr = nums.length; reciteLine(false); }
+}
+function reciteLine(ok){
+  const rc = S.v.rc; if (!rc || rc.mode !== 'say') return;
+  clearTimeout(rc.fbT);
+  if (!ok) { rc.fb = `Not quite. Say ${rc.table} × ${rc.i + 1} again.`; sound('bad'); rc.fbT = setTimeout(() => { if (S.v.rc === rc) { rc.fb = null; if (S.screen === 'recite') render(); } }, 2200); render(); return; }
+  rc.fb = null; rc.typed = ''; rc.i++; sound('ok');
+  if (rc.i >= 12) reciteFinish(); else render();
+}
+function reciteFinish(){
+  const rc = S.v.rc, p = S.prog, t = rc.table, now = Date.now(), aw = p.reciteAw || (p.reciteAw = {});
+  reciteStop();
+  const allBefore = reciteAllDone(p), firstToday = !recitedToday(p);
+  p.recites = [{t: now, table: t}, ...(p.recites || [])].slice(0, 400);
+  const run = S.v.rcRun = S.v.rcRun && S.v.rcRun.table === t ? {table: t, n: S.v.rcRun.n + 1} : {table: t, n: 1};
+  let xp = 0; const got = [];
+  if (run.n >= RECITE_RUN && !aw[`run:${dayStr()}:${t}`]) { const x = tablePts(t) * 3; aw[`run:${dayStr()}:${t}`] = now; xp += x; got.push(`3 in a row: +${x} ${ptsName()}`); }
+  if (reciteCount(p, t) >= RECITE_SIX && !aw[`six:${weekStart()}:${t}`]) { const x = tablePts(t) * 5; aw[`six:${weekStart()}:${t}`] = now; xp += x; got.push(`The ${t}s 6 times this week: +${x} ${ptsName()}`); }
+  const keys = Object.keys(aw).sort((a, b) => aw[a] - aw[b]); while (keys.length > 300) delete aw[keys.shift()];
+  p.xp += xp;
+  if (!p.days.includes(dayStr())) { p.days.push(dayStr()); if (p.days.length > 400) p.days.shift(); }
+  const entry = {t: rc.from, mode: 'recite', tables: [t], n: 12, c: 12, pct: 100, ms: now - rc.from, xp};
+  if (rc.usedTyping) entry.typed = true;
+  S.sessions.push(entry); ensureLogCur(); S.logCur.sessions.push(entry);
+  Object.assign(rc, {mode: 'end', got, xp, firstToday, unlocked: skinId() !== 'classic' && !allBefore && reciteAllDone(p) && itemsOwned(p) < TRAIL_STOPS});
+  if (!S.demo) Promise.all([saveProg(), saveLog()]).catch(saveFail);
+  render(); scrollTo(0, 0);
+  if (got.length || rc.unlocked) { confetti('gold'); sound('win'); } else sound('win');
+}
+function reciteKey(k){
+  const rc = S.v.rc; if (!rc || rc.mode !== 'say') return;
+  if (k === 'back') rc.typed = rc.typed.slice(0, -1);
+  else if (k === 'ok') { if (!rc.typed) return; rc.usedTyping = true; reciteLine(+rc.typed === rc.table * (rc.i + 1)); if (rc.fb) rc.typed = ''; return; }
+  else if (rc.typed.length < 3) rc.typed += k;
+  render();
+}
+function scrRecite(){
+  const rc = S.v.rc || (S.v.rc = {mode: 'pick'}), p = S.prog, pts = ptsName(), top = `<header class="top"><div class="brand">${logo()}<span>${esc(skin().brand)}</span></div><div class="top-right"><span class="me-chip">${avatar(S.me, 34)}<span>${esc(S.me.name)}</span></span></div></header>`;
+  if (rc.mode === 'pick') {
+    const sug = reciteSuggest(p), t0 = trailStart(p), all = reciteAllDone(p);
+    const tiles = ALL.map(t => { const n = reciteCount(p, t, t0), wk = reciteCount(p, t);
+      return `<button class="rc-tile ${t === sug ? 'sug' : ''} ${n >= RECITE_GAME ? 'full' : ''}" data-act="recite-go" data-t="${t}" aria-label="The ${t} times table, said ${wk} times this week"><b>×${t}</b><span class="rc-dots" aria-hidden="true">${[0, 1, 2].map(i => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>${wk ? `<small>${wk} this week</small>` : ''}</button>`; }).join('');
+    return `${topbar('')}<div class="parent-head"><div><p class="eyebrow">Today's work</p><h1 class="mega sm">Say it out loud</h1><p class="lede">Pick a table. Say each line, like "2 times 3 is 6". It goes green when I hear you.</p></div></div>
+      <ul class="rc-rules"><li>3 in a row: <b>bonus ${pts}</b></li><li>6 times this week: <b>more ${pts}</b></li><li>Every table 3 times: <b>${skinId() === 'classic' ? 'a star week' : 'your game opens'}</b></li></ul>
+      ${all && skinId() !== 'classic' ? `<p class="callout mint">Every table said 3 times this week!${gameOpen(p) ? ` <button class="btn small" data-act="game">Play now</button>` : gameApproved(S.me) ? '' : ' Your game is waiting for a grown-up to approve it.'}</p>` : ''}
+      <div class="rc-tiles">${tiles}</div>`;
+  }
+  if (rc.mode === 'end') {
+    const run = S.v.rcRun || {n: 1}, left = RECITE_RUN - run.n, after = ALL.filter(t => reciteCount(p, t, trailStart(p)) < RECITE_GAME).length;
+    return `${topbar('')}<section class="results"><div class="res-body">
+      <p class="eyebrow">Said out loud · ×${rc.table}</p><h1 class="mega sm">You said the ${rc.table} times table!</h1>
+      ${run.n > 1 ? `<p class="chip">${run.n} in a row</p>` : ''}
+      ${rc.got.map(g => `<p class="callout mint">${esc(g)}</p>`).join('')}
+      ${rc.firstToday ? `<p class="callout">${todayDone(p) ? "Today's work done! Now the Bonus Round." : `Now do ${esc(skin().daily)} to finish today's work.`}</p>` : ''}
+      ${rc.unlocked ? (gameApproved(S.me) ? `<div class="callout mint unlock"><div><b>Every table said 3 times!</b> The ${gameName()} is open.</div><button class="btn" data-act="game">Play now</button></div>` : `<p class="callout"><b>Every table said 3 times!</b> Your ${gameName()} is waiting for a grown-up to approve it.</p>`) : ''}
+      ${left > 0 ? `<p class="muted">Say it ${left === 1 ? 'once more' : `${left} more times`} for bonus ${pts}.</p>` : ''}
+      ${after && skinId() !== 'classic' ? `<p class="muted small">${after} table${after === 1 ? '' : 's'} still to say 3 times this week to open your game.</p>` : ''}
+      <div class="row" style="gap:10px;margin-top:14px"><button class="btn big" data-act="recite-go" data-t="${rc.table}" data-autofocus>Say it again</button><button class="btn ghost" data-act="recite">Another table</button><button class="btn ghost" data-act="go" data-to="home">Home</button></div>
+    </div></section>`;
+  }
+  const t = rc.table, lines = Array.from({length: 12}, (_, j) => {
+    const k = j + 1, st = j < rc.i ? 'done' : j === rc.i ? 'now' : 'next';
+    return `<li class="${st}">${t} × ${k} = <b>${j < rc.i ? t * k : j === rc.i ? (rc.typing ? esc(rc.typed || '?') : '?') : ''}</b></li>`; }).join('');
+  const keys = rc.typing ? `<div class="pad" role="group" aria-label="Number pad">${[1,2,3,4,5,6,7,8,9].map(n => `<button data-act="rkey" data-k="${n}">${n}</button>`).join('')}<button class="del" data-act="rkey" data-k="back" aria-label="Delete">⌫</button><button data-act="rkey" data-k="0">0</button><button class="ok" data-act="rkey" data-k="ok" aria-label="Check">✓</button></div>` : '';
+  return `${top}<section class="play rc-say ${rc.fb ? 'is-bad' : ''}"><div class="play-main">
+    <div class="play-top"><div class="info"><span>Say it out loud · the ${t}s</span></div><button class="btn ghost small" data-act="recite-stop">Stop</button></div>
+    <div class="pbar-wrap"><div class="pbar" role="progressbar" aria-label="How much is left"><span style="width:${(rc.i / 12 * 100).toFixed(1)}%"></span></div><b class="num">${12 - rc.i} to go</b></div>
+    <p class="rc-mic ${rc.typing ? 'off' : ''}" role="status">${rc.typing ? esc(rc.why || 'Type each answer.') : `🎤 Listening… say "${t} times ${rc.i + 1} is…"`}</p>
+    ${rc.fb ? `<p class="callout" role="alert">${esc(rc.fb)}</p>` : ''}
+    <ol class="rc-lines">${lines}</ol>
+    ${rc.typing ? '' : `<button class="link" data-act="recite-type">Can't hear you? Type instead</button>`}
+  </div>${keys}</section>`;
+}
 // Steps done today; a round started on the version before 24 Oct evening kept them as clock/explore/test fields.
 const stepsDone = r => r ? Object.assign({}, r.clock && {clock: r.clock}, r.explore && {explore: r.explore}, r.test && {test: r.test}, r.steps) : {};
 function bonusRound(p){
@@ -599,7 +735,7 @@ const bonusStep = p => { const d = stepsDone(bonusToday(p)), st = bonusSteps(), 
 const curStep = p => bonusSteps()[bonusStep(p)] || null;
 // Explore counts once five different facts have been looked at, while Explore is the step they are on.
 function exploreLooked(k){
-  const p = S.prog, cur = p && todayDone(p) && curStep(p); if (!cur || cur.k !== 'explore') return;
+  const p = S.prog, cur = p && workDone(p) && curStep(p); if (!cur || cur.k !== 'explore') return;
   const r = bonusRound(p); if (r.ex.includes(k)) return;
   r.ex.push(k);
   if (r.ex.length >= EXPLORE_FACTS) {
@@ -617,28 +753,30 @@ function startMethodStep(id){
 }
 function gameBanner(p){
   if (!gameOpen(p)) return '';
-  return `<div class="today sticker game-ready"><div><p class="eyebrow">You completed the trail</p><h2>${skinId() === 'eras' ? 'Your stadium show is ready!' : 'The jungle gold is waiting!'}</h2>
+  return `<div class="today sticker game-ready"><div><p class="eyebrow">${itemsOwned(p) >= TRAIL_STOPS ? 'You completed the trail' : 'You said every table 3 times'}</p><h2>${skinId() === 'eras' ? 'Your stadium show is ready!' : 'The jungle gold is waiting!'}</h2>
     <p>${Math.ceil((GAME_MS - gameUsed(p)) / 60000)} minutes of play left. When they run out, a new trail starts.</p></div><button class="btn big" data-act="game">Play now</button></div>`;
 }
 // The home screen's card: today's work, then the Bonus Round as a numbered list, the current step with its button and the
 // later ones locked until it is done.
 function todayCard(p){
-  const d = (p.daily || {})[dayStr()], done = todayDone(p), steps = bonusSteps(), st = bonusStep(p), r = bonusToday(p) || {ex:[], xp:0};
+  const d = (p.daily || {})[dayStr()], dDone = todayDone(p), rDone = recitedToday(p), done = dDone && rDone, steps = bonusSteps(), st = bonusStep(p), r = bonusToday(p) || {ex:[], xp:0};
+  const said = rDone ? (p.recites || []).find(x => dayStr(x.t) === dayStr()).table : null;
   const day = new Date().toLocaleDateString('en-GB', {weekday:'long'}), pts = ptsName(), dn = skin().daily;
-  const head = !done ? {title:"Today's work", text:`Start with ${dn}. Then the Bonus Round, in order, for double ${pts}.`}
+  const head = !done ? {title:"Today's work", text:`${dn}, then say a times table out loud. Then the Bonus Round for double ${pts}.`}
     : st < steps.length ? {title:"Today's work complete!", text:`Want more ${pts}? Do the Bonus Round in order for double.`}
     : {title:'Bonus Round complete!', text:`All done! +${r.bonusXp || r.xp} extra ${pts} today.`};
   const row = (n, name, sub, state, btn) => `<li class="${state}"><span class="n" aria-hidden="true">${state === 'done' ? '✓' : n}</span><div><b>${esc(name)}</b><small>${esc(sub)}</small></div>${btn}</li>`;
   const btn = (act, mode, label) => `<button class="btn" data-act="${act}" data-to="${mode}" data-mode="${mode}">${label}</button>`;
-  const rows = [row(1, dn, done ? `Done today: ${d.pct}%.` : d ? `Best today ${d.pct}%. Get 80% to finish.` : `15 tricky facts. 80% = +50 ${pts}.`, done ? 'done' : 'now', done ? '' : btn('start-daily', '', d ? 'Try again' : 'Start'))];
+  const rows = [row(1, dn, dDone ? `Done today: ${d.pct}%.` : d ? `Best today ${d.pct}%. Get 80% to finish.` : `15 tricky facts. 80% = +50 ${pts}.`, dDone ? 'done' : 'now', dDone ? '' : btn('start-daily', '', d ? 'Try again' : 'Start')),
+    row(2, 'Say it out loud', rDone ? `Done today: the ${said}s.` : 'Say a whole times table.', rDone ? 'done' : 'now', rDone ? '' : btn('recite', '', 'Start'))];
   steps.forEach((s, i) => {
     const isDone = done && st > i, isNow = done && st === i;
     const sub = isDone ? (s.k === 'explore' ? `Done: ${EXPLORE_FACTS} facts looked at.` : s.k === 'test' ? `Done. Round complete: +${r.bonusXp || 0} ${pts}.` : 'Done.')
       : isNow && s.k === 'explore' && r.ex.length ? `${r.ex.length} of ${EXPLORE_FACTS} facts looked at so far.` : s.sub;
-    rows.push(row(i + 2, s.name, sub, isDone ? 'done' : isNow ? 'now' : 'locked', isNow ? btn(s.act, s.mode, 'Start') : ''));
+    rows.push(row(i + 3, s.name, sub, isDone ? 'done' : isNow ? 'now' : 'locked', isNow ? btn(s.act, s.mode, 'Start') : ''));
   });
   return `<div class="today sticker"><div><p class="eyebrow">Today · ${day}</p><h2>${head.title}</h2><p>${head.text}</p></div>
-    <ol class="todo" aria-label="Today's order">${rows[0]}<li class="sep" aria-hidden="true"><span>Bonus Round · double ${pts}</span></li>${rows.slice(1).join('')}</ol></div>`;
+    <ol class="todo" aria-label="Today's order">${rows[0]}${rows[1]}<li class="sep" aria-hidden="true"><span>Bonus Round · double ${pts}</span></li>${rows.slice(2).join('')}</ol></div>`;
 }
 function weakPairs(p, n){
   const keys = ALLKEYS.filter(k => !k.startsWith('1x')).map(k => {
@@ -653,6 +791,7 @@ function weakPairs(p, n){
 /* ---------- actions ---------- */
 function go(to){
   if (S.play && to !== 'play') { quit(); return; }
+  if (S.screen === 'recite' && to !== 'recite') reciteStop();
   if (S.screen === 'game' && (gameTimer || gameInst)) { const demo = !!S.demo; stopGame(); if (!demo) saveProg().catch(saveFail); }
   if (S.reloadSoon && !S.demo && ['home', 'login', 'parent'].includes(to)) { location.reload(); return; }
   if (S.demo && (to === 'home' || to === 'login')) { endDemo(); to = 'parent'; }
@@ -806,7 +945,7 @@ async function finish(abandoned){
   }
   // The Bonus Round: the step they are on counts when played in its turn; the test is last and pays the round's points again.
   let bonus = null;
-  if (!abandoned && todayDone(prog)) {
+  if (!abandoned && workDone(prog)) {
     const steps = bonusSteps(), i = bonusStep(prog), cur = steps[i];
     const k = P.mode === 'clock' ? 'clock' : P.mode === 'test' ? 'test' : P.cfg && P.cfg.method && n >= METHOD_QS ? 'm:' + P.cfg.method : null;
     if (k && cur && cur.k === k) {
@@ -966,7 +1105,7 @@ const itemsOwned = p => Math.min(TRAIL_STOPS, (p.prizeLog || []).filter(x => x.t
 const gameUsed = p => p.gameTrail === trailStart(p) ? (p.gameMs || 0) : 0;
 // A child's game opens only once a grown-up has approved it in the Grown-ups area (games/<id>; Sam, 24 Oct 2026: "final approval").
 const gameApproved = pl => !!pl && ((S.gameOK || {})[pl.id] || {}).status === 'approved';
-const gameOpen = p => skinId() !== 'classic' && itemsOwned(p) >= TRAIL_STOPS && gameUsed(p) < GAME_MS && gameApproved(S.me);
+const gameOpen = p => skinId() !== 'classic' && (itemsOwned(p) >= TRAIL_STOPS || reciteAllDone(p)) && gameUsed(p) < GAME_MS && gameApproved(S.me);
 const gameName = () => skinId() === 'eras' ? 'Eras Stadium Show' : 'Jungle Gold Run';
 // Jessica's seven dresses change every trail; Hughie packs the same seven tools for the jungle.
 const trailDress = (p, i) => (Math.floor(trailStart(p) / (7 * 864e5)) * TRAIL_STOPS + i) % ERAS.length;
@@ -1046,7 +1185,7 @@ function collectionCard(p){
   const id = skinId(); if (id === 'classic') return '';
   const n = itemsOwned(p), sel = S.v.item, open = gameOpen(p), mins = Math.ceil((GAME_MS - gameUsed(p)) / 60000);
   const goal = open ? `<div class="callout mint unlock"><div><b>${id === 'eras' ? 'Your stadium show is open!' : 'The jungle gold is waiting!'}</b> ${mins} minutes of play left.</div><button class="btn" data-act="game">${id === 'eras' ? 'Go on stage' : 'Start the Gold Run'}</button></div>`
-    : n >= TRAIL_STOPS && !gameApproved(S.me) ? `<p class="callout">Trail complete! Your ${id === 'eras' ? 'stadium show' : 'Jungle Gold Run'} is waiting for a grown-up to approve it.</p>`
+    : (n >= TRAIL_STOPS || reciteAllDone(p)) && !gameApproved(S.me) ? `<p class="callout">Trail complete! Your ${id === 'eras' ? 'stadium show' : 'Jungle Gold Run'} is waiting for a grown-up to approve it.</p>`
     : `<p class="muted small">Win ${TRAIL_STOPS - n} more troph${TRAIL_STOPS - n === 1 ? 'y' : 'ies'} by Sunday to unlock ${id === 'eras' ? 'your stadium show' : 'the Jungle Gold Run'}.</p>`;
   if (id === 'eras') {
     const ds = Array.from({length:TRAIL_STOPS}, (_, k) => trailDress(p, k)), e = sel !== undefined && sel < TRAIL_STOPS && ERAS[ds[sel]];
@@ -1208,7 +1347,7 @@ function scrResults(){
       ${r.bonus && r.bonus.done ? `<p class="callout mint">Bonus Round complete! +${r.bonus.extra} extra ${ptsName()}.</p>`
         : r.bonus && r.bonus.step ? `<p class="callout">Bonus Round: ${r.bonus.step} of ${r.bonus.of} done. ${nextBtn(r.bonus.next)}</p>`
         : r.bonus && r.bonus.hint ? `<p class="callout">Do the Bonus Round in order. ${nextBtn(r.bonus.next)}</p>`
-        : r.dailyDone ? `<p class="callout">Today's work done! Now the Bonus Round for double ${ptsName()}. ${nextBtn(bonusSteps()[0])}</p>` : ''}
+        : r.dailyDone ? (recitedToday(S.prog) ? `<p class="callout">Today's work done! Now the Bonus Round for double ${ptsName()}. ${nextBtn(bonusSteps()[0])}</p>` : `<p class="callout">${esc(skin().daily)} done! Now say a times table out loud. <button class="btn small" data-act="recite">Say it out loud</button></p>`) : ''}
       ${r.noTrophy ? `<p class="callout">No trophy: these tables are already strong. Next time add ${(t => t ? `the ${t}s` : 'a table that is not strong yet')(focusTable(S.prog))} to win one.</p>` : ''}
       ${reward ? `<p class="callout">Your reward for a ${prize.name}: <b>${esc(reward)}</b></p>` : ''}
       ${nt ? `<p class="callout">${r.pct < 70 ? 'So close to a prize.' : 'Brilliant work.'} Score ${nt.min}% next time to win a ${nt.name}.</p>` : ''}
@@ -1336,7 +1475,7 @@ function scrExplore(){
   }
   board += `</div></div>`;
   const lv = level(S.prog.facts[fkey(a, b)]);
-  const p0 = S.prog, cs = todayDone(p0) ? curStep(p0) : null, exDone = !!stepsDone(bonusToday(p0)).explore;
+  const p0 = S.prog, cs = workDone(p0) ? curStep(p0) : null, exDone = !!stepsDone(bonusToday(p0)).explore;
   const roundLine = cs && cs.k === 'explore' ? `<p class="callout" style="margin-top:10px">Tap ${EXPLORE_FACTS} different facts: ${bonusRound(p0).ex.length} of ${EXPLORE_FACTS}.</p>`
     : cs && exDone ? `<p class="callout mint" style="margin-top:10px">Explore done! <button class="btn small" data-act="${cs.act}" data-to="${cs.mode}" data-mode="${cs.mode}">${esc(cs.name)}</button></p>` : '';
   return `${topbar('explore')}<div class="parent-head"><div><p class="eyebrow">Explore</p><h1 class="mega sm">Tap any square</h1><p class="lede">Tap a square to see it as dots.</p>${roundLine}</div></div>
@@ -1514,7 +1653,7 @@ function demosParent(pls){
       const sk = SKINS[pl.theme] || SKINS.classic, game = pl.theme === 'eras' ? 'Eras Stadium Show' : pl.theme === 'trail' ? 'Jungle Gold Run' : null;
       const b = (what, label, cls = 'ghost') => `<button class="btn small ${cls}" data-act="demo" data-id="${esc(pl.id)}" data-what="${what}">${esc(label)}</button>`;
       return `<div class="sticker"><div class="ov-head">${avatar(pl, 44)}<h3>As ${esc(pl.name)}</h3></div>
-        <div class="row" style="margin-top:12px">${b('daily', sk.daily, '')}${b('practice', 'Practise')}${b('test', 'Take a test')}${b('clock', 'Beat the Clock')}${b('explore', 'Explore')}${game ? b('game', game, '') : ''}</div></div>`;
+        <div class="row" style="margin-top:12px">${b('daily', sk.daily, '')}${b('practice', 'Practise')}${b('test', 'Take a test')}${b('clock', 'Beat the Clock')}${b('explore', 'Explore')}${b('recite', 'Say it out loud')}${game ? b('game', game, '') : ''}</div></div>`;
     }).join('')}</div>`;
 }
 async function startDemo(id, what){
@@ -1528,6 +1667,7 @@ async function startDemo(id, what){
   if (what === 'game') startGame();
   else if (what === 'daily') startDaily();
   else if (what === 'explore') go('explore');
+  else if (what === 'recite') startRecite();
   else openSetup(what);
 }
 function endDemo(){
@@ -1621,7 +1761,7 @@ function startGame(){
 function stopGame(){ clearInterval(gameTimer); gameTimer = null; if (gameInst) { try { gameInst.destroy(); } catch {} gameInst = null; } }
 
 /* ---------- render ---------- */
-const SCREENS = {game:scrGame, gate:scrGate, loading:scrLoading, login:scrLogin, home:scrHome, setup:scrSetup, play:scrPlay, results:scrResults, progress:scrProgress, explore:scrExplore, parent:scrParent};
+const SCREENS = {recite:scrRecite, game:scrGame, gate:scrGate, loading:scrLoading, login:scrLogin, home:scrHome, setup:scrSetup, play:scrPlay, results:scrResults, progress:scrProgress, explore:scrExplore, parent:scrParent};
 let lastScreen = null;
 function render(){
   app.innerHTML = SCREENS[S.screen]();
@@ -1663,6 +1803,11 @@ const A = {
   'start-daily': () => startDaily(),
   howvid: () => showHowVideo(),
   'method-step': el => startMethodStep(el.dataset.mode),
+  recite: () => startRecite(),
+  'recite-go': el => startRecite(+el.dataset.t),
+  'recite-stop': () => { reciteStop(); S.v.rc = {mode: 'pick'}; render(); },
+  'recite-type': () => { const rc = S.v.rc; if (rc) { reciteStop(); rc.typing = true; rc.why = 'Type each answer.'; render(); } },
+  rkey: el => reciteKey(el.dataset.k),
   key: el => { press(el.dataset.k); },
   hint: () => { const P = S.play; if (P) { P.hint = hint(P.q.a, P.q.b); render(); } },
   quit: () => quit(),
