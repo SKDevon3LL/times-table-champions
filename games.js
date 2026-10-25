@@ -454,9 +454,12 @@ function stage(host, api){
     const era = String(song.era).padStart(2, '0'), vid = host.querySelector('.stg-clip'); let clipSrc = null, clipTimer = null, which = 0;
     const stopClip = () => { vid.pause(); vid.classList.remove('on'); if (clipSrc) { try { clipSrc.stop(); } catch {} clipSrc = null; } };
     const nextClip = () => { if (ended) return; const k = ['a', 'b'][which++ % 2];
-      fetch(`clips/stage/era${era}-${k}.mp4`).then(r => r.ok ? r.blob() : Promise.reject())
-        .then(async b => { if (ended) return; vid.src = URL.createObjectURL(b); vid.currentTime = 0; await vid.play().catch(() => {}); vid.classList.add('on'); })
-        .catch(() => {});
+      // Played straight from its address (Sam, 25 Oct 2026: no videos in the grown-ups' demo): Safari on iPhones and iPads
+      // streams a video by asking for it in pieces, which a copy made in memory does not allow. The clip only shows once
+      // it is actually playing; a missing one leaves her photos up.
+      vid.onplaying = () => { if (!ended) vid.classList.add('on'); };
+      vid.onerror = () => { vid.classList.remove('on'); };
+      vid.src = `clips/stage/era${era}-${k}.mp4`; vid.load(); vid.play().catch(() => {});
       clipTimer = setTimeout(clipDone, 10000);
     };
     // a clip shorter than 10 seconds (two were trimmed to keep a face out) hands back to the photos when it ends, not frozen
