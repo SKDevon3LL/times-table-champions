@@ -21,7 +21,9 @@ function askBox(box, api, seconds, done){
 
 /* ---------- Hughie: the Jungle Gold Run ---------- */
 // Chop a path to the gold (one right answer = one chop), then get back to the boat before the anacondas come out of the river.
-// Every answer is a turn: snakes, panthers and anacondas each close in on their own beat, so a wrong answer lets them gain.
+// Every answer is a turn: snakes, panthers and anacondas each close in on their own beat. A wrong answer costs him the move,
+// so they gain a step on him. He has 3 lives a level: a creature that catches him costs one and goes back where it started.
+// (Sam, 26 Oct 2026, after a robot player won only half of level 1 with every answer right and almost never past level 3.)
 function jungle(host, api){
   // Every creature stalks him from anywhere on the board (Sam, 24 Oct 2026): snakes every other turn, panthers creeping on
   // their own slower beat, the ogre every other turn (every turn from level 4), anacondas from the moment they leave the river.
@@ -126,7 +128,7 @@ function jungle(host, api){
     el.classList.remove('swiping'); void el.offsetWidth; el.classList.add('swiping'); };
   const pantherNear = () => { const ds = st.preds.filter(p => p.kind === 'panther').map(p => Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c)); return ds.length ? Math.min(...ds) : 99; };
   const snakeNear = () => { const ds = st.preds.filter(p => p.kind !== 'panther').map(p => Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c)); return ds.length ? Math.min(...ds) : 99; };
-  let level = 1, st = null, busy = false, cancelQ = null;
+  let level = 1, st = null, busy = false, cancelQ = null, lives = 3;
   // Hughie's adventure pictures (private family-photos bucket, made from his own photos): start, chop, gold, chase, win, caught.
   const scene = (name, title, text, go, btn) => `<div class="sticker jg-scene"><img class="jg-photo" data-p="jungle/${name}.jpg" alt=""><h2>${title}</h2><p>${text}</p><button class="btn big" data-go="${go}">${btn}</button></div>`;
   const FALLBACK = {'jungle/ogre-pot.jpg': 'jungle/caught.jpg', 'jungle/ogre-chase.jpg': 'jungle/chase.jpg'};
@@ -166,7 +168,7 @@ function jungle(host, api){
     b.classList.add('tiles');
   }).catch(() => {});
   host.innerHTML = `<img class="jg-bd" alt=""><div class="jg"><div class="jg-act" data-k="act"><video muted playsinline preload="auto"></video><img alt=""><b></b></div>
-    <div class="jg-bar"><b>Level <span data-k="lvl">1</span></b><span class="jg-msg" data-k="msg"></span><b>Gold <span data-k="gold">${api.state.gold || 0}</span></b></div>
+    <div class="jg-bar"><b>Level <span data-k="lvl">1</span></b><span class="jg-msg" data-k="msg"></span><b class="jg-lives" data-k="lives" aria-label="Lives"></b><b>Gold <span data-k="gold">${api.state.gold || 0}</span></b></div>
     <div class="jg-board" data-k="board" style="--w:${W}"></div>
     <div class="gq" data-k="q" hidden></div>
     <div class="jg-over" data-k="over" hidden></div></div>`;
@@ -191,13 +193,13 @@ function jungle(host, api){
     } while (!reachable(g, pl, goldAt));
     const preds = [];
     // A creature never starts on the gold: it used to wipe it off the board (Sam, 26 Oct 2026: "the gold seems to have disappeared").
-    const put = (kind, every, r, c) => { if (g[r][c] === 'gold') return; if (g[r][c] === 'rock') g[r][c] = 'jungle'; preds.push({kind, every, r, c}); };
+    const put = (kind, every, r, c) => { if (g[r][c] === 'gold') return; if (g[r][c] === 'rock') g[r][c] = 'jungle'; preds.push({kind, every, r, c, r0: r, c0: c}); };
     const far = goldAt.c < W / 2 ? W - 1 : 0;
-    put('panther', level >= 5 ? 2 : level >= 3 ? 3 : 4, 0, far);
-    for (let i = 0; i < Math.min(3, 1 + Math.floor(level / 2)); i++) put('snake', 2, 2 + rnd(3), i % 2 ? 0 : W - 1);
+    put('panther', level >= 5 ? 3 : 4, 0, far);
+    for (let i = 0; i < (level >= 4 ? 2 : 1); i++) put('snake', level >= 5 ? 2 : 3, 2 + rnd(3), i % 2 ? 0 : W - 1);
     if (level >= 6) put('panther', 3, 1, W - 1 - far);
-    put('ogre', level >= 4 ? 1 : 2, 1, far);   // the ogre starts on the far side from the gold, under the panther, and never stops coming
-    st = {g, goldAt, pl, preds, has:false, turn:0};
+    put('ogre', level >= 6 ? 2 : 3, 1, far);   // the ogre starts on the far side from the gold, under the panther, and never stops coming
+    st = {g, goldAt, pl, preds, has:false, turn:0}; lives = 3; showLives();
     $('lvl').textContent = level;
     msg('Tap a square next to you to chop towards the gold.');
     draw();
@@ -208,6 +210,21 @@ function jungle(host, api){
     loadPics(o);
   }
   const msg = t => { $('msg').textContent = t; };
+  const showLives = () => { const el = $('lives'); if (el) { el.textContent = '❤️'.repeat(lives) + '🤍'.repeat(3 - lives); el.setAttribute('aria-label', `${lives} of 3 lives left`); } };
+  // Caught, with lives left: the attack plays as before, the creature goes back where it started (an anaconda back to the
+  // river), and he carries on from the same square. With no lives left it is the end of the level, as before.
+  function hurt(who){
+    lives--; showLives();
+    if (lives <= 0) { over(false, who.kind); return; }
+    if (who.kind === 'ogre') { ogreYell(.8); ogreLaugh(); } else if (who.kind !== 'panther') hiss(.9, true); else roar(.8, true);
+    who.r = who.r0 ?? H - 1; who.c = who.c0 ?? (who.c < BOAT ? 0 : W - 1); who.moved = false;
+    if (at(st.preds.filter(p => p !== who), who.r, who.c)) { const sp = [[0, 0], [0, W - 1], [H - 1, 0], [H - 1, W - 1]].map(([r, c]) => ({r, c})).find(s => !at(st.preds, s.r, s.c) && !(s.r === st.pl.r && s.c === st.pl.c)); if (sp) { who.r = sp.r; who.c = sp.c; } }
+    busy = true; draw();
+    const name = who.kind === 'ogre' ? 'The ogre' : who.kind === 'anaconda' ? 'An anaconda' : who.kind === 'panther' ? 'The panther' : 'A snake';
+    const o = $('over'); o.hidden = false;
+    o.innerHTML = scene(who.kind === 'ogre' ? 'ogre-pot' : who.kind === 'panther' ? 'panther-attack' : 'snake-attack', `${name} got you!`, `${lives} ${lives === 1 ? 'life' : 'lives'} left. You escaped, so keep going!`, 'resume', 'Keep going');
+    api.sound('bad'); loadPics(o); action(who.kind === 'ogre' ? 'ogre-pot' : who.kind === 'panther' ? 'panther-attack' : 'snake-attack', 'Ouch!');
+  }
   const near = (a, b) => Math.abs(a.r - b.r) + Math.abs(a.c - b.c) === 1;
   function canGo(r, c){
     if (!st || busy) return false;
@@ -275,8 +292,9 @@ function jungle(host, api){
       if (st.g[r][c] === 'gold' && !st.has) {
         st.has = true; st.g[r][c] = 'path';
         const ev = level >= 3 ? 2 : 3;
-        st.preds.push({kind:'anaconda', every:ev, r:H - 1, c:0}, {kind:'anaconda', every:ev, r:H - 1, c:W - 1});
-        if (level >= 3) st.preds.push({kind:'anaconda', every:3, r:H - 1, c:BOAT + (Math.random() < .5 ? -2 : 2)});
+        const ac3 = BOAT + (Math.random() < .5 ? -2 : 2);
+        st.preds.push({kind:'anaconda', every:ev, r:H - 1, c:0, r0:H - 1, c0:0}, {kind:'anaconda', every:ev, r:H - 1, c:W - 1, r0:H - 1, c0:W - 1});
+        if (level >= 3) st.preds.push({kind:'anaconda', every:3, r:H - 1, c:ac3, r0:H - 1, c0:ac3});
         msg('You got the gold! Run back to the boat before the anacondas get you!');
         action('chase', 'Run!');
         busy = true;
@@ -288,7 +306,7 @@ function jungle(host, api){
     } else {
       api.sound('bad');
       const og = ogreOf(), od = og ? Math.abs(og.r - st.pl.r) + Math.abs(og.c - st.pl.c) : 99;
-      if (og && od <= 5 && timeout) { ogreYell(.6); ogreLaugh(); missile(true); fly(og, true); draw(); setTimeout(() => over(false, 'ogre'), 450); return; }
+      if (og && od <= 5 && timeout) { ogreYell(.6); ogreLaugh(); missile(true); fly(og, true); draw(); busy = true; setTimeout(() => hurt(og), 450); return; }
       if (og && od <= 5) { const axe = Math.random() < .5; ogreYell(.45); if (Math.random() < .5) ogreLaugh(); missile(axe); fly(og, axe); msg(axe ? 'The ogre threw his axe! It nicked your hat!' : 'An arrow! It just missed you!'); action('ogre-chase', 'Duck!'); }
       else { msg('Missed! They are getting closer.'); action('miss', 'Missed!'); }
     }
@@ -296,10 +314,10 @@ function jungle(host, api){
     st.preds.forEach(p => { p.moved = false; });
     if (!who) {
       st.turn++;
-      for (const p of st.preds) if (st.turn % p.every === 0 || !ok) { stepPred(p); if (p.r === st.pl.r && p.c === st.pl.c) { who = p; break; } }
+      for (const p of st.preds) if (st.turn % p.every === 0) { stepPred(p); if (p.r === st.pl.r && p.c === st.pl.c) { who = p; break; } }
     }
     draw();
-    if (who) { over(false, who.kind); return; }
+    if (who) { hurt(who); return; }
     const near = snakeNear();
     if (near <= 3) { hiss([0, .7, .45, .25][near]); heartbeat(near); }
     else if (st.preds.some(p => p.moved && p.kind !== 'panther')) hiss(.08);   // a soft rustle as snakes slither about
@@ -313,7 +331,7 @@ function jungle(host, api){
     const go = e.target.closest('[data-go]');
     if (go) {
       $('over').hidden = true; busy = false;
-      if (go.dataset.go === 'begin' || go.dataset.go === 'run') { draw(); return; }
+      if (go.dataset.go === 'begin' || go.dataset.go === 'run' || go.dataset.go === 'resume') { draw(); return; }
       if (go.dataset.go === 'next') level++;
       newLevel(); return;
     }
