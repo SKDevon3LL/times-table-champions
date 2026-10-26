@@ -190,12 +190,13 @@ function jungle(host, api){
       pl = {r:H - 2, c:BOAT}; g[pl.r][pl.c] = 'path';
     } while (!reachable(g, pl, goldAt));
     const preds = [];
-    const put = (kind, every, r, c) => { if (g[r][c] === 'rock' || g[r][c] === 'gold') g[r][c] = 'jungle'; preds.push({kind, every, r, c}); };
+    // A creature never starts on the gold: it used to wipe it off the board (Sam, 26 Oct 2026: "the gold seems to have disappeared").
+    const put = (kind, every, r, c) => { if (g[r][c] === 'gold') return; if (g[r][c] === 'rock') g[r][c] = 'jungle'; preds.push({kind, every, r, c}); };
     const far = goldAt.c < W / 2 ? W - 1 : 0;
     put('panther', level >= 5 ? 2 : level >= 3 ? 3 : 4, 0, far);
     for (let i = 0; i < Math.min(3, 1 + Math.floor(level / 2)); i++) put('snake', 2, 2 + rnd(3), i % 2 ? 0 : W - 1);
     if (level >= 6) put('panther', 3, 1, W - 1 - far);
-    put('ogre', level >= 4 ? 1 : 2, 0, W - 1 - far);   // the ogre starts in the far top corner and never stops coming
+    put('ogre', level >= 4 ? 1 : 2, 1, far);   // the ogre starts on the far side from the gold, under the panther, and never stops coming
     st = {g, goldAt, pl, preds, has:false, turn:0};
     $('lvl').textContent = level;
     msg('Tap a square next to you to chop towards the gold.');
@@ -242,7 +243,7 @@ function jungle(host, api){
   }
   function stepPred(p){
     const opts = [[1,0],[-1,0],[0,1],[0,-1]].map(([dr, dc]) => ({r:p.r + dr, c:p.c + dc}))
-      .filter(o => o.r >= 0 && o.r < H && o.c >= 0 && o.c < W && st.g[o.r][o.c] !== 'rock' && (p.kind === 'anaconda' || st.g[o.r][o.c] !== 'river') && !at(st.preds, o.r, o.c));
+      .filter(o => o.r >= 0 && o.r < H && o.c >= 0 && o.c < W && st.g[o.r][o.c] !== 'rock' && st.g[o.r][o.c] !== 'gold' && (p.kind === 'anaconda' || st.g[o.r][o.c] !== 'river') && !at(st.preds, o.r, o.c));
     if (!opts.length) return;
     const d = o => Math.abs(o.r - st.pl.r) + Math.abs(o.c - st.pl.c), best = Math.min(...opts.map(d));
     if (d(p) > SENSE[p.kind]) return;
