@@ -65,8 +65,21 @@ window.TTCSpell = function(X){
   if (window.speechSynthesis) { speechSynthesis.onvoiceschanged = () => { voice = null; pickVoice(); }; pickVoice(); }
   const speak = parts => { if (!window.speechSynthesis) return; try { speechSynthesis.cancel(); pickVoice();
     for (const [text, rate] of parts) { if (!text) continue; const u = new SpeechSynthesisUtterance(text); u.lang = 'en-GB'; if (voice) u.voice = voice; u.rate = rate || .92; speechSynthesis.speak(u); } } catch {} };
-  const sayWord = w => { const o = info(w); speak([[o.w, .8], [o.s, .95], [o.w, .8]]); };
-  const sayParts = w => { const o = info(w); speak([[o.syl ? o.syl.split('-').join(', ') : o.w, .7]]); };
+  // Recorded in a British voice (Sam, 27 Oct 2026: the iPad's own voice was "terrible"): audio/spell/w/<word>.m4a is the word,
+  // its sentence and the word again; audio/spell/p/<word>.m4a says it in parts. School words have no recording and use the
+  // iPad's voice.
+  let clip = null;
+  const play = (path, fallback) => { try { if (window.speechSynthesis) speechSynthesis.cancel(); if (clip) { clip.pause(); clip = null; }
+    const a = clip = new Audio(path); let fell = false; const fb = () => { if (fell || clip !== a) return; fell = true; fallback(); };
+    a.onerror = fb; a.play().catch(e => { if (e && e.name === 'NotAllowedError') return; fb(); }); } catch { fallback(); } };
+  const file = w => encodeURIComponent(String(w).toLowerCase());
+  // Which words have recordings: audio/spell/index.json ({"w": [...], "p": [...]}), fetched once. Until it arrives, or for a
+  // word not in it, the iPad's voice speaks straight away (an iPad only lets speech start straight after a tap).
+  let have = {w: new Set(), p: new Set()};
+  fetch('audio/spell/index.json').then(r => r.ok ? r.json() : null).then(j => { if (j) have = {w: new Set(j.w || []), p: new Set(j.p || [])}; }).catch(() => {});
+  const recorded = (w, k = 'w') => have[k].has(String(w).toLowerCase());
+  const sayWord = w => { const o = info(w), say = () => speak([[o.w, .8], [o.s, .95], [o.w, .8]]); recorded(w) ? play(`audio/spell/w/${file(w)}.m4a`, say) : say(); };
+  const sayParts = w => { const o = info(w), say = () => speak([[o.syl ? o.syl.split('-').join(', ') : o.w, .7]]); recorded(w, 'p') ? play(`audio/spell/p/${file(w)}.m4a`, say) : say(); };
 
   /* ---------- the word schedule ---------- */
   function touch(w){ const k = w.toLowerCase(); const s = st(); if (!s.words[k]) s.words[k] = {b: 0, due: today(), n: 0, c: 0, first: Date.now(), t: Date.now()}; return s.words[k]; }
@@ -165,7 +178,7 @@ window.TTCSpell = function(X){
     P.fb = {ok: false, got: P.input, w: it.w};
     it.fixing = true; it.mode0 = it.mode; it.mode = 'copy'; setup(P);
     if (!P.items.slice(P.i + 1).some(x => x.w === it.w) && P.kind !== 'test') P.items.splice(Math.min(P.items.length, P.i + 4), 0, {w: it.w, mode: it.mode0 === 'copy' ? (younger() ? 'tiles' : 'type') : it.mode0, again: true});
-    X.render(); speak([[it.w, .8]]);
+    X.render(); sayWord(it.w);
   }
   function next(){
     const P = X.S.sp; P.i++;
@@ -178,6 +191,7 @@ window.TTCSpell = function(X){
   function finish(stopped){
     const P = X.S.sp; if (!P || P.done) return; P.done = true; clearInterval(P.timer);
     if (window.speechSynthesis) try { speechSynthesis.cancel(); } catch {}
+    if (clip) { clip.pause(); clip = null; }
     const p = X.S.prog, s = st(), sc = P.answers.filter(a => a.counts), n = sc.length, c = sc.filter(a => a.ok).length;
     const pct = n ? Math.round(c / n * 100) : 0, ms = Date.now() - P.start, kind = P.kind;
     let xp = P.answers.reduce((t, a) => t + a.pts, 0), extra = [], prize = null, pb = null, dDone = false, bonusMsg = null;
@@ -226,7 +240,7 @@ window.TTCSpell = function(X){
     return {v, old};
   }
   function heard(w){   // Learn the rule: each example word heard counts once
-    speak([[w, .8], [info(w).s, .95]]);
+    sayWord(w);
     if (!dailyDone()) return;
     const cur = STEPS[stepAt()]; if (!cur || cur.k !== 'learn') { X.render(); return; }
     const b = bonus(); if (!b.heard.includes(w)) b.heard.push(w);
@@ -327,10 +341,11 @@ window.TTCSpell = function(X){
       <p class="muted small">Personal bests: Beat the Clock ${bs.clock ? bs.clock.score : '-'} · Daily Challenge ${bs.daily ? X.fmtClock(bs.daily.ms) : '-'} · Test ${bs.test ? bs.test.pct + '%' : '-'}</p></div>
       <div class="stats"><div class="stat"><b>${m.length}</b><span>words mastered</span></div><div class="stat"><b>${l.length}</b><span>learning</span></div><div class="stat"><b>${dueN}</b><span>due back today</span></div></div></section>
     <div class="grid-home"><div class="col">
-      ${todayCardSpell()}
+      ${X.gameBanner ? X.gameBanner(X.S.prog) : ''}${todayCardSpell()}
       <div class="extra-h"><h2>Extra practice</h2><p>Not part of today's plan. Play any time for more ${X.ptsName()}.</p></div>
       <div class="modes">${tile('practice', 'abc', 'Practise', 'Your trickiest words.', 'mint')}${tile('test', '20', 'Spelling test', 'Win trophies at 70%.', 'sun')}${tile('clock', '60s', 'Beat the Clock', 'Beat your best.', 'tomato')}${tile('learn', 'Aa', 'The rule', esc(r ? r.name : ''), 'sky')}</div>
     </div><div class="col">
+      ${X.journey ? X.journey(X.S.prog) : ''}
       <div class="sticker"><div class="card-h"><h3>Words to practise</h3></div>${list(wobbly, 'None yet. Words you find tricky show here.')}</div>
       <div class="sticker"><div class="card-h"><h3>Words mastered</h3></div>${list(m, 'Spell a word right on 5 different days and it is mastered.')}</div>
       <div class="sticker"><div class="card-h"><h3>Learning now</h3></div>${list(l.filter(x => !wobbly.includes(x)), 'Start the Daily Spelling Challenge to meet your first words.')}</div>

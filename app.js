@@ -1968,7 +1968,7 @@ const F = {
 };
 
 const SPL = window.TTCSpell ? window.TTCSpell({get S(){ return S; }, render, go, saveProg, saveLog, ensureLogCur, sound, confetti, toast, esc, dayStr, ptsName, skinId, tierFor,
-  itemsOwned, TRAIL_STOPS, resultItems, topbar, fmtClock, saveFail, yearOf, logo, avatar, medal}) : null;
+  itemsOwned, TRAIL_STOPS, resultItems, topbar, fmtClock, saveFail, yearOf, logo, avatar, medal, journey, gameBanner}) : null;
 if (SPL) Object.assign(A, SPL.actions);
 app.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el || !app.contains(el)) return;
