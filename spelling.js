@@ -33,6 +33,7 @@ window.TTCSpellMerge = (a, b) => {
   r.bonus = Object.assign({}, b.bonus); for (const [k, v] of Object.entries(a.bonus || {})) { const o = r.bonus[k]; if (!o || steps(v) > steps(o) || (steps(v) === steps(o) && (v.heard || []).length >= (o.heard || []).length)) r.bonus[k] = v; }
   r.bests = Object.assign({}, b.bests); for (const [k, v] of Object.entries(a.bests || {})) if (better[k] ? better[k](v, r.bests[k]) : true) r.bests[k] = v;
   r.intro = Object.assign({}, b.intro); for (const [k, v] of Object.entries(a.intro || {})) r.intro[k] = [...new Set([...(r.intro[k] || []), ...v])];
+  if (a.game || b.game) r.game = {right: Math.max((a.game || {}).right || 0, (b.game || {}).right || 0), tries: Math.max((a.game || {}).tries || 0, (b.game || {}).tries || 0)};
   return r;
 };
 
@@ -375,6 +376,26 @@ window.TTCSpell = function(X){
     if (e.key === 'Enter') { key('ok'); return true; }
     return false;
   };
-  return {screens: {spell: scrSpell, splay: scrPlay, sres: scrRes}, actions, keydown, homeLine, stop: () => { const P = X.S.sp; if (P) clearInterval(P.timer); }};
+  /* ---------- Spell Strike: the reward game asks for words from the same list (Sam, 27 Oct 2026) ---------- */
+  // A word he has met, trickiest first, built from its own letter tiles (two extra letters once it is settling; the extras
+  // are never b, d, p or q). Words spelled right in the game count towards its guns; they never move a word on the schedule.
+  const recentGame = [];
+  function gameWord(){
+    let pool = learning().sort((a, b) => (b[1].wrong || 0) - (a[1].wrong || 0) || a[1].b - b[1].b).map(([k]) => info(k).w);
+    if (pool.length < 6) pool = pool.concat(shuffle(mastered().map(([k]) => info(k).w)));
+    // early on there are only a few: his next new words join, seen first (the same ones the Daily Challenge brings)
+    if (pool.length < 6) for (const w of [...newToday(), ...(currentRule() || {words: []}).words.map(([x]) => x)]) { if (pool.length >= 8) break; if (!pool.some(q => q.toLowerCase() === w.toLowerCase())) pool.push(w); }
+    if (!pool.length) return null;
+    const fresh = pool.filter(w => !recentGame.includes(w.toLowerCase())), from = (fresh.length ? fresh : pool).slice(0, 8), w = from[Math.floor(Math.random() * from.length)];
+    recentGame.push(w.toLowerCase()); while (recentGame.length > Math.min(6, pool.length - 1)) recentGame.shift();
+    const o = info(w), r = rec(w), letters = o.w.toLowerCase().split('');
+    const extra = r && r.b >= 2 ? shuffle('aeiourstlnmch'.split('').filter(c => !letters.includes(c))).slice(0, 2) : [];
+    return {w: o.w, s: o.s || '', syl: o.syl || '', hook: SP.hooks[o.w.toLowerCase()] || '', mode: !r || r.b === 0 ? 'copy' : 'tiles', tiles: shuffle([...letters, ...extra])};
+  }
+  function gameResult(w, ok){ const s = st(), g = s.game = s.game || {right: 0, tries: 0}; g.tries++; if (ok) g.right++; if (!X.S.demo) X.saveProg().catch(X.saveFail); }
+  const gameTotal = () => Object.values(st().words).reduce((t, r) => t + (r.c || 0), 0) + ((st().game || {}).right || 0);
+  const gameWeek = () => { const since = X.weekStart(); return (X.S.sessions || []).filter(e => e.t >= since && /^spell-/.test(e.mode || '')).reduce((t, e) => t + (e.c || 0), 0); };
+  return {screens: {spell: scrSpell, splay: scrPlay, sres: scrRes}, actions, keydown, homeLine, stop: () => { const P = X.S.sp; if (P) clearInterval(P.timer); },
+    game: {word: gameWord, say: sayWord, parts: sayParts, result: gameResult, total: gameTotal, week: gameWeek}};
 };
 })();

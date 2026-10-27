@@ -14,6 +14,7 @@ and works with no internet.
 | Part | Where |
 |---|---|
 | The app | `index.html`, `app.js`, fonts and the Supabase library in `vendor/`, no build step |
+| Reward games | `games.js`: Hughie's Jungle Gold Run and Jessica's Eras Stadium Show. `shooter.js`: Spell Strike, Hughie's game on the spelling side, a robot shooter where spelling earns ammo, lives and guns; it draws with `vendor/three.min.js` (three.js r128) and loads only when it opens |
 | Offline | `sw.js` keeps every file on the device. **Bump `VERSION` in `sw.js` whenever any file changes.** |
 | Saving | On the device first (`localStorage`), then copied to Supabase whenever there is internet |
 | Sync | Supabase project `times-table-champions` (`wcfpnpgpcxuptxpklksu`, London), table `docs`, one JSON document per path. Two copies of a document merge (`mergeDoc` in `app.js`); nothing is ever deleted |

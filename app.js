@@ -773,7 +773,7 @@ function startMethodStep(id){
 }
 function gameBanner(p){
   if (!gameOpen(p)) return '';
-  return `<div class="today sticker game-ready"><div><p class="eyebrow">${itemsOwned(p) >= TRAIL_STOPS ? 'You completed the trail' : 'You said every table 3 times'}</p><h2>${skinId() === 'eras' ? 'Your stadium show is ready!' : 'The jungle gold is waiting!'}</h2>
+  return `<div class="today sticker game-ready"><div><p class="eyebrow">${itemsOwned(p) >= TRAIL_STOPS ? 'You completed the trail' : 'You said every table 3 times'}</p><h2>${skinId() === 'eras' ? 'Your stadium show is ready!' : strikeGame() ? 'Spell Strike is ready!' : 'The jungle gold is waiting!'}</h2>
     <p>${Math.ceil((GAME_MS - gameUsed(p)) / 60000)} minutes of play left. When they run out, a new trail starts.</p></div><button class="btn big" data-act="game">Play now</button></div>`;
 }
 // The home screen's card: today's work, then the Bonus Round as a numbered list, the current step with its button and the
@@ -1132,7 +1132,10 @@ const gameUsed = p => p.gameTrail === trailStart(p) ? (p.gameMs || 0) : 0;
 // A child's game opens only once a grown-up has approved it in the Grown-ups area (games/<id>; Sam, 24 Oct 2026: "final approval").
 const gameApproved = pl => !!pl && ((S.gameOK || {})[pl.id] || {}).status === 'approved';
 const gameOpen = p => skinId() !== 'classic' && (itemsOwned(p) >= TRAIL_STOPS || reciteAllDone(p)) && gameUsed(p) < GAME_MS && gameApproved(S.me);
-const gameName = () => skinId() === 'eras' ? 'Eras Stadium Show' : 'Jungle Gold Run';
+// On the spelling side Hughie's reward game is Spell Strike, the robot shooter (shooter.js; Sam, 27 Oct 2026). The times
+// tables keep the Jungle Gold Run.
+const strikeGame = () => skinId() === 'trail' && S.subject === 'spell';
+const gameName = () => skinId() === 'eras' ? 'Eras Stadium Show' : strikeGame() ? 'Spell Strike' : 'Jungle Gold Run';
 // Jessica's seven dresses change every trail; Hughie packs the same seven tools for the jungle.
 const trailDress = (p, i) => (Math.floor(trailStart(p) / (7 * 864e5)) * TRAIL_STOPS + i) % ERAS.length;
 const JUNGLE = [[0, 'Load the boat on the river'], [1, 'Find the jungle trail'], [2, 'Choose the right path'], [3, 'Fill up at the waterfall'],
@@ -1210,9 +1213,9 @@ function toolSvg(i, size, locked){
 function collectionCard(p){
   const id = skinId(); if (id === 'classic') return '';
   const n = itemsOwned(p), sel = S.v.item, open = gameOpen(p), mins = Math.ceil((GAME_MS - gameUsed(p)) / 60000);
-  const goal = open ? `<div class="callout mint unlock"><div><b>${id === 'eras' ? 'Your stadium show is open!' : 'The jungle gold is waiting!'}</b> ${mins} minutes of play left.</div><button class="btn" data-act="game">${id === 'eras' ? 'Go on stage' : 'Start the Gold Run'}</button></div>`
-    : (n >= TRAIL_STOPS || reciteAllDone(p)) && !gameApproved(S.me) ? `<p class="callout">Trail complete! Your ${id === 'eras' ? 'stadium show' : 'Jungle Gold Run'} is waiting for a grown-up to approve it.</p>`
-    : `<p class="muted small">Win ${TRAIL_STOPS - n} more troph${TRAIL_STOPS - n === 1 ? 'y' : 'ies'} by Sunday to unlock ${id === 'eras' ? 'your stadium show' : 'the Jungle Gold Run'}.</p>`;
+  const goal = open ? `<div class="callout mint unlock"><div><b>${id === 'eras' ? 'Your stadium show is open!' : strikeGame() ? 'Spell Strike is ready!' : 'The jungle gold is waiting!'}</b> ${mins} minutes of play left.</div><button class="btn" data-act="game">${id === 'eras' ? 'Go on stage' : strikeGame() ? 'Play Spell Strike' : 'Start the Gold Run'}</button></div>`
+    : (n >= TRAIL_STOPS || reciteAllDone(p)) && !gameApproved(S.me) ? `<p class="callout">Trail complete! Your ${id === 'eras' ? 'stadium show' : gameName()} is waiting for a grown-up to approve it.</p>`
+    : `<p class="muted small">Win ${TRAIL_STOPS - n} more troph${TRAIL_STOPS - n === 1 ? 'y' : 'ies'} by Sunday to unlock ${id === 'eras' ? 'your stadium show' : strikeGame() ? 'Spell Strike' : 'the Jungle Gold Run'}.</p>`;
   if (id === 'eras') {
     const ds = Array.from({length:TRAIL_STOPS}, (_, k) => trailDress(p, k)), e = sel !== undefined && sel < TRAIL_STOPS && ERAS[ds[sel]];
     return `<div class="sticker"><div class="card-h"><h3>This week's Eras Tour</h3><span class="muted small">${n} of ${TRAIL_STOPS} dresses</span></div>
@@ -1661,6 +1664,7 @@ function gamesParent(pls){
         <p>${eras ? 'She picks a dress and a song, then sings on a stadium stage to an original tune. Every right answer brings more fans in; 80,000 fans wins the MTV Award.' : 'He chops a path to the gold, one right answer per swing, then runs it back to the boat before the snakes, panthers and anacondas catch him.'}</p>
         <div class="looks" style="grid-template-columns:repeat(auto-fill,minmax(76px,1fr))">${pics.join('')}</div>
         <div class="row" style="margin-top:14px"><button class="btn small ghost" data-act="demo" data-id="${esc(pl.id)}" data-what="game">Play it</button>${approved ? `<span class="muted small">Approved${ok.by ? ' by ' + esc(ok.by) : ''}${ok.at ? ' ' + ago(ok.at) : ''}.</span><button class="btn small ghost" data-act="game-unapprove" data-id="${esc(pl.id)}">Take approval back</button>` : `<button class="btn small" data-act="game-approve" data-id="${esc(pl.id)}">Approve for ${esc(pl.name)}</button>`}</div>
+        ${eras ? '' : `<p class="muted small" style="margin-top:14px"><b>On the spelling side: Spell Strike.</b> A robot shooter. Spelling words right earns ammo, lives and new guns. The same approval covers it.</p><div class="row"><button class="btn small ghost" data-act="demo" data-id="${esc(pl.id)}" data-what="strike">Play Spell Strike</button></div>`}
       </div>`;
     }).join('')}`;
 }
@@ -1691,7 +1695,7 @@ function demosParent(pls){
       const sk = SKINS[pl.theme] || SKINS.classic, game = pl.theme === 'eras' ? 'Eras Stadium Show' : pl.theme === 'trail' ? 'Jungle Gold Run' : null;
       const b = (what, label, cls = 'ghost') => `<button class="btn small ${cls}" data-act="demo" data-id="${esc(pl.id)}" data-what="${what}">${esc(label)}</button>`;
       return `<div class="sticker"><div class="ov-head">${avatar(pl, 44)}<h3>As ${esc(pl.name)}</h3></div>
-        <div class="row" style="margin-top:12px">${b('daily', sk.daily, '')}${b('practice', 'Practise')}${b('test', 'Take a test')}${b('clock', 'Beat the Clock')}${b('explore', 'Explore')}${b('recite', 'Say it out loud')}${b('spell', 'Spelling')}${game ? b('game', game, '') : ''}</div></div>`;
+        <div class="row" style="margin-top:12px">${b('daily', sk.daily, '')}${b('practice', 'Practise')}${b('test', 'Take a test')}${b('clock', 'Beat the Clock')}${b('explore', 'Explore')}${b('recite', 'Say it out loud')}${b('spell', 'Spelling')}${game ? b('game', game, '') : ''}${pl.theme === 'trail' ? b('strike', 'Spell Strike', '') : ''}</div></div>`;
     }).join('')}</div>`;
 }
 async function startDemo(id, what){
@@ -1702,7 +1706,8 @@ async function startDemo(id, what){
   S.prog = clone(d.prog); S.sessions = d.sessions.slice(); S.logins = d.logins.slice();
   S.logCur = {player: id, month: monthStr(), logins: [], sessions: []};
   S.v = {}; S.okMsg = null;
-  if (what === 'game') startGame();
+  if (what === 'game') { S.subject = 'maths'; startGame(); }
+  else if (what === 'strike') { S.subject = 'spell'; startGame(); }
   else if (what === 'daily') startDaily();
   else if (what === 'explore') go('explore');
   else if (what === 'recite') startRecite();
@@ -1774,16 +1779,26 @@ function gameQuestion(){
 function scrGame(){
   return `<header class="top"><div class="brand">${logo()}<span>${gameName()}</span></div>
     <div class="top-right"><span class="sync" id="game-clock">${S.demo ? 'Demo: nothing is saved' : Math.ceil((GAME_MS - gameUsed(S.prog)) / 60000) + ' min left'}</span><button class="btn ghost small" data-act="go" data-to="home">${S.demo ? 'Back to the Grown-ups area' : 'Finish for now'}</button></div></header>
-    <div id="game-host" class="game-host"></div>`;
+    <div id="game-host" class="game-host">${strikeGame() && !(window.TTCGames && window.TTCGames.strike) ? '<p class="muted" style="padding:40px;text-align:center">Loading Spell Strike…</p>' : ''}</div>`;
 }
-function startGame(){
-  const p = S.prog, demo = !!S.demo;
+// Spell Strike draws in 3D (three.js, 600 KB), so its two files load only when it opens; sw.js keeps them for offline play.
+let strikeLoad = null;
+const loadJs = src => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+const loadStrike = () => strikeLoad = strikeLoad || (async () => {
+  try { if (!window.THREE) await loadJs('vendor/three.min.js'); if (!window.TTCGames.strike) await loadJs('shooter.js'); } catch { return false; }
+  return !!(window.TTCGames && window.TTCGames.strike);
+})().then(ok => { if (!ok) strikeLoad = null; return ok; });
+async function startGame(){
+  const p = S.prog, demo = !!S.demo, strike = strikeGame();
   if (!window.TTCGames || (!demo && !gameOpen(p))) { go('home'); return; }
   if (!demo && p.gameTrail !== trailStart(p)) { p.gameTrail = trailStart(p); p.gameMs = 0; }
   p.game = p.game || {};
   S.screen = 'game'; render(); scrollTo(0, 0);
-  const api = {ask: gameQuestion, sound, soundOn: () => S.sound, audio: audioCtx, photo: photoOk(S.me.photo) ? S.me.photo : null, picture: familyPhoto, dressSvg, eras: ERAS, state: demo ? {} : p.game, save: () => { if (!demo) saveProg().catch(saveFail); }};
-  gameInst = (skinId() === 'eras' ? window.TTCGames.stage : window.TTCGames.jungle)(document.getElementById('game-host'), api);
+  if (strike && !(await loadStrike())) { if (S.screen === 'game') { toast('Spell Strike needs the internet the first time. Connect to Wi-Fi and try again.'); go('home'); } return; }
+  if (S.screen !== 'game' || gameInst) return;   // left, or already open, while it loaded
+  const api = {ask: gameQuestion, sound, soundOn: () => S.sound, audio: audioCtx, photo: photoOk(S.me.photo) ? S.me.photo : null, picture: familyPhoto, dressSvg, eras: ERAS, state: demo ? {} : p.game, save: () => { if (!demo) saveProg().catch(saveFail); },
+    timeLeft: () => demo ? null : GAME_MS - (p.gameMs || 0), exit: () => go('home'), demo, spell: SPL && SPL.game};
+  gameInst = (skinId() === 'eras' ? window.TTCGames.stage : strike ? window.TTCGames.strike : window.TTCGames.jungle)(document.getElementById('game-host'), api);
   if (demo) return;   // a grown-up's demo: no 30-minute clock, nothing saved
   let ticks = 0;
   gameTimer = setInterval(() => {
@@ -1968,7 +1983,7 @@ const F = {
 };
 
 const SPL = window.TTCSpell ? window.TTCSpell({get S(){ return S; }, render, go, saveProg, saveLog, ensureLogCur, sound, confetti, toast, esc, dayStr, ptsName, skinId, tierFor,
-  itemsOwned, TRAIL_STOPS, resultItems, topbar, fmtClock, saveFail, yearOf, logo, avatar, medal, journey, gameBanner}) : null;
+  itemsOwned, TRAIL_STOPS, resultItems, topbar, fmtClock, saveFail, yearOf, logo, avatar, medal, journey, gameBanner, weekStart}) : null;
 if (SPL) Object.assign(A, SPL.actions);
 app.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el || !app.contains(el)) return;
