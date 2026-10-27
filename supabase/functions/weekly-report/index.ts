@@ -62,7 +62,7 @@ function activity(sessions: any[], prog: any, start: number, methodNames: Record
 }
 
 function weekStats(pl: any, prog: any, sessions: any[], plan: any, start: number, methodNames: Record<string, string> = {}) {
-  const wk = sessions.filter(s => s.t >= start);
+  const wk = sessions.filter(s => s.t >= start && !String(s.mode).startsWith("spell"));   // spelling has its own email
   const q = wk.reduce((s, x) => s + (x.n || 0), 0), c = wk.reduce((s, x) => s + (x.c || 0), 0);
   const days = new Set(wk.map(s => new Date(s.t + 3600e3).toISOString().slice(0, 10))).size;
   const tests = wk.filter(s => s.mode === "test" && !s.ab).map(s => ({pct: s.pct, tables: s.tables}));
@@ -134,6 +134,42 @@ function clampPlan(p: any, year: number, prev: any, stats: any) {
   return {focus, mix, questions, days, methods, note: String(p.note || "").slice(0, 200), why: String(p.why || "").slice(0, 300)};
 }
 
+// The spelling report (Sam, 27 Oct 2026): its own short email, to Sam and Abbey only, never Hayley. Counted here from
+// the children's saved progress; no model involved.
+function spellStats(pl: any, prog: any, sessions: any[], start: number) {
+  const sp = prog.spell || {}, words = sp.words || {}, wk = sessions.filter(s => s.t >= start && String(s.mode).startsWith("spell") && !s.ab);
+  if (!wk.length && !Object.keys(words).length) return null;
+  const n = wk.reduce((t, s) => t + (s.n || 0), 0), c = wk.reduce((t, s) => t + (s.c || 0), 0);
+  const kinds: Record<string, number> = {};
+  for (const s of wk) kinds[s.mode] = (kinds[s.mode] || 0) + 1;
+  const masteredWeek = Object.entries(words).filter(([, r]: any) => r.m && r.m >= start).map(([k]) => k);
+  const wobbly = Object.entries(words).filter(([, r]: any) => (r.wrong || 0) > 0 && r.b <= 2).sort((a: any, b: any) => (b[1].wrong || 0) - (a[1].wrong || 0)).map(([k]) => k).slice(0, 12);
+  const days = new Set(wk.map(s => new Date(s.t + 3600e3).toISOString().slice(0, 10))).size;
+  const trophies = (prog.prizeLog || []).filter((x: any) => x.t >= start && String(x.mode).startsWith("spell")).length;
+  const b = sp.bests || {};
+  return {name: pl.name, days, n, acc: n ? Math.round(c / n * 100) : null, kinds, masteredWeek, mastered: Object.values(words).filter((r: any) => r.b >= 5).length,
+    learning: Object.values(words).filter((r: any) => r.b < 5).length, wobbly, trophies, rule: sp.rule || "",
+    bests: [b.clock ? `Beat the Clock ${b.clock.score}` : "", b.daily ? `Daily Challenge ${Math.floor(b.daily.ms / 60000)}:${String(Math.floor(b.daily.ms / 1000) % 60).padStart(2, "0")}` : "", b.test ? `Test ${b.test.pct}%` : ""].filter(Boolean)};
+}
+function spellHtml(week: number, kids: any[]) {
+  const names: Record<string, string> = {"spell-daily": "Daily Spelling Challenge", "spell-clock": "Beat the Clock", "spell-test": "Spelling test", "spell-practice": "Practice"};
+  const card = (k: any) => `<div style="border:2px solid #1B2140;border-radius:14px;padding:14px 16px;margin:16px 0;background:#FFFFFF">
+      <h2 style="margin:0;font-size:19px">${esc(k.name)}</h2>
+      <p style="margin:6px 0 0;font-size:14px;color:#555">${esc([`Spelt ${k.days} day${k.days === 1 ? "" : "s"}`, `${k.n} words${k.acc !== null ? `, ${k.acc}% right first time` : ""}`, `${k.trophies} spelling troph${k.trophies === 1 ? "y" : "ies"}`].join(" · "))}</p>
+      ${Object.keys(k.kinds).length ? `<table style="border-collapse:collapse;width:100%;font-size:14px;margin-top:10px">${Object.entries(k.kinds).map(([m, t]: any) => `<tr><td style="padding:3px 8px 3px 0">${esc(names[m] || m)}</td><td style="padding:3px 0;text-align:right;font-weight:700">${t} time${t === 1 ? "" : "s"}</td></tr>`).join("")}</table>` : ""}
+      <p style="margin:10px 0 0;line-height:1.5"><b>Mastered this week:</b> ${k.masteredWeek.length ? esc(k.masteredWeek.join(", ")) : "none yet"} (${k.mastered} in all, ${k.learning} still learning).</p>
+      <p style="margin:8px 0 0;line-height:1.5"><b>Still wobbly:</b> ${k.wobbly.length ? esc(k.wobbly.join(", ")) : "nothing at the moment"}.</p>
+      ${k.rule ? `<p style="margin:8px 0 0;line-height:1.5"><b>Spelling rule now:</b> ${esc(k.rule)}</p>` : ""}
+      ${k.bests.length ? `<p style="margin:8px 0 0;line-height:1.5"><b>Personal bests:</b> ${esc(k.bests.join(" · "))}</p>` : ""}
+    </div>`;
+  return `<!doctype html><html><body style="margin:0;background:#F4F1EA;font-family:Helvetica,Arial,sans-serif;color:#1B2140;font-size:16px">
+    <div style="max-width:600px;margin:0 auto;padding:20px 16px">
+      <p style="margin:0;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#555">Kirkwood Family Spelling · Week ${week}</p>
+      <p style="margin:12px 0 0;line-height:1.5">Here is how the spelling went this week. Wobbly words come back on their own until they stick.</p>${kids.map(card).join("")}
+      <p style="font-size:13px;color:#555">More in the app: <a href="${APP}">${APP}</a></p>
+    </div></body></html>`;
+}
+
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]!));
 // Short on purpose (Sam, 24 Oct 2026: "its a lot"): per child one line of numbers, two or three sentences, recommended next steps,
 // next week. No ideas for Hayley's sessions (Sam, 26 Oct 2026: "hayley manages her own time with them").
@@ -177,7 +213,7 @@ Deno.serve(async (req) => {
   const rows = players.map((pl: any) => {
     const sessions = by("logs/").filter((l: any) => l.player === pl.id).flatMap((l: any) => l.sessions || []);
     const plan = plans[pl.id] && plans[pl.id].week === week ? plans[pl.id] : null;
-    return {id: pl.id, pl, stats: weekStats(pl, progress[pl.id] || {}, sessions, plan, start, methodNames), prevPlan: plan};
+    return {id: pl.id, pl, stats: weekStats(pl, progress[pl.id] || {}, sessions, plan, start, methodNames), prevPlan: plan, spell: spellStats(pl, progress[pl.id] || {}, sessions, start)};
   });
 
   const settings = docs!.find(d => d.path === "settings/report")?.data || {};
@@ -203,7 +239,8 @@ Deno.serve(async (req) => {
     return {id: r.id, stats: r.stats, plan: {...clampPlan(c.plan, r.stats.year, r.prevPlan, r.stats), week: week + 1, set: Date.now()}};
   });
   const html = emailHtml(week, ai, plansOut, recipients.some(e => e.toLowerCase() === "hayleybac@gmail.com")), subject = String(ai.subject || `Kirkwood Family Times Table Champions: week ${week} of 52`);
-  if (dry) return Response.json({week, subject, html, plans: plansOut.map(p => ({id: p.id, plan: p.plan})), stats: rows.map(r => r.stats)});
+  const spellKids = rows.map(r => r.spell).filter(Boolean), spellMail = spellKids.length ? spellHtml(week, spellKids) : null;
+  if (dry) return Response.json({week, subject, html, spellHtml: spellMail, plans: plansOut.map(p => ({id: p.id, plan: p.plan})), stats: rows.map(r => r.stats)});
 
   if (!to) {
     const now = Date.now();
@@ -218,5 +255,13 @@ Deno.serve(async (req) => {
   });
   const sent = await send.json().catch(() => ({}));
   if (!send.ok) return new Response("send failed: " + JSON.stringify(sent), {status: 502});
-  return Response.json({week, subject, to: recipients, resend: sent.id, plans: plansOut.map(p => ({id: p.id, plan: p.plan}))});
+  let spellSent: any = null;
+  if (spellMail) {
+    const r2 = await fetch("https://api.resend.com/emails", {
+      method: "POST", headers: {Authorization: `Bearer ${Deno.env.get("RESEND_API_KEY")}`, "Content-Type": "application/json"},
+      body: JSON.stringify({from: FROM, to: to ? [to] : DEFAULT_TO, subject: `Spelling this week: week ${week}`, html: spellMail, reply_to: "sam@myfirstjobinfilm.com"}),
+    });
+    spellSent = await r2.json().catch(() => ({}));
+  }
+  return Response.json({week, subject, to: recipients, resend: sent.id, spelling: spellSent && spellSent.id, plans: plansOut.map(p => ({id: p.id, plan: p.plan}))});
 });

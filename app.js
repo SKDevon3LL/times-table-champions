@@ -96,6 +96,7 @@ function mergeDoc(path, a, b){
     const rs = new Set(); r.recites = [...(a.recites || []), ...(b.recites || [])].filter(x => { const k = x.t + ':' + x.table; if (rs.has(k)) return false; rs.add(k); return true; }).sort((x, y) => y.t - x.t).slice(0, 400);
     r.reciteAw = Object.assign({}, b.reciteAw, a.reciteAw);
     r.reciteBest = Object.assign({}, b.reciteBest); for (const [k, v] of Object.entries(a.reciteBest || {})) if (!r.reciteBest[k] || v.ms < r.reciteBest[k].ms) r.reciteBest[k] = v;
+    if (a.spell || b.spell) r.spell = window.TTCSpellMerge ? window.TTCSpellMerge(a.spell, b.spell) : (a.spell || b.spell);
     r.badges = Object.assign({}, b.badges); for (const [k, v] of Object.entries(a.badges || {})) if (!r.badges[k] || v < r.badges[k]) r.badges[k] = v;
     const seen = new Set();
     r.prizeLog = [...(a.prizeLog || []), ...(b.prizeLog || [])].filter(x => { const k = x.t + x.tier; if (seen.has(k)) return false; seen.add(k); return true; }).sort((x, y) => y.t - x.t).slice(0, 80);
@@ -288,8 +289,9 @@ const yearOf = pl => (pl && pl.year) || Math.min(8, Math.max(3, ((pl && pl.age) 
 // hard the Daily Challenge mixes, the week's targets and a line for the child. It only counts in the week it was written for.
 const planFor = pl => { const x = pl && S.plans[pl.id]; return x && x.week === challengeWeek() ? x : null; };
 const prizeTotal = p => TIERS.reduce((s, t) => s + (p.prizes[t.id] || 0), 0);
-const MODE_NAMES = {practice:'Practice', test:'Test', clock:'Beat the Clock', daily:'Daily Challenge', recite:'Said out loud'};
-const tablesLabel = (s) => s.mode === 'daily' || s.pool ? 'Trickiest facts' : (s.tables.length === 12 ? 'All tables' : s.tables.map(t => '×' + t).join(' '));
+const MODE_NAMES = {practice:'Practice', test:'Test', clock:'Beat the Clock', daily:'Daily Challenge', recite:'Said out loud',
+  'spell-daily':'Daily Spelling Challenge', 'spell-clock':'Spelling: Beat the Clock', 'spell-test':'Spelling test', 'spell-practice':'Spelling practice'};
+const tablesLabel = (s) => String(s.mode).startsWith('spell') ? `${(s.words || []).length} words` : s.mode === 'daily' || s.pool ? 'Trickiest facts' : (s.tables.length === 12 ? 'All tables' : s.tables.map(t => '×' + t).join(' '));
 
 function hint(a, b){
   const p = a * b;
@@ -389,6 +391,7 @@ async function loadPlayers(){
     S.methods = Object.fromEntries((await Store.list('methods')).map(m => [m.id, m]));
     S.plans = Object.fromEntries((await Store.list('plans')).map(x => [x.id, x]));
     S.gameOK = Object.fromEntries((await Store.list('games')).map(x => [x.id, x]));
+    S.spellLists = Object.fromEntries((await Store.list('spelllists')).map(x => [x.id, x]));
   } catch { S.players = []; toast("Couldn't load players. Reload the page to try again."); }
 }
 async function loadPlayerData(id){
@@ -806,6 +809,7 @@ function weakPairs(p, n){
 function go(to){
   if (S.play && to !== 'play') { quit(); return; }
   if (S.screen === 'recite' && to !== 'recite') reciteStop();
+  if (S.screen === 'splay' && to !== 'splay' && SPL) { SPL.stop(); S.sp = null; }
   if (S.screen === 'game' && (gameTimer || gameInst)) { const demo = !!S.demo; stopGame(); if (!demo) saveProg().catch(saveFail); }
   if (S.reloadSoon && !S.demo && ['home', 'login', 'parent'].includes(to)) { location.reload(); return; }
   if (S.demo && (to === 'home' || to === 'login')) { endDemo(); to = 'parent'; }
@@ -993,7 +997,7 @@ async function finish(abandoned){
 function brandBar(){ return `<header class="top"><div class="brand">${logo()}<span>Times Table Champions</span></div></header>`; }
 function topbar(cur){
   const me = S.me;
-  const tabs = [['home','Home','go'],['progress','My progress','go']];
+  const tabs = [['home','Home','go'],['spell','Spelling','go'],['progress','My progress','go']];
   return `<header class="top"><div class="brand">${logo()}<span>${esc(skin().brand)}</span></div>
     <div class="top-right">
       <span class="sync" id="sync-chip">${esc(syncText())}</span>
@@ -1057,7 +1061,7 @@ function scrHome(){
   </section>
   <div class="grid-home">
     <div class="col">
-      ${gameBanner(p)}${todayCard(p)}
+      ${gameBanner(p)}${todayCard(p)}${SPL ? SPL.homeLine() : ''}
       <div class="extra-h"><h2>Extra practice</h2><p>Not part of today's plan. Play any time for more ${ptsName()}.</p></div>
       <div class="modes">
         ${modeTile('practice', '7×8', 'Practise', 'No timer. Tricks when stuck.', 'mint')}
@@ -1602,7 +1606,7 @@ function scrParent(){
         <button class="btn" type="submit">Change PIN</button></form>
     </div>
     <h2 class="sec">This device</h2>${devicePanel()}`; }
-  const GTABS = [['family', 'Family report'], ['methods', 'Ways to learn'], ['games', 'Reward games'], ['try', 'Try it yourself'], ['settings', 'Settings']];
+  const GTABS = [['family', 'Family report'], ['methods', 'Ways to learn'], ['games', 'Reward games'], ['spelling', 'Spelling words'], ['try', 'Try it yourself'], ['settings', 'Settings']];
   const gt = GTABS.some(t => t[0] === S.gtab) ? S.gtab : 'family';
   const waiting = pls.filter(pl => (pl.theme === 'eras' || pl.theme === 'trail') && !gameApproved(pl)).length;
   return `${head}<section>
@@ -1613,6 +1617,7 @@ function scrParent(){
     ${gt === 'family' ? (pls.length ? `<div class="overview">${overview}</div><h2 class="sec">Reports</h2>${detail}` : '<p class="callout" style="margin-bottom:18px">Add the first player in Settings to get started.</p>') : ''}
     ${gt === 'methods' ? methodsParent() : ''}
     ${gt === 'games' ? gamesParent(pls) : ''}
+    ${gt === 'spelling' ? spellParent(pls) : ''}
     ${gt === 'try' ? demosParent(pls) : ''}
     ${gt === 'settings' ? settingsTab() : ''}
     ${S.v.lightbox ? `<div class="jg-over lightbox" data-act="lightbox"><img data-photo="${esc(S.v.lightbox)}" alt=""></div>` : ''}
@@ -1657,6 +1662,17 @@ async function setGameApproval(id, status){
   try { await Store.set('games/' + id, doc); S.gameOK[id] = doc; toast(status === 'approved' ? `${pl.name}'s game is approved.` : `${pl.name}'s game is on hold.`); } catch { saveFail(); }
   render();
 }
+// Spelling words from school: a grown-up types each child's list; those words are taught first in the Daily Spelling
+// Challenge, ahead of the curriculum's rule words (Sam, 27 Oct 2026).
+function spellParent(pls){
+  return `<h2 class="sec">Spelling words from school</h2>
+    <p class="muted" style="margin:-6px 0 16px">Type this week's school spellings, one per line. Add a sentence after a colon if you like, for example: <b>because: I stayed in because it rained.</b> They are taught first in the Daily Spelling Challenge.</p>
+    <div class="settings">${pls.map(pl => { const cur = ((S.spellLists || {})[pl.id] || {}).words || [];
+      return `<form class="sticker" data-form="spell-list" data-id="${esc(pl.id)}"><h3>${esc(pl.name)}</h3>
+        <label for="sl-${esc(pl.id)}" class="muted small">${cur.length} word${cur.length === 1 ? '' : 's'} saved</label>
+        <textarea id="sl-${esc(pl.id)}" name="words" rows="8" style="width:100%;margin-top:6px" spellcheck="false">${esc(cur.map(x => x.s ? `${x.w}: ${x.s}` : x.w).join('\n'))}</textarea>
+        <div class="row" style="margin-top:10px"><button class="btn small" type="submit">Save ${esc(pl.name)}'s words</button></div></form>`; }).join('')}</div>`;
+}
 // Try it yourself: a grown-up plays as a child on a copy of their data. Nothing is saved, and the reward game opens
 // without a trail (Sam, 24 Oct 2026: "give the grown ups demos to test").
 function demosParent(pls){
@@ -1667,7 +1683,7 @@ function demosParent(pls){
       const sk = SKINS[pl.theme] || SKINS.classic, game = pl.theme === 'eras' ? 'Eras Stadium Show' : pl.theme === 'trail' ? 'Jungle Gold Run' : null;
       const b = (what, label, cls = 'ghost') => `<button class="btn small ${cls}" data-act="demo" data-id="${esc(pl.id)}" data-what="${what}">${esc(label)}</button>`;
       return `<div class="sticker"><div class="ov-head">${avatar(pl, 44)}<h3>As ${esc(pl.name)}</h3></div>
-        <div class="row" style="margin-top:12px">${b('daily', sk.daily, '')}${b('practice', 'Practise')}${b('test', 'Take a test')}${b('clock', 'Beat the Clock')}${b('explore', 'Explore')}${b('recite', 'Say it out loud')}${game ? b('game', game, '') : ''}</div></div>`;
+        <div class="row" style="margin-top:12px">${b('daily', sk.daily, '')}${b('practice', 'Practise')}${b('test', 'Take a test')}${b('clock', 'Beat the Clock')}${b('explore', 'Explore')}${b('recite', 'Say it out loud')}${b('spell', 'Spelling')}${game ? b('game', game, '') : ''}</div></div>`;
     }).join('')}</div>`;
 }
 async function startDemo(id, what){
@@ -1682,6 +1698,7 @@ async function startDemo(id, what){
   else if (what === 'daily') startDaily();
   else if (what === 'explore') go('explore');
   else if (what === 'recite') startRecite();
+  else if (what === 'spell') go('spell');
   else openSetup(what);
 }
 function endDemo(){
@@ -1775,7 +1792,7 @@ function startGame(){
 function stopGame(){ clearInterval(gameTimer); gameTimer = null; if (gameInst) { try { gameInst.destroy(); } catch {} gameInst = null; } }
 
 /* ---------- render ---------- */
-const SCREENS = {recite:scrRecite, game:scrGame, gate:scrGate, loading:scrLoading, login:scrLogin, home:scrHome, setup:scrSetup, play:scrPlay, results:scrResults, progress:scrProgress, explore:scrExplore, parent:scrParent};
+const SCREENS = {spell:() => SPL ? SPL.screens.spell() : scrHome(), splay:() => SPL ? SPL.screens.splay() : scrHome(), sres:() => SPL ? SPL.screens.sres() : scrHome(), recite:scrRecite, game:scrGame, gate:scrGate, loading:scrLoading, login:scrLogin, home:scrHome, setup:scrSetup, play:scrPlay, results:scrResults, progress:scrProgress, explore:scrExplore, parent:scrParent};
 let lastScreen = null;
 function render(){
   app.innerHTML = SCREENS[S.screen]();
@@ -1919,6 +1936,13 @@ const F = {
     S.pdata[id] = {prog: defaultProg(id), logs:[], sessions:[], logins:[]};
     S.okMsg = `Added ${name}. They can sign in from the start screen.`; render();
   },
+  async 'spell-list'(f){
+    const id = f.dataset.id, pl = S.players.find(p => p.id === id); if (!pl) return;
+    const words = f.words.value.split('\n').map(l => l.trim()).filter(Boolean).slice(0, 40).map(l => { const i = l.indexOf(':'); const w = (i < 0 ? l : l.slice(0, i)).trim().replace(/[^A-Za-z'\- ]/g, ''); const s = i < 0 ? '' : l.slice(i + 1).trim(); return {w, s}; }).filter(x => x.w && !/\s/.test(x.w));
+    const doc = {id, words, by: (Device.get() || {}).name || '', at: Date.now()};
+    try { await Store.set('spelllists/' + id, doc); S.spellLists = S.spellLists || {}; S.spellLists[id] = doc; S.okMsg = `Saved ${words.length} spelling word${words.length === 1 ? '' : 's'} for ${pl.name}.`; } catch { saveFail(); }
+    render();
+  },
   async 'add-method'(f){
     const name = f.name.value.trim(), kid = f.kid.value.trim(), ex = f.ex.value.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 5);
     if (!name || !kid) return;
@@ -1934,6 +1958,9 @@ const F = {
   }
 };
 
+const SPL = window.TTCSpell ? window.TTCSpell({get S(){ return S; }, render, go, saveProg, saveLog, ensureLogCur, sound, confetti, toast, esc, dayStr, ptsName, skinId, tierFor,
+  itemsOwned, TRAIL_STOPS, resultItems, topbar, fmtClock, saveFail, yearOf, logo, avatar, medal}) : null;
+if (SPL) Object.assign(A, SPL.actions);
 app.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el || !app.contains(el)) return;
   const fn = A[el.dataset.act]; if (fn) { e.preventDefault(); fn(el, e); }
@@ -1943,6 +1970,7 @@ app.addEventListener('submit', e => {
   const fn = F[e.target.dataset.form]; if (fn) fn(e.target);
 });
 document.addEventListener('keydown', e => {
+  if (SPL && SPL.keydown(e)) { e.preventDefault(); return; }
   if (S.screen !== 'play' || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.target.matches && e.target.matches('input,textarea,select')) return;
   if (/^[0-9]$/.test(e.key)) { press(e.key); e.preventDefault(); }
