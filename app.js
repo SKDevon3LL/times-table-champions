@@ -377,7 +377,10 @@ function methodsKids(){
 }
 
 /* ---------- state ---------- */
+const SUBJ0 = /[?&#]spell/i.test(location.search + location.hash) ? 'spell' : /[?&#]tables/i.test(location.search + location.hash) ? 'maths' : null;
+if (SUBJ0) try { localStorage.setItem('ttc.subject', JSON.stringify(SUBJ0)); } catch {}
 const S = {
+  subject: (() => { try { return JSON.parse(localStorage.getItem('ttc.subject')) === 'spell' ? 'spell' : 'maths'; } catch { return 'maths'; } })(),
   screen:'loading', players:[], family:{rewards:{}}, me:null, prog:null, sessions:[], logins:[], logCur:null,
   play:null, result:null, v:{}, err:null, okMsg:null, parentOK:false, pdata:{}, methods:{}, plans:{}, gameOK:{}, demo:null, sound: ls.get('sound') ?? true
 };
@@ -429,7 +432,7 @@ async function signIn(p, record){
     Promise.all([saveLog(), saveProg()]).catch(saveFail);
   }
   ss.set('me', p.id);
-  S.screen = 'home'; S.v = {}; render(); scrollTo(0, 0);
+  S.screen = S.subject === 'spell' ? 'spell' : 'home'; S.v = {}; render(); scrollTo(0, 0);
 }
 
 /* ---------- pictures ---------- */
@@ -807,6 +810,7 @@ function weakPairs(p, n){
 
 /* ---------- actions ---------- */
 function go(to){
+  if (to === 'home' && S.subject === 'spell' && S.me) to = 'spell';
   if (S.play && to !== 'play') { quit(); return; }
   if (S.screen === 'recite' && to !== 'recite') reciteStop();
   if (S.screen === 'splay' && to !== 'splay' && SPL) { SPL.stop(); S.sp = null; }
@@ -994,15 +998,18 @@ async function finish(abandoned){
 }
 
 /* ---------- screens ---------- */
-function brandBar(){ return `<header class="top"><div class="brand">${logo()}<span>Times Table Champions</span></div></header>`; }
+function brandBar(){ return `<header class="top"><div class="brand">${logo()}<span>${S.subject === 'spell' ? 'Spelling Champions' : 'Times Table Champions'}</span></div></header>`; }
+const subjectPick = () => `<div class="subj" role="group" aria-label="Which app">${[['maths', '7×8', 'Times Tables', 'Practise your tables'], ['spell', 'Abc', 'Spelling', 'Learn your spellings']].map(([k, g, t, sub]) =>
+  `<button class="subj-card ${S.subject === k ? 'on' : ''}" data-act="subject" data-k="${k}" aria-pressed="${S.subject === k}"><span class="glyph">${g}</span><b>${t}</b><span>${sub}</span></button>`).join('')}</div>`;
 function topbar(cur){
   const me = S.me;
-  const tabs = [['home','Home','go'],['spell','Spelling','go'],['progress','My progress','go']];
-  return `<header class="top"><div class="brand">${logo()}<span>${esc(skin().brand)}</span></div>
+  const sp = S.subject === 'spell', tabs = sp ? [['spell','Home','go']] : [['home','Home','go'],['progress','My progress','go']];
+  return `<header class="top"><div class="brand">${logo()}<span>${sp ? 'Spelling Champions' : esc(skin().brand)}</span></div>
     <div class="top-right">
       <span class="sync" id="sync-chip">${esc(syncText())}</span>
       <button class="icon-btn" data-act="sound" aria-pressed="${S.sound}">${S.sound ? 'Sound on' : 'Sound off'}</button>
       <span class="me-chip">${avatar(me, 34)}<span>${esc(me.name)}</span></span>
+      ${S.demo ? '' : `<button class="btn small subj-switch" data-act="subject" data-k="${sp ? 'maths' : 'spell'}">Switch to ${sp ? 'Times Tables' : 'Spelling'}</button>`}
       <button class="btn ghost small" data-act="logout">Sign out</button>
     </div></header>
     <nav class="tabs" aria-label="Main"><div class="tabs-in">${tabs.map(([k, l, a]) => `<button class="tab ${cur === k ? 'on' : ''}" data-act="${a}" data-to="${k}" data-mode="${k}" ${cur === k ? 'aria-current="page"' : ''}>${l}</button>`).join('')}</div></nav>`;
@@ -1014,12 +1021,13 @@ function scrLoading(){ return `${brandBar()}<div class="loading"><div><p class="
 function scrLogin(){
   const lf = S.v.loginFor && S.players.find(p => p.id === S.v.loginFor);
   return `${brandBar()}<section class="login">
-    <div><h1 class="mega">Who's playing today?</h1><p class="lede">Tap your name, then type your PIN.</p></div>
+    ${subjectPick()}
+    <div><h1 class="mega">${S.subject === 'spell' ? 'Spelling: who is it?' : 'Times Tables: who is it?'}</h1><p class="lede">Tap your name, then type your PIN.</p></div>
     ${S.players.length
-      ? `<div class="who">${S.players.map(p => `<button class="who-card ${lf && lf.id === p.id ? 'on' : ''}${notMine(p) ? ' not-mine' : ''}" ${notMine(p) ? 'disabled' : ''} data-act="pick-player" data-id="${esc(p.id)}" style="--c:var(--${esc(p.color || 'sky')})">${avatar(p, 76)}<span class="who-name">${esc(p.name)}</span><span class="who-sub">${notMine(p) ? `On ${esc(p.name)}’s own iPad` : [p.age ? 'Age ' + esc(p.age) : '', SKINS[p.theme] && p.theme !== 'classic' ? esc(SKINS[p.theme].brand) : ''].filter(Boolean).join(' · ') || '&nbsp;'}</span></button>`).join('')}</div>`
+      ? `<div class="who">${S.players.map(p => `<button class="who-card ${lf && lf.id === p.id ? 'on' : ''}${notMine(p) ? ' not-mine' : ''}" ${notMine(p) ? 'disabled' : ''} data-act="pick-player" data-id="${esc(p.id)}" style="--c:var(--${esc(p.color || 'sky')})">${avatar(p, 76)}<span class="who-name">${esc(p.name)}</span><span class="who-sub">${notMine(p) ? `On ${esc(p.name)}’s own iPad` : [p.age ? 'Age ' + esc(p.age) : '', SKINS[p.theme] && p.theme !== 'classic' && S.subject !== 'spell' ? esc(SKINS[p.theme].brand) : ''].filter(Boolean).join(' · ') || '&nbsp;'}</span></button>`).join('')}</div>`
       : `<div class="sticker form"><h2>No players yet</h2><p class="muted">A grown-up can add players in the Grown-ups area. It takes a minute.</p><button class="btn" data-act="go" data-to="parent">Open the Grown-ups area</button></div>`}
     ${lf ? loginForm(lf) : ''}
-    <div class="sticker howvid"><div><h2>New here? Watch how it works</h2><p class="muted">Two and a half minutes with Taylor, your Times Table Coach.</p></div><button class="btn" data-act="howvid">\u25B6 Watch the video</button></div>
+    ${S.subject === 'spell' ? '' : `<div class="sticker howvid"><div><h2>New here? Watch how it works</h2><p class="muted">Two and a half minutes with Taylor, your Times Table Coach.</p></div><button class="btn" data-act="howvid">\u25B6 Watch the video</button></div>`}
     <p class="foot-link"><button class="link" data-act="go" data-to="parent">Grown-ups area</button></p>
   </section>`;
 }
@@ -1061,7 +1069,7 @@ function scrHome(){
   </section>
   <div class="grid-home">
     <div class="col">
-      ${gameBanner(p)}${todayCard(p)}${SPL ? SPL.homeLine() : ''}
+      ${gameBanner(p)}${todayCard(p)}
       <div class="extra-h"><h2>Extra practice</h2><p>Not part of today's plan. Play any time for more ${ptsName()}.</p></div>
       <div class="modes">
         ${modeTile('practice', '7×8', 'Practise', 'No timer. Tricks when stuck.', 'mint')}
@@ -1698,12 +1706,12 @@ async function startDemo(id, what){
   else if (what === 'daily') startDaily();
   else if (what === 'explore') go('explore');
   else if (what === 'recite') startRecite();
-  else if (what === 'spell') go('spell');
+  else if (what === 'spell') { S.subject = 'spell'; go('spell'); }
   else openSetup(what);
 }
 function endDemo(){
   const d = S.demo; if (!d) return;
-  S.demo = null; S.gtab = 'try';
+  S.demo = null; S.gtab = 'try'; S.subject = ls.get('subject') === 'spell' ? 'spell' : 'maths';
   if (S.play) { clearInterval(S.play.timer); S.play = null; }
   S.me = d.me; S.prog = d.prog; S.sessions = d.sessions; S.logins = d.logins; S.logCur = d.logCur;
   applySkin(S.me); S.v = {};
@@ -1834,6 +1842,7 @@ const A = {
   'start-daily': () => startDaily(),
   howvid: () => showHowVideo(),
   'method-step': el => startMethodStep(el.dataset.mode),
+  subject: el => { S.subject = el.dataset.k === 'spell' ? 'spell' : 'maths'; ls.set('subject', S.subject); if (S.me) go(S.subject === 'spell' ? 'spell' : 'home'); else render(); },
   recite: () => startRecite(),
   'recite-go': el => startRecite(+el.dataset.t),
   'recite-stop': () => { reciteStop(); S.v.rc = {mode: 'pick'}; render(); },

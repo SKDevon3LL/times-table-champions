@@ -95,6 +95,11 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webk
 /* login */
 .login{display:grid;gap:28px;padding-top:12px}
 .lede{font-size:19px;color:var(--muted);margin-top:10px}
+.subj{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:22px}
+.subj-card{border:3px solid var(--line);border-radius:18px;background:var(--card);padding:16px;display:grid;gap:4px;justify-items:start;text-align:left;cursor:pointer;color:var(--ink);font:inherit}
+.subj-card .glyph{font-family:var(--display);font-size:30px}.subj-card b{font-size:22px}.subj-card span:last-child{opacity:.75}
+.subj-card.on{background:color-mix(in srgb,var(--sun) 75%,var(--card));box-shadow:5px 5px 0 var(--shadow)}
+.subj-switch{white-space:nowrap}
 .who{display:flex;gap:18px;flex-wrap:wrap}
 .who-card{display:flex;flex-direction:column;align-items:center;gap:8px;min-width:170px;flex:1 1 170px;max-width:260px;background:var(--card);border:2.5px solid var(--line);border-radius:22px;box-shadow:5px 5px 0 var(--shadow);padding:24px 16px;transition:transform .12s}
 .who-card:hover{transform:rotate(-1.5deg) translateY(-3px)}
