@@ -231,6 +231,10 @@ function tableMastery(p, t){ let s = 0; for (let k = 1; k <= 12; k++) s += level
 function strongCount(p, t){ let s = 0; for (let k = 1; k <= 12; k++) if (level(p.facts[fkey(t, k)]) >= 3) s++; return s; }
 function overallMastery(p){ let s = 0; for (const k of ALLKEYS) s += level(p.facts[k]); return s / (ALLKEYS.length * 4); }
 function tableStats(p, t){ let n = 0, c = 0; for (let k = 1; k <= 12; k++) { const f = p.facts[fkey(t, k)]; if (f) { n += f.n; c += f.c; } } return {n, c, acc: n ? c / n : null}; }
+// Square times (Sam, 28 Oct 2026): the twelve square numbers, 1 × 1 to 12 × 12, as a set of their own in Practise, Test
+// and Beat the Clock (cfg.sq). They join whichever tables are picked as well, or play on their own.
+const SQUARES = ALL.map(n => [n, n]);
+const sqStrong = p => ALL.filter(n => level(p.facts[fkey(n, n)]) >= 3).length;
 function updateFact(key, ok, ms){
   const f = S.prog.facts[key] || (S.prog.facts[key] = {n:0, c:0, s:0, ms:0, t:0});
   f.n++; f.t = Date.now();
@@ -288,10 +292,13 @@ const yearOf = pl => (pl && pl.year) || Math.min(8, Math.max(3, ((pl && pl.age) 
 // The weekly plan for each child, written every Sunday by the weekly report (plans/<id>): which tables to focus on, how
 // hard the Daily Challenge mixes, the week's targets and a line for the child. It only counts in the week it was written for.
 const planFor = pl => { const x = pl && S.plans[pl.id]; return x && x.week === challengeWeek() ? x : null; };
+// This week's feature exercise, a card on the home page for one week of the challenge (Sam, 28 Oct 2026: square times in week 2).
+const FEATURES = {2: 'squares'};
+const featureNow = () => FEATURES[challengeWeek()] || null;
 const prizeTotal = p => TIERS.reduce((s, t) => s + (p.prizes[t.id] || 0), 0);
 const MODE_NAMES = {practice:'Practice', test:'Test', clock:'Beat the Clock', daily:'Daily Challenge', recite:'Said out loud',
   'spell-daily':'Daily Spelling Challenge', 'spell-clock':'Spelling: Beat the Clock', 'spell-test':'Spelling test', 'spell-practice':'Spelling practice'};
-const tablesLabel = (s) => String(s.mode).startsWith('spell') ? `${(s.words || []).length} words` : s.mode === 'daily' || s.pool ? 'Trickiest facts' : (s.tables.length === 12 ? 'All tables' : s.tables.map(t => '×' + t).join(' '));
+const tablesLabel = (s) => String(s.mode).startsWith('spell') ? `${(s.words || []).length} words` : s.mode === 'daily' || s.pool ? 'Trickiest facts' : [s.sq ? 'Square times' : '', s.tables.length === 12 ? 'All tables' : s.tables.map(t => '×' + t).join(' ')].filter(Boolean).join(' + ');
 
 function hint(a, b){
   const p = a * b;
@@ -541,8 +548,8 @@ function recommendations(p, sessions){
     out.push({text:`You know ${fmtKey(slow[0].k)}, but it takes ${Math.round(slow[0].f.ms/1000)} seconds. Beat the Clock!`, mode:'clock', tables: tabs.length ? tabs : [2,5,10], cta:'Beat the Clock'});
   }
   const lastTest = [...sessions].reverse().find(s => s.mode === 'test' && !s.ab);
-  if (lastTest && lastTest.pct < 70) out.push({text:`Last test ${lastTest.pct}%. Practise, then aim for 70%.`, mode:'practice', tables:lastTest.tables, cta:'Practise them'});
-  else if (lastTest && lastTest.pct < 100) { const nt = nextTier(lastTest.pct); out.push({text:`Last test ${lastTest.pct}%. Get ${nt.min}% for a ${nt.name}.`, mode:'test', tables:lastTest.tables, cta:'Try that test again'}); }
+  if (lastTest && lastTest.pct < 70) out.push({text:`Last test ${lastTest.pct}%. Practise, then aim for 70%.`, mode:'practice', tables:lastTest.tables, sq:lastTest.sq, cta:'Practise them'});
+  else if (lastTest && lastTest.pct < 100) { const nt = nextTier(lastTest.pct); out.push({text:`Last test ${lastTest.pct}%. Get ${nt.min}% for a ${nt.name}.`, mode:'test', tables:lastTest.tables, sq:lastTest.sq, cta:'Try that test again'}); }
   const next = TEACH_ORDER.find(t => t !== 1 && tableStats(p, t).n === 0);
   if (next) out.push({text:`Try the ${next}s next.`, mode:'practice', tables:[next], cta:`Start the ${next}s`});
   if (overallMastery(p) >= .85 && !p.prizes.diamond) out.push({text:'Nearly expert! Go for 100% on all tables.', mode:'test', tables:ALL, cta:'All-tables test'});
@@ -565,7 +572,7 @@ function weeklyGoals(p, sessions, player){
 // A test wins a trophy only when it includes a table that is not strong yet (Sam, 24 Oct 2026: no collecting trophies on
 // the easy 10s). Once every table is strong, any test can win one. The Daily Challenge always can: it picks their weakest facts.
 const notStrong = (p, tables) => tables.filter(t => t !== 1 && strongCount(p, t) < 12);
-const trophyTest = (p, tables) => notStrong(p, tables).length > 0 || notStrong(p, ALL).length === 0;
+const trophyTest = (p, tables, sq) => notStrong(p, tables).length > 0 || (!!sq && sqStrong(p) < 12) || notStrong(p, ALL).length === 0;
 // Which tables are strong (all 12 facts strong) and which need practice, shown plainly on the home and progress pages and
 // on the table chips (Sam, 24 Oct 2026). A table to practise is a button that starts a Practice round on it.
 function tablesSplit(p){
@@ -820,23 +827,26 @@ function go(to){
   if (to === 'parent' && isParentDevice() && !S.parentOK) { S.parentOK = true; setTimeout(loadParentData, 0); }
   S.screen = to; S.err = null; S.okMsg = null; render(); scrollTo(0, 0);
 }
-function cfgFor(mode, tables){
+function cfgFor(mode, tables, sq){
   const saved = ls.get(`cfg.${mode}.${S.me.id}`) || {};
   const c = Object.assign({tables:[2,5,10], count: mode === 'practice' ? 30 : 20, miss:false, div:false}, saved);
   S.v.suggested = null;
-  if (tables && tables.length) c.tables = tables.slice();
-  else if (mode !== 'clock') { const t = focusTable(S.prog); if (t) { c.tables = [t]; S.v.suggested = t; } }
+  if (sq || (tables && tables.length)) { c.tables = (tables || []).slice(); c.sq = !!sq; }
+  else if (mode !== 'clock') { const t = focusTable(S.prog); if (t) { c.tables = [t]; c.sq = false; S.v.suggested = t; } }
   return c;
 }
-function openSetup(mode, tables){ S.v.mode = mode; S.v.cfg = cfgFor(mode, tables); go('setup'); }
+function openSetup(mode, tables, sq){ S.v.mode = mode; S.v.cfg = cfgFor(mode, tables, sq); go('setup'); }
+// Beat the Clock keeps a best for each set of tables and question types; square times count as one more table ('sq').
+const clockKey = (tables, sq, kinds) => [...tables.slice().sort((a, b) => a - b), ...(sq ? ['sq'] : [])].join('-') + '|' + kinds.join('');
+const sqBest = p => Object.entries(p.bests || {}).filter(([k]) => k.startsWith('sq|')).reduce((m, [, v]) => Math.max(m, v.score), 0);
 
 function startPlay(mode, cfg, pool){
   const kinds = mode === 'daily' ? dailyKinds() : ['mul', ...(cfg.miss ? ['miss'] : []), ...(cfg.div ? ['div'] : [])];
-  const P = {mode, cfg: clone(cfg), tables: cfg.tables.slice().sort((a, b) => a - b), kinds, pool: pool || null,
+  const P = {mode, cfg: clone(cfg), tables: cfg.tables.slice().sort((a, b) => a - b), sq: !pool && !!cfg.sq, kinds, pool: pool || null,
     total: cfg.method ? METHOD_QS : mode === 'test' || mode === 'practice' ? (cfg.count || (mode === 'practice' ? 30 : 20)) : mode === 'daily' ? 15 : null,
     answers:[], correct:0, streak:0, best:0, input:'', start:Date.now(), fb:null, hint:null, retry:false, locked:false, done:false};
-  if (mode === 'clock') P.bestKey = P.tables.join('-') + '|' + P.kinds.join('');
-  if (mode === 'test') P.trophyOK = trophyTest(S.prog, P.tables);
+  if (mode === 'clock') P.bestKey = clockKey(P.tables, P.sq, P.kinds);
+  if (mode === 'test') P.trophyOK = trophyTest(S.prog, P.tables, P.sq);
   if (mode !== 'daily' && !pool && !cfg.method && !S.demo) ls.set(`cfg.${mode}.${S.me.id}`, cfg);
   S.play = P; S.screen = 'play';
   if (mode === 'clock') { P.endsAt = Date.now() + 60000; P.timer = setInterval(tick, 100); }
@@ -858,7 +868,7 @@ function startDaily(){
 }
 
 function pickPair(P){
-  const pool = P.pool || P.tables.flatMap(t => ALL.map(k => [t, k]));
+  const pool = P.pool || [...P.tables.flatMap(t => ALL.map(k => [t, k])), ...(P.sq ? SQUARES.filter(([n]) => !P.tables.includes(n)) : [])];
   // Weak facts come up more, but never one of the last 3 asked, and each time a fact has come up this round it gets less likely.
   const recent = P.answers.slice(-3).map(x => x.k), asked = {}; for (const x of P.answers) asked[x.k] = (asked[x.k] || 0) + 1;
   const w = pool.map(([a, b]) => { const k = fkey(a, b); let x = [6,5,4,2,1][level(S.prog.facts[k])] / (1 + 2 * (asked[k] || 0)); if (k === P.lastKey || (recent.includes(k) && pool.length > 4)) x = .02; return x; });
@@ -987,6 +997,7 @@ async function finish(abandoned){
   const wrong = uniq(P.answers.filter(a => !a.ok).map(a => a.k)).slice(0, 12);
   const entry = {t:P.start, mode:P.mode, tables:P.tables, n, c, pct, ms, prize: prize ? prize.id : null, xp, wrong};
   if (P.pool) entry.pool = true;
+  if (P.sq) entry.sq = true;
   if (P.cfg && P.cfg.method) entry.method = P.cfg.method;
   if (abandoned) entry.ab = true;
   S.sessions.push(entry); ensureLogCur(); S.logCur.sessions.push(entry);
@@ -1069,7 +1080,7 @@ function scrHome(){
   </section>
   <div class="grid-home">
     <div class="col">
-      ${gameBanner(p)}${todayCard(p)}
+      ${gameBanner(p)}${todayCard(p)}${featureCard(p)}
       <div class="extra-h"><h2>Extra practice</h2><p>Not part of today's plan. Play any time for more ${ptsName()}.</p></div>
       <div class="modes">
         ${modeTile('practice', '7×8', 'Practise', 'No timer. Tricks when stuck.', 'mint')}
@@ -1088,7 +1099,19 @@ function scrHome(){
   </div>`;
 }
 const modeTile = (mode, glyph, title, sub, col) => `<button class="mode" style="--c:var(--${col})" data-act="${mode === 'explore' ? 'go' : 'setup'}" data-to="${mode}" data-mode="${mode}"><span class="glyph">${glyph}</span><b>${title}</b><span>${sub}</span></button>`;
-const recItem = r => `<li><p>${esc(r.text)}</p>${r.mode ? `<button class="btn small" data-act="rec" data-mode="${r.mode}" data-tables="${r.tables.join(',')}">${esc(r.cta)}</button>` : ''}</li>`;
+const recItem = r => `<li><p>${esc(r.text)}</p>${r.mode ? `<button class="btn small" data-act="rec" data-mode="${r.mode}" data-tables="${r.tables.join(',')}"${r.sq ? ' data-sq="1"' : ''}>${esc(r.cta)}</button>` : ''}</li>`;
+// This week's feature on the home page: the twelve squares coloured like the times-table map, the best Beat the Clock
+// score on them, and a button for each way to play that starts at once.
+function featureCard(p){
+  if (featureNow() !== 'squares') return '';
+  const n = sqStrong(p), best = sqBest(p);
+  const sq = ALL.map(k => { const l = level(p.facts[fkey(k, k)]); return `<span class="lv${l}" title="${k} × ${k} = ${k * k}: ${LEVEL_NAMES[l]}">${k * k}</span>`; }).join('');
+  return `<div class="sticker feature"><div><p class="eyebrow">This week's feature</p><h2>Square times</h2>
+    <p>A number times itself, from 1 × 1 to 12 × 12. Each one makes a square of dots: 7 × 7 is 7 rows of 7.</p></div>
+    <div class="sq-row" role="img" aria-label="The twelve square numbers: ${n} of 12 strong">${sq}</div>
+    <p class="muted small">${n} of 12 strong. Green means you know it.${best ? ` Your Beat the Clock best: <b>${best}</b>.` : ''}</p>
+    <div class="row"><button class="btn" data-act="feature" data-mode="practice">Practise</button><button class="btn" data-act="feature" data-mode="clock">Beat the Clock</button><button class="btn" data-act="feature" data-mode="test">Take a test</button></div></div>`;
+}
 
 /* ---------- collections: Jessica's era dresses, Hughie's survival kit ---------- */
 // One item per trophy won, in order. Album colours and Eras Tour looks researched 24 Oct 2026.
@@ -1294,12 +1317,14 @@ function scrSetup(){
     test:['Take a test', '70% Bronze, 80% Silver, 90% Gold, 100% Diamond.'],
     clock:['Beat the Clock', 'As many as you can in 60 seconds.']
   }[m];
-  const best = m === 'clock' ? S.prog.bests[c.tables.slice().sort((a, b) => a - b).join('-') + '|' + ['mul', ...(c.miss ? ['miss'] : []), ...(c.div ? ['div'] : [])].join('')] : null;
+  const best = m === 'clock' ? S.prog.bests[clockKey(c.tables, c.sq, ['mul', ...(c.miss ? ['miss'] : []), ...(c.div ? ['div'] : [])])] : null;
+  const any = c.tables.length || c.sq, sqSt = sqStrong(S.prog) === 12;
   return `${topbar(m)}<section class="setup">
     <div><h1 class="mega sm">${info[0]}</h1><p class="lede">${info[1]}</p></div>
     <div class="sticker" style="display:grid;gap:18px">
       <div><div class="card-h"><h3>Which times tables?</h3><div class="row"><button class="btn ghost small" data-act="all-tables">All</button><button class="btn ghost small" data-act="clear-tables">Clear</button></div></div>
-        <div class="chips">${ALL.map(t => { const st = t !== 1 && strongCount(S.prog, t) === 12; return `<button class="tchip ${c.tables.includes(t) ? 'on' : ''} ${st ? 'strong' : ''}" data-act="toggle-table" data-t="${t}" aria-pressed="${c.tables.includes(t)}" aria-label="${t} times table${st ? ', strong' : ', needs practice'}${tablePts(t) > 10 ? `, ${tablePts(t)} points a right answer` : ''}">×${t}${st ? ' \u2713' : ''}${tablePts(t) > 10 ? `<small class="up">+${(tablePts(t) - 10) * 10}%</small>` : ''}</button>`; }).join('')}</div>
+        <div class="chips">${ALL.map(t => { const st = t !== 1 && strongCount(S.prog, t) === 12; return `<button class="tchip ${c.tables.includes(t) ? 'on' : ''} ${st ? 'strong' : ''}" data-act="toggle-table" data-t="${t}" aria-pressed="${c.tables.includes(t)}" aria-label="${t} times table${st ? ', strong' : ', needs practice'}${tablePts(t) > 10 ? `, ${tablePts(t)} points a right answer` : ''}">×${t}${st ? ' \u2713' : ''}${tablePts(t) > 10 ? `<small class="up">+${(tablePts(t) - 10) * 10}%</small>` : ''}</button>`; }).join('')}
+          <button class="tchip ${c.sq ? 'on' : ''} ${sqSt ? 'strong' : ''}" data-act="toggle-sq" aria-pressed="${!!c.sq}" aria-label="Square times, 1 × 1 to 12 × 12${sqSt ? ', strong' : ', needs practice'}">Squares${sqSt ? ' ✓' : ''}<small class="up">1×1 to 12×12</small></button></div>
         <p class="muted small" style="margin-top:8px">\u2713 = strong already.</p>
         <p class="muted small" style="margin-top:4px">Harder tables earn more ${ptsName()}.</p>
         ${S.v.suggested && c.tables.length === 1 && c.tables[0] === S.v.suggested ? `<p class="muted small" style="margin-top:10px">We picked the ${S.v.suggested}s for you.</p>` : ''}</div>
@@ -1307,9 +1332,9 @@ function scrSetup(){
       <div style="display:grid;gap:6px"><h3>Extra question types</h3>
         <button class="toggle" data-act="toggle-kind" data-k="miss" aria-pressed="${!!c.miss}"><span class="sw"></span>Missing numbers, like 6 × ? = 42</button>
         <button class="toggle" data-act="toggle-kind" data-k="div" aria-pressed="${!!c.div}"><span class="sw"></span>Division, like 42 ÷ 6 = ?</button></div>
-      ${m === 'test' && c.tables.length ? (trophyTest(S.prog, c.tables) ? `<p class="callout mint">This test can win a trophy.</p>` : `<p class="callout">Already strong, so no trophy. Add ${(t => t ? `the ${t}s` : 'a table that is not strong yet')(focusTable(S.prog))} to win one.</p>`) : ''}
+      ${m === 'test' && any ? (trophyTest(S.prog, c.tables, c.sq) ? `<p class="callout mint">This test can win a trophy.</p>` : `<p class="callout">Already strong, so no trophy. Add ${(t => t ? `the ${t}s` : 'a table that is not strong yet')(focusTable(S.prog))} to win one.</p>`) : ''}
       ${m === 'clock' ? `<p class="callout ${best ? 'mint' : ''}">${best ? `Your best with these tables: <b>${best.score}</b> in 60 seconds (${fmtDate(best.t)}). Can you beat it?` : 'No score yet with these tables. Set your first record!'}</p>` : ''}
-      <div><button class="btn big" data-act="start" ${c.tables.length ? '' : 'disabled'}>${c.tables.length ? 'Start' : 'Pick at least one table'}</button></div>
+      <div><button class="btn big" data-act="start" ${any ? '' : 'disabled'}>${any ? 'Start' : 'Pick at least one table'}</button></div>
     </div></section>`;
 }
 
@@ -1850,7 +1875,9 @@ const A = {
   'pick-player': el => { const pl = S.players.find(x => x.id === el.dataset.id); if (!pl || notMine(pl)) return; S.v.loginFor = el.dataset.id; S.v.email = ''; S.err = null; S.focusNext = true; render(); },
   'toggle-table': el => { const t = +el.dataset.t, c = S.v.cfg; c.tables = c.tables.includes(t) ? c.tables.filter(x => x !== t) : [...c.tables, t].sort((a, b) => a - b); render(); },
   'all-tables': () => { S.v.cfg.tables = ALL.slice(); render(); },
-  'clear-tables': () => { S.v.cfg.tables = []; render(); },
+  'clear-tables': () => { S.v.cfg.tables = []; S.v.cfg.sq = false; render(); },
+  'toggle-sq': () => { S.v.cfg.sq = !S.v.cfg.sq; render(); },
+  feature: el => { const m = el.dataset.mode; startPlay(m, cfgFor(m, [], true)); },
   'set-count': el => { S.v.cfg.count = +el.dataset.n; render(); },
   'toggle-kind': el => { const k = el.dataset.k; S.v.cfg[k] = !S.v.cfg[k]; render(); },
   start: () => startPlay(S.v.mode, S.v.cfg),
@@ -1870,7 +1897,7 @@ const A = {
   'practise-mistakes': () => { const r = S.result; const pairs = uniq(r.answers.filter(a => !a.ok).map(a => a.k)).map(k => k.split('x').map(Number)); startPlay('practice', {tables: uniq(pairs.flat()), count:10, miss:false, div:false}, pairs); },
   rec: el => {
     const m = el.dataset.mode, t = (el.dataset.tables || '').split(',').filter(Boolean).map(Number);
-    if (m === 'explore') go('explore'); else if (m === 'daily') startDaily(); else openSetup(m, t);
+    if (m === 'explore') go('explore'); else if (m === 'daily') startDaily(); else openSetup(m, t, !!el.dataset.sq);
   },
   sound: () => { S.sound = !S.sound; ls.set('sound', S.sound); render(); },
   logout: () => { if (S.demo) { go('home'); return; } if (S.play) { clearInterval(S.play.timer); S.play = null; } S.me = null; S.prog = null; S.parentOK = false; ss.del('me'); S.v = {}; applySkin(null); go('login'); },

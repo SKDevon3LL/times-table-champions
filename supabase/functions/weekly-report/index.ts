@@ -45,17 +45,19 @@ const yearOf = (pl: any) => pl.year || Math.min(8, Math.max(3, (pl.age || 9) - 4
 // many times"). Counted here from the session log, never by the model.
 const tablesText = (ts: number[]) => ts.length === 0 ? "" : ts.length >= 11 ? "all tables" : ts.map(t => `${t}s`).join(", ");
 function activity(sessions: any[], prog: any, start: number, methodNames: Record<string, string>) {
-  const rows = new Map<string, {name: string, times: number, tables: Set<number>, mixed: boolean}>();
+  const rows = new Map<string, {name: string, times: number, tables: Set<number>, mixed: boolean, squares: boolean}>();
   for (const s of sessions) {
     if (s.ab) continue;
     const name = s.mode === "daily" ? "Daily Challenge" : s.mode === "recite" ? "Said out loud (a whole table)" : s.mode === "test" ? "Test" : s.mode === "clock" ? "Beat the Clock"
       : s.method ? `Way to learn: ${methodNames[s.method] || s.method}` : "Practise";
-    const r = rows.get(name) || {name, times: 0, tables: new Set<number>(), mixed: s.mode === "daily"};
+    const r = rows.get(name) || {name, times: 0, tables: new Set<number>(), mixed: s.mode === "daily", squares: false};
     r.times++; if (s.mode !== "daily") for (const t of s.tables || []) r.tables.add(t);
+    if (s.sq) r.squares = true;   // square times, 1 × 1 to 12 × 12 (Sam, 28 Oct 2026)
     rows.set(name, r);
   }
   const explored = Object.values(prog.bonus || {}).filter((v: any) => ((v.steps || {}).explore || v.explore) >= start).length;
-  const out = [...rows.values()].map(r => ({name: r.name, times: r.times, tables: r.mixed ? "their trickiest facts, mixed" : tablesText([...r.tables].sort((a, b) => a - b))}));
+  const out = [...rows.values()].map(r => ({name: r.name, times: r.times, tables: r.mixed ? "their trickiest facts, mixed"
+    : [r.squares ? "square times (1 × 1 to 12 × 12)" : "", tablesText([...r.tables].sort((a, b) => a - b))].filter(Boolean).join(", ")}));
   if (explored) out.push({name: "Explore (5 facts, in the Bonus Round)", times: explored, tables: ""});
   const order = ["Daily Challenge", "Said out loud", "Beat the Clock", "Explore", "Way to learn", "Test", "Practise"];
   return out.sort((a, b) => order.findIndex(o => a.name.startsWith(o)) - order.findIndex(o => b.name.startsWith(o)));
@@ -65,7 +67,7 @@ function weekStats(pl: any, prog: any, sessions: any[], plan: any, start: number
   const wk = sessions.filter(s => s.t >= start && !String(s.mode).startsWith("spell"));   // spelling has its own email
   const q = wk.reduce((s, x) => s + (x.n || 0), 0), c = wk.reduce((s, x) => s + (x.c || 0), 0);
   const days = new Set(wk.map(s => new Date(s.t + 3600e3).toISOString().slice(0, 10))).size;
-  const tests = wk.filter(s => s.mode === "test" && !s.ab).map(s => ({pct: s.pct, tables: s.tables}));
+  const tests = wk.filter(s => s.mode === "test" && !s.ab).map(s => ({pct: s.pct, tables: s.tables, ...(s.sq ? {squares: true} : {})}));
   const trophies = (prog.prizeLog || []).filter((x: any) => x.t >= start);
   const facts = prog.facts || {};
   const tried = Object.entries(facts).filter(([, f]: any) => f.n >= 2);
