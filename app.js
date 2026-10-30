@@ -292,8 +292,8 @@ const yearOf = pl => (pl && pl.year) || Math.min(8, Math.max(3, ((pl && pl.age) 
 // The weekly plan for each child, written every Sunday by the weekly report (plans/<id>): which tables to focus on, how
 // hard the Daily Challenge mixes, the week's targets and a line for the child. It only counts in the week it was written for.
 const planFor = pl => { const x = pl && S.plans[pl.id]; return x && x.week === challengeWeek() ? x : null; };
-// This week's feature exercise, a card on the home page for one week of the challenge (Sam, 28 Oct 2026: square times in week 2).
-const FEATURES = {2: 'squares'};
+// This week's feature exercise, a card on the home page for one week of the challenge (Sam, 28 Oct 2026: square times in week 2; Sam, 30 Oct 2026: and week 3).
+const FEATURES = {2: 'squares', 3: 'squares'};
 const featureNow = () => FEATURES[challengeWeek()] || null;
 const prizeTotal = p => TIERS.reduce((s, t) => s + (p.prizes[t.id] || 0), 0);
 const MODE_NAMES = {practice:'Practice', test:'Test', clock:'Beat the Clock', daily:'Daily Challenge', recite:'Said out loud',
