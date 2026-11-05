@@ -609,16 +609,18 @@ const bonusToday = p => (p.bonus || {})[dayStr()] || null;
 // every table said three times opens the reward game.
 // Since 5 Nov 2026 (Abbey): today's work needs EVERY table said out loud that day, not just one. The counts start again each week, and after the game's 30 minutes.
 const RECITE_RUN = 3, RECITE_SIX = 6, RECITE_GAME = 3;
+// Since 5 Nov 2026 (Abbey): the 1 times table is not said out loud; the exercise covers the 2s to the 12s.
+const RECITE_TABLES = ALL.filter(t => t !== 1);
 // A personal best pays twice the table's points; the first time a table is said only sets the mark.
 const reciteBest = (p, t) => ((p.reciteBest || {})[t] || null);
 const fmtClock = ms => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${pad2(s % 60)}`; };
 const reciteCount = (p, table, t0 = weekStart()) => (p.recites || []).filter(x => x.t >= t0 && x.table === table).length;
-const saidToday = p => new Set((p.recites || []).filter(x => dayStr(x.t) === dayStr()).map(x => x.table));
-const reciteLeftToday = p => { const d = saidToday(p); return ALL.filter(t => !d.has(t)); };
+const saidToday = p => new Set((p.recites || []).filter(x => dayStr(x.t) === dayStr() && RECITE_TABLES.includes(x.table)).map(x => x.table));
+const reciteLeftToday = p => { const d = saidToday(p); return RECITE_TABLES.filter(t => !d.has(t)); };
 const recitedToday = p => reciteLeftToday(p).length === 0;
-const reciteAllDone = p => ALL.every(t => reciteCount(p, t, trailStart(p)) >= RECITE_GAME);
+const reciteAllDone = p => RECITE_TABLES.every(t => reciteCount(p, t, trailStart(p)) >= RECITE_GAME);
 const workDone = p => todayDone(p) && recitedToday(p);
-const reciteSuggest = p => (reciteLeftToday(p).length ? reciteLeftToday(p) : ALL).slice().sort((a, b) => reciteCount(p, a, trailStart(p)) - reciteCount(p, b, trailStart(p)) || TEACH_ORDER.indexOf(a) - TEACH_ORDER.indexOf(b))[0];
+const reciteSuggest = p => (reciteLeftToday(p).length ? reciteLeftToday(p) : RECITE_TABLES).slice().sort((a, b) => reciteCount(p, a, trailStart(p)) - reciteCount(p, b, trailStart(p)) || TEACH_ORDER.indexOf(a) - TEACH_ORDER.indexOf(b))[0];
 // Numbers in what was heard: digits, words ("a hundred and forty four") and the chanted plurals ("seven eights").
 const NUMW = {zero:0, one:1, won:1, two:2, too:2, three:3, four:4, five:5, six:6, seven:7, eight:8, ate:8, nine:9, ten:10, eleven:11, twelve:12,
   thirteen:13, fourteen:14, fifteen:15, sixteen:16, seventeen:17, eighteen:18, nineteen:19,
@@ -717,23 +719,23 @@ function reciteKey(k){
 function scrRecite(){
   const rc = S.v.rc || (S.v.rc = {mode: 'pick'}), p = S.prog, pts = ptsName(), top = `<header class="top"><div class="brand">${logo()}<span>${esc(skin().brand)}</span></div><div class="top-right"><span class="me-chip">${avatar(S.me, 34)}<span>${esc(S.me.name)}</span></span></div></header>`;
   if (rc.mode === 'pick') {
-    const sug = reciteSuggest(p), t0 = trailStart(p), all = reciteAllDone(p), today = saidToday(p), left = ALL.length - today.size;
-    const tiles = ALL.map(t => { const n = reciteCount(p, t, t0), wk = reciteCount(p, t);
+    const sug = reciteSuggest(p), t0 = trailStart(p), all = reciteAllDone(p), today = saidToday(p), left = RECITE_TABLES.length - today.size;
+    const tiles = RECITE_TABLES.map(t => { const n = reciteCount(p, t, t0), wk = reciteCount(p, t);
       return `<button class="rc-tile ${t === sug ? 'sug' : ''} ${n >= RECITE_GAME ? 'full' : ''} ${today.has(t) ? 'today' : ''}" data-act="recite-go" data-t="${t}" aria-label="The ${t} times table, ${today.has(t) ? 'said today, ' : ''}said ${wk} times this week"><b>${today.has(t) ? '✓ ' : ''}×${t}</b><span class="rc-dots" aria-hidden="true">${[0, 1, 2].map(i => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>${wk ? `<small>${wk} this week</small>` : ''}${reciteBest(p, t) ? `<small>Best ${fmtClock(reciteBest(p, t).ms)}</small>` : ''}</button>`; }).join('');
     return `${topbar('')}<div class="parent-head"><div><p class="eyebrow">Today's work</p><h1 class="mega sm">Say it out loud</h1><p class="lede">Say every table today. Say each line, like "2 times 3 is 6". It goes green when I hear you.</p></div></div>
-      <p class="callout ${left ? '' : 'mint'}">${left ? `<b>${today.size} of ${ALL.length}</b> said today. ${left} to go.` : `All ${ALL.length} tables said today!`}</p>
+      <p class="callout ${left ? '' : 'mint'}">${left ? `<b>${today.size} of ${RECITE_TABLES.length}</b> said today. ${left} to go.` : `All ${RECITE_TABLES.length} tables said today!`}</p>
       <ul class="rc-rules"><li>Beat your best time: <b>bonus ${pts}</b></li><li>3 in a row: <b>bonus ${pts}</b></li><li>6 times this week: <b>more ${pts}</b></li><li>Every table 3 times: <b>${skinId() === 'classic' ? 'a star week' : 'your game opens'}</b></li></ul>
       ${all && skinId() !== 'classic' ? `<p class="callout mint">Every table said 3 times this week!${gameOpen(p) ? ` <button class="btn small" data-act="game">Play now</button>` : gameApproved(S.me) ? '' : ' Your game is waiting for a grown-up to approve it.'}</p>` : ''}
       <div class="rc-tiles">${tiles}</div>`;
   }
   if (rc.mode === 'end') {
-    const run = S.v.rcRun || {n: 1}, left = RECITE_RUN - run.n, after = ALL.filter(t => reciteCount(p, t, trailStart(p)) < RECITE_GAME).length;
+    const run = S.v.rcRun || {n: 1}, left = RECITE_RUN - run.n, after = RECITE_TABLES.filter(t => reciteCount(p, t, trailStart(p)) < RECITE_GAME).length;
     return `${topbar('')}<section class="results"><div class="res-body">
       <p class="eyebrow">Said out loud · ×${rc.table}</p><h1 class="mega sm">You said the ${rc.table} times table!</h1>
       <div><span class="score num">${fmtClock(rc.pb.ms)}</span> <span class="muted" style="font-weight:800">${rc.pb.first ? 'Your first time. Beat it next time for bonus ' + pts + '!' : rc.pb.prev ? `Your best was ${fmtClock(rc.pb.prev)}` : `Your best is ${fmtClock(rc.pb.best)}`}</span></div>
       ${run.n > 1 ? `<p class="chip">${run.n} in a row</p>` : ''}
       ${rc.got.map(g => `<p class="callout mint">${esc(g)}</p>`).join('')}
-      ${rc.allToday ? `<p class="callout mint">All ${ALL.length} tables said today! ${todayDone(p) ? "Today's work done! Now the Bonus Round." : `Now do ${esc(skin().daily)} to finish today's work.`}</p>`
+      ${rc.allToday ? `<p class="callout mint">All ${RECITE_TABLES.length} tables said today! ${todayDone(p) ? "Today's work done! Now the Bonus Round." : `Now do ${esc(skin().daily)} to finish today's work.`}</p>`
         : rc.leftToday ? `<p class="callout">${rc.leftToday} table${rc.leftToday === 1 ? '' : 's'} still to say today.</p>` : ''}
       ${rc.unlocked ? (gameApproved(S.me) ? `<div class="callout mint unlock"><div><b>Every table said 3 times!</b> The ${gameName()} is open.</div><button class="btn" data-act="game">Play now</button></div>` : `<p class="callout"><b>Every table said 3 times!</b> Your ${gameName()} is waiting for a grown-up to approve it.</p>`) : ''}
       ${left > 0 ? `<p class="muted">Say it ${left === 1 ? 'once more' : `${left} more times`} for bonus ${pts}.</p>` : ''}
@@ -800,7 +802,7 @@ function todayCard(p){
   const row = (n, name, sub, state, btn) => `<li class="${state}"><span class="n" aria-hidden="true">${state === 'done' ? '✓' : n}</span><div><b>${esc(name)}</b><small>${esc(sub)}</small></div>${btn}</li>`;
   const btn = (act, mode, label) => `<button class="btn" data-act="${act}" data-to="${mode}" data-mode="${mode}">${label}</button>`;
   const rows = [row(1, dn, dDone ? `Done today: ${d.pct}%.` : d ? `Best today ${d.pct}%. Get 80% to finish.` : `15 tricky facts. 80% = +50 ${pts}.`, dDone ? 'done' : 'now', dDone ? '' : btn('start-daily', '', d ? 'Try again' : 'Start')),
-    row(2, 'Say it out loud', rDone ? `Done today: all ${ALL.length} tables.` : `Say every times table. ${said} of ${ALL.length} done.`, rDone ? 'done' : 'now', rDone ? '' : btn('recite', '', said ? 'Carry on' : 'Start'))];
+    row(2, 'Say it out loud', rDone ? `Done today: all ${RECITE_TABLES.length} tables.` : `Say every times table. ${said} of ${RECITE_TABLES.length} done.`, rDone ? 'done' : 'now', rDone ? '' : btn('recite', '', said ? 'Carry on' : 'Start'))];
   steps.forEach((s, i) => {
     const isDone = done && st > i, isNow = done && st === i;
     const sub = isDone ? (s.k === 'explore' ? `Done: ${EXPLORE_FACTS} facts looked at.` : s.k === 'test' ? `Done. Round complete: +${r.bonusXp || 0} ${pts}.` : 'Done.')
