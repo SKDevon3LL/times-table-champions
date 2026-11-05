@@ -609,8 +609,15 @@ const bonusToday = p => (p.bonus || {})[dayStr()] || null;
 // every table said three times opens the reward game.
 // Since 5 Nov 2026 (Abbey): today's work needs EVERY table said out loud that day, not just one. The counts start again each week, and after the game's 30 minutes.
 const RECITE_RUN = 3, RECITE_SIX = 6, RECITE_GAME = 3;
-// Since 5 Nov 2026 (Abbey): the 1 times table is not said out loud; the exercise covers the 2s to the 12s.
-const RECITE_TABLES = ALL.filter(t => t !== 1);
+// Since 5 Nov 2026 (Abbey): the 1 times table is not said out loud; the square numbers (1 × 1 to 12 × 12) take its place.
+// The squares are the 'sq' tile, stored as table 'sq' in recites and as sq: true on the session, as square times are elsewhere.
+const RSQ = 'sq', RECITE_TABLES = [...ALL.filter(t => t !== 1), RSQ];
+const rAns = (t, k) => t === RSQ ? k * k : t * k;
+const rLine = (t, k) => t === RSQ ? `${k} × ${k}` : `${t} × ${k}`;
+const rName = t => t === RSQ ? 'the square numbers' : `the ${t} times table`;
+const rShort = t => t === RSQ ? 'the squares' : `the ${t}s`;
+const rTile = t => t === RSQ ? 'Squares' : `×${t}`;
+const rOrder = t => t === RSQ ? 99 : TEACH_ORDER.indexOf(t);
 // A personal best pays twice the table's points; the first time a table is said only sets the mark.
 const reciteBest = (p, t) => ((p.reciteBest || {})[t] || null);
 const fmtClock = ms => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${pad2(s % 60)}`; };
@@ -620,7 +627,7 @@ const reciteLeftToday = p => { const d = saidToday(p); return RECITE_TABLES.filt
 const recitedToday = p => reciteLeftToday(p).length === 0;
 const reciteAllDone = p => RECITE_TABLES.every(t => reciteCount(p, t, trailStart(p)) >= RECITE_GAME);
 const workDone = p => todayDone(p) && recitedToday(p);
-const reciteSuggest = p => (reciteLeftToday(p).length ? reciteLeftToday(p) : RECITE_TABLES).slice().sort((a, b) => reciteCount(p, a, trailStart(p)) - reciteCount(p, b, trailStart(p)) || TEACH_ORDER.indexOf(a) - TEACH_ORDER.indexOf(b))[0];
+const reciteSuggest = p => (reciteLeftToday(p).length ? reciteLeftToday(p) : RECITE_TABLES).slice().sort((a, b) => reciteCount(p, a, trailStart(p)) - reciteCount(p, b, trailStart(p)) || rOrder(a) - rOrder(b))[0];
 // Numbers in what was heard: digits, words ("a hundred and forty four") and the chanted plurals ("seven eights").
 const NUMW = {zero:0, one:1, won:1, two:2, too:2, three:3, four:4, five:5, six:6, seven:7, eight:8, ate:8, nine:9, ten:10, eleven:11, twelve:12,
   thirteen:13, fourteen:14, fifteen:15, sixteen:16, seventeen:17, eighteen:18, nineteen:19,
@@ -672,14 +679,14 @@ function reciteStop(){ const rc = S.v.rc; if (rc) clearInterval(rc.tick); if (rc
 // A line counts when the last number heard since the line before is its answer, after at least one other number (the
 // table and the times), so "two times one" does not tick 2 × 1 before "is two" is said.
 function reciteHeard(nums, final){
-  const rc = S.v.rc, ans = rc.table * (rc.i + 1), fresh = nums.slice(rc.ptr);
+  const rc = S.v.rc, ans = rAns(rc.table, rc.i + 1), fresh = nums.slice(rc.ptr);
   if (fresh.length >= 2 && fresh[fresh.length - 1] === ans) { rc.ptr = nums.length; reciteLine(true); }
   else if (final && fresh.length >= 3) { rc.ptr = nums.length; reciteLine(false); }
 }
 function reciteLine(ok){
   const rc = S.v.rc; if (!rc || rc.mode !== 'say') return;
   clearTimeout(rc.fbT);
-  if (!ok) { rc.fb = `Not quite. Say ${rc.table} × ${rc.i + 1} again.`; sound('bad'); rc.fbT = setTimeout(() => { if (S.v.rc === rc) { rc.fb = null; if (S.screen === 'recite') render(); } }, 2200); render(); return; }
+  if (!ok) { rc.fb = `Not quite. Say ${rLine(rc.table, rc.i + 1)} again.`; sound('bad'); rc.fbT = setTimeout(() => { if (S.v.rc === rc) { rc.fb = null; if (S.screen === 'recite') render(); } }, 2200); render(); return; }
   rc.fb = null; rc.typed = ''; rc.i++; sound('ok');
   if (rc.i >= 12) reciteFinish(); else render();
 }
@@ -696,11 +703,11 @@ function reciteFinish(){
   if (!best) { bests[t] = {ms, t: now}; pb = {first: true, ms}; }
   else if (ms < best.ms) { const x = tablePts(t) * 2; bests[t] = {ms, t: now}; xp += x; pb = {ms, prev: best.ms, x}; got.push(`New personal best! +${x} ${ptsName()}`); }
   else pb = {ms, best: best.ms};
-  if (reciteCount(p, t) >= RECITE_SIX && !aw[`six:${weekStart()}:${t}`]) { const x = tablePts(t) * 5; aw[`six:${weekStart()}:${t}`] = now; xp += x; got.push(`The ${t}s 6 times this week: +${x} ${ptsName()}`); }
+  if (reciteCount(p, t) >= RECITE_SIX && !aw[`six:${weekStart()}:${t}`]) { const x = tablePts(t) * 5; aw[`six:${weekStart()}:${t}`] = now; xp += x; got.push(`${rShort(t).replace(/^t/, 'T')} 6 times this week: +${x} ${ptsName()}`); }
   const keys = Object.keys(aw).sort((a, b) => aw[a] - aw[b]); while (keys.length > 300) delete aw[keys.shift()];
   p.xp += xp;
   if (!p.days.includes(dayStr())) { p.days.push(dayStr()); if (p.days.length > 400) p.days.shift(); }
-  const entry = {t: rc.from, mode: 'recite', tables: [t], n: 12, c: 12, pct: 100, ms, xp};
+  const entry = {t: rc.from, mode: 'recite', tables: t === RSQ ? [] : [t], ...(t === RSQ ? {sq: true} : {}), n: 12, c: 12, pct: 100, ms, xp};
   if (pb && pb.x) entry.pb = true;
   if (rc.usedTyping) entry.typed = true;
   S.sessions.push(entry); ensureLogCur(); S.logCur.sessions.push(entry);
@@ -712,7 +719,7 @@ function reciteFinish(){
 function reciteKey(k){
   const rc = S.v.rc; if (!rc || rc.mode !== 'say') return;
   if (k === 'back') rc.typed = rc.typed.slice(0, -1);
-  else if (k === 'ok') { if (!rc.typed) return; rc.usedTyping = true; reciteLine(+rc.typed === rc.table * (rc.i + 1)); if (rc.fb) rc.typed = ''; return; }
+  else if (k === 'ok') { if (!rc.typed) return; rc.usedTyping = true; reciteLine(+rc.typed === rAns(rc.table, rc.i + 1)); if (rc.fb) rc.typed = ''; return; }
   else if (rc.typed.length < 3) rc.typed += k;
   render();
 }
@@ -721,7 +728,7 @@ function scrRecite(){
   if (rc.mode === 'pick') {
     const sug = reciteSuggest(p), t0 = trailStart(p), all = reciteAllDone(p), today = saidToday(p), left = RECITE_TABLES.length - today.size;
     const tiles = RECITE_TABLES.map(t => { const n = reciteCount(p, t, t0), wk = reciteCount(p, t);
-      return `<button class="rc-tile ${t === sug ? 'sug' : ''} ${n >= RECITE_GAME ? 'full' : ''} ${today.has(t) ? 'today' : ''}" data-act="recite-go" data-t="${t}" aria-label="The ${t} times table, ${today.has(t) ? 'said today, ' : ''}said ${wk} times this week"><b>${today.has(t) ? '✓ ' : ''}×${t}</b><span class="rc-dots" aria-hidden="true">${[0, 1, 2].map(i => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>${wk ? `<small>${wk} this week</small>` : ''}${reciteBest(p, t) ? `<small>Best ${fmtClock(reciteBest(p, t).ms)}</small>` : ''}</button>`; }).join('');
+      return `<button class="rc-tile ${t === sug ? 'sug' : ''} ${n >= RECITE_GAME ? 'full' : ''} ${today.has(t) ? 'today' : ''}" data-act="recite-go" data-t="${t}" aria-label="${rName(t).replace(/^t/, 'T')}, ${today.has(t) ? 'said today, ' : ''}said ${wk} times this week"><b>${today.has(t) ? '✓ ' : ''}${rTile(t)}</b><span class="rc-dots" aria-hidden="true">${[0, 1, 2].map(i => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>${wk ? `<small>${wk} this week</small>` : ''}${reciteBest(p, t) ? `<small>Best ${fmtClock(reciteBest(p, t).ms)}</small>` : ''}</button>`; }).join('');
     return `${topbar('')}<div class="parent-head"><div><p class="eyebrow">Today's work</p><h1 class="mega sm">Say it out loud</h1><p class="lede">Say every table today. Say each line, like "2 times 3 is 6". It goes green when I hear you.</p></div></div>
       <p class="callout ${left ? '' : 'mint'}">${left ? `<b>${today.size} of ${RECITE_TABLES.length}</b> said today. ${left} to go.` : `All ${RECITE_TABLES.length} tables said today!`}</p>
       <ul class="rc-rules"><li>Beat your best time: <b>bonus ${pts}</b></li><li>3 in a row: <b>bonus ${pts}</b></li><li>6 times this week: <b>more ${pts}</b></li><li>Every table 3 times: <b>${skinId() === 'classic' ? 'a star week' : 'your game opens'}</b></li></ul>
@@ -731,7 +738,7 @@ function scrRecite(){
   if (rc.mode === 'end') {
     const run = S.v.rcRun || {n: 1}, left = RECITE_RUN - run.n, after = RECITE_TABLES.filter(t => reciteCount(p, t, trailStart(p)) < RECITE_GAME).length;
     return `${topbar('')}<section class="results"><div class="res-body">
-      <p class="eyebrow">Said out loud · ×${rc.table}</p><h1 class="mega sm">You said the ${rc.table} times table!</h1>
+      <p class="eyebrow">Said out loud · ${rTile(rc.table)}</p><h1 class="mega sm">You said ${rName(rc.table)}!</h1>
       <div><span class="score num">${fmtClock(rc.pb.ms)}</span> <span class="muted" style="font-weight:800">${rc.pb.first ? 'Your first time. Beat it next time for bonus ' + pts + '!' : rc.pb.prev ? `Your best was ${fmtClock(rc.pb.prev)}` : `Your best is ${fmtClock(rc.pb.best)}`}</span></div>
       ${run.n > 1 ? `<p class="chip">${run.n} in a row</p>` : ''}
       ${rc.got.map(g => `<p class="callout mint">${esc(g)}</p>`).join('')}
@@ -745,12 +752,12 @@ function scrRecite(){
   }
   const t = rc.table, lines = Array.from({length: 12}, (_, j) => {
     const k = j + 1, st = j < rc.i ? 'done' : j === rc.i ? 'now' : 'next';
-    return `<li class="${st}">${t} × ${k} = <b>${j < rc.i ? t * k : j === rc.i ? (rc.typing ? esc(rc.typed || '?') : '?') : ''}</b></li>`; }).join('');
+    return `<li class="${st}">${rLine(t, k)} = <b>${j < rc.i ? rAns(t, k) : j === rc.i ? (rc.typing ? esc(rc.typed || '?') : '?') : ''}</b></li>`; }).join('');
   const keys = rc.typing ? `<div class="pad" role="group" aria-label="Number pad">${[1,2,3,4,5,6,7,8,9].map(n => `<button data-act="rkey" data-k="${n}">${n}</button>`).join('')}<button class="del" data-act="rkey" data-k="back" aria-label="Delete">⌫</button><button data-act="rkey" data-k="0">0</button><button class="ok" data-act="rkey" data-k="ok" aria-label="Check">✓</button></div>` : '';
   return `${top}<section class="play rc-say ${rc.fb ? 'is-bad' : ''}"><div class="play-main">
-    <div class="play-top"><div class="info"><span>Say it out loud · the ${t}s</span><span class="num rc-clock" id="rc-time">${fmtClock(Date.now() - rc.from)}</span>${reciteBest(p, t) ? `<span class="muted num">Best ${fmtClock(reciteBest(p, t).ms)}</span>` : ''}</div><button class="btn ghost small" data-act="recite-stop">Stop</button></div>
+    <div class="play-top"><div class="info"><span>Say it out loud · ${rShort(t)}</span><span class="num rc-clock" id="rc-time">${fmtClock(Date.now() - rc.from)}</span>${reciteBest(p, t) ? `<span class="muted num">Best ${fmtClock(reciteBest(p, t).ms)}</span>` : ''}</div><button class="btn ghost small" data-act="recite-stop">Stop</button></div>
     <div class="pbar-wrap"><div class="pbar" role="progressbar" aria-label="How much is left"><span style="width:${(rc.i / 12 * 100).toFixed(1)}%"></span></div><b class="num">${12 - rc.i} to go</b></div>
-    <p class="rc-mic ${rc.typing ? 'off' : ''}" role="status">${rc.typing ? esc(rc.why || 'Type each answer.') : `🎤 Listening… say "${t} times ${rc.i + 1} is…"`}</p>
+    <p class="rc-mic ${rc.typing ? 'off' : ''}" role="status">${rc.typing ? esc(rc.why || 'Type each answer.') : `🎤 Listening… say "${t === RSQ ? rc.i + 1 : t} times ${rc.i + 1} is…"`}</p>
     ${rc.fb ? `<p class="callout" role="alert">${esc(rc.fb)}</p>` : ''}
     <ol class="rc-lines">${lines}</ol>
     ${rc.typing ? '' : `<button class="link" data-act="recite-type">Can't hear you? Type instead</button>`}
@@ -1893,7 +1900,7 @@ const A = {
   'method-step': el => startMethodStep(el.dataset.mode),
   subject: el => { S.subject = el.dataset.k === 'spell' ? 'spell' : 'maths'; ls.set('subject', S.subject); if (S.me) go(S.subject === 'spell' ? 'spell' : 'home'); else render(); },
   recite: () => startRecite(),
-  'recite-go': el => startRecite(+el.dataset.t),
+  'recite-go': el => startRecite(el.dataset.t === RSQ ? RSQ : +el.dataset.t),
   'recite-stop': () => { reciteStop(); S.v.rc = {mode: 'pick'}; render(); },
   'recite-type': () => { const rc = S.v.rc; if (rc) { reciteStop(); rc.typing = true; rc.why = 'Type each answer.'; render(); } },
   rkey: el => reciteKey(el.dataset.k),
