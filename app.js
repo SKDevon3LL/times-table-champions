@@ -96,6 +96,9 @@ function mergeDoc(path, a, b){
     const rs = new Set(); r.recites = [...(a.recites || []), ...(b.recites || [])].filter(x => { const k = x.t + ':' + x.table; if (rs.has(k)) return false; rs.add(k); return true; }).sort((x, y) => y.t - x.t).slice(0, 400);
     r.reciteAw = Object.assign({}, b.reciteAw, a.reciteAw);
     r.reciteBest = Object.assign({}, b.reciteBest); for (const [k, v] of Object.entries(a.reciteBest || {})) if (!r.reciteBest[k] || v.ms < r.reciteBest[k].ms) r.reciteBest[k] = v;
+    // Reward games: Hughie's Outdoor Shop goes with the copy that has bought or used more (shop.n); gold is the higher.
+    if (a.game || b.game) { const ga = a.game || {}, gb = b.game || {}; r.game = Object.assign({}, gb, ga); r.game.gold = Math.max(ga.gold || 0, gb.gold || 0);
+      if (ga.shop || gb.shop) r.game.shop = ((ga.shop || {}).n || 0) >= ((gb.shop || {}).n || 0) ? (ga.shop || gb.shop) : gb.shop; }
     if (a.spell || b.spell) r.spell = window.TTCSpellMerge ? window.TTCSpellMerge(a.spell, b.spell) : (a.spell || b.spell);
     if (a.fd || b.fd) r.fd = window.TTCFracMerge ? window.TTCFracMerge(a.fd, b.fd) : (a.fd || b.fd);
     r.badges = Object.assign({}, b.badges); for (const [k, v] of Object.entries(a.badges || {})) if (!r.badges[k] || v < r.badges[k]) r.badges[k] = v;
@@ -1839,7 +1842,7 @@ async function startGame(){
   S.screen = 'game'; render(); scrollTo(0, 0);
   if (strike && !(await loadStrike())) { if (S.screen === 'game') { toast('Spell Strike needs the internet the first time. Connect to Wi-Fi and try again.'); go('home'); } return; }
   if (S.screen !== 'game' || gameInst) return;   // left, or already open, while it loaded
-  const api = {ask: gameQuestion, sound, soundOn: () => S.sound, audio: audioCtx, photo: photoOk(S.me.photo) ? S.me.photo : null, picture: familyPhoto, dressSvg, eras: ERAS, state: demo ? {} : p.game, save: () => { if (!demo) saveProg().catch(saveFail); },
+  const api = {ask: gameQuestion, sound, soundOn: () => S.sound, audio: audioCtx, photo: photoOk(S.me.photo) ? S.me.photo : null, picture: familyPhoto, dressSvg, eras: ERAS, state: demo ? {} : p.game, save: () => { if (!demo) saveProg().catch(saveFail); }, points: () => p.xp || 0, ptsName,
     timeLeft: () => demo ? null : GAME_MS - (p.gameMs || 0), exit: () => go('home'), demo, spell: SPL && SPL.game};
   gameInst = (skinId() === 'eras' ? window.TTCGames.stage : strike ? window.TTCGames.strike : window.TTCGames.jungle)(document.getElementById('game-host'), api);
   if (demo) return;   // a grown-up's demo: no 30-minute clock, nothing saved

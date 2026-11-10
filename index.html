@@ -357,6 +357,19 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webk
 .jg-over{position:fixed;inset:0;z-index:30;display:grid;place-items:center;background:rgba(0,0,0,.45);padding:16px}
 .jg-over .sticker{max-width:460px;text-align:center;display:grid;gap:10px;justify-items:center}
 .jg-big{font-size:64px;line-height:1}
+/* Hughie's pack and the Outdoor Shop */
+.jg-pack{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.jg-item{display:inline-flex;align-items:center;gap:4px;font-size:20px;padding:4px 10px;border:2.5px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink);font-family:inherit}
+.jg-item small{font-size:13px;font-weight:800}.jg-item:disabled,.jg-item.used{opacity:.5}.jg-item.shop{background:#FFE36E;color:#1B2140}
+.jg-c.target{outline:4px solid #FF5A3C;outline-offset:-4px;cursor:crosshair;animation:jg-pulse .5s infinite alternate}
+.jg-over .jg-shop{max-width:720px;width:100%;max-height:calc(100vh - 32px);overflow-y:auto;justify-items:stretch;text-align:left}
+.jg-shop h2,.jg-shop>p{text-align:center}.jg-shop h3{margin:6px 0 0}
+.jg-wares{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.jg-ware{display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;align-items:center;padding:10px 12px;border:2.5px solid var(--line);border-radius:14px;background:var(--card)}
+.jg-ware.got{background:color-mix(in srgb,var(--mint) 30%,var(--card))}
+.jg-ware-i{font-size:34px;line-height:1}.jg-ware b{display:block}.jg-ware small{color:var(--muted)}
+.jg-ware .jg-short,.jg-ware .jg-have{grid-column:3;text-align:center;font-weight:800}.jg-ware .jg-have{grid-column:2}
+.jg-ware-p{font-weight:900}
 .stg-pick{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:20px;align-items:start}
 .stg-preview{display:grid;justify-items:center;gap:8px;position:sticky;top:12px}
 .stg-preview .perf{width:100%;max-width:260px;height:auto}

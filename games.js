@@ -20,6 +20,18 @@ function askBox(box, api, seconds, done){
 }
 
 /* ---------- Hughie: the Jungle Gold Run ---------- */
+// The Outdoor Shop (Sam, 10 Nov 2026: "an outdoor shop [to] buy adventure items and weapons with his poundelas"). Every item
+// does something in the game. Poundelas spent are kept as their own total (state.shop.spent), so buying never lowers his
+// points, level or the trail. Kits are used up; the rest are his for good. A weapon still needs a right answer to fire.
+const SHOP = [
+  {id:'aid', icon:'🩹', name:'First aid kit', price:50, use:true, what:'One more life, any time you need it.'},
+  {id:'smoke', icon:'💨', name:'Smoke bomb', price:100, use:true, what:'Every creature is lost in the smoke for 3 turns.'},
+  {id:'binoculars', icon:'🔭', name:'Binoculars', price:300, what:'Spot trouble early: 15 seconds for every question instead of 10.'},
+  {id:'boots', icon:'🥾', name:'Snake-proof boots', price:400, what:'Snakes and anacondas move more slowly.'},
+  {id:'sling', icon:'🪨', name:'Slingshot', price:250, what:'2 stones a level. Hit a creature up to 3 squares away and it runs back where it came from.'},
+  {id:'bow', icon:'🏹', name:'Bow and arrows', price:600, what:'4 arrows a level, and they reach anywhere on the board.'},
+  {id:'spear', icon:'🔱', name:'Spear', price:800, what:'Once a level, fight off a creature that catches you, with no life lost.'},
+];
 // Chop a path to the gold (one right answer = one chop), then get back to the boat before the anacondas come out of the river.
 // Every answer is a turn: snakes, panthers and anacondas each close in on their own beat. A wrong answer costs him the move,
 // so they gain a step on him. He has 3 lives a level: a creature that catches him costs one and goes back where it started.
@@ -129,6 +141,13 @@ function jungle(host, api){
   const pantherNear = () => { const ds = st.preds.filter(p => p.kind === 'panther').map(p => Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c)); return ds.length ? Math.min(...ds) : 99; };
   const snakeNear = () => { const ds = st.preds.filter(p => p.kind !== 'panther').map(p => Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c)); return ds.length ? Math.min(...ds) : 99; };
   let level = 1, st = null, busy = false, cancelQ = null, lives = 3;
+  const shop = () => { const s = api.state.shop = api.state.shop || {spent:0, own:{}, n:0}; s.own = s.own || {}; return s; };
+  const owns = id => shop().own[id] || 0;
+  const wallet = () => Math.max(0, (api.points ? api.points() : 0) - shop().spent);
+  const pts = () => api.ptsName ? api.ptsName() : 'Poundelas';
+  // This level's kit: stones or arrows left, the spear, and smoke turns left. aiming: waiting for him to tap a creature.
+  let kit = {shots:0, range:0, spear:0, smoke:0}, aiming = false;
+  const askSecs = () => owns('binoculars') ? 15 : 10;
   // Hughie's adventure pictures (private family-photos bucket, made from his own photos): start, chop, gold, chase, win, caught.
   const scene = (name, title, text, go, btn) => `<div class="sticker jg-scene"><img class="jg-photo" data-p="jungle/${name}.jpg" alt=""><h2>${title}</h2><p>${text}</p><button class="btn big" data-go="${go}">${btn}</button></div>`;
   const FALLBACK = {'jungle/ogre-pot.jpg': 'jungle/caught.jpg', 'jungle/ogre-chase.jpg': 'jungle/chase.jpg'};
@@ -169,6 +188,7 @@ function jungle(host, api){
   }).catch(() => {});
   host.innerHTML = `<img class="jg-bd" alt=""><div class="jg"><div class="jg-act" data-k="act"><video muted playsinline preload="auto"></video><img alt=""><b></b></div>
     <div class="jg-bar"><b>Level <span data-k="lvl">1</span></b><span class="jg-msg" data-k="msg"></span><b class="jg-lives" data-k="lives" aria-label="Lives"></b><b>Gold <span data-k="gold">${api.state.gold || 0}</span></b></div>
+    <div class="jg-pack" data-k="pack"></div>
     <div class="jg-board" data-k="board" style="--w:${W}"></div>
     <div class="gq" data-k="q" hidden></div>
     <div class="jg-over" data-k="over" hidden></div></div>`;
@@ -199,21 +219,103 @@ function jungle(host, api){
     for (let i = 0; i < (level >= 4 ? 2 : 1); i++) put('snake', level >= 5 ? 2 : 3, 2 + rnd(3), i % 2 ? 0 : W - 1);
     if (level >= 6) put('panther', 3, 1, W - 1 - far);
     put('ogre', level >= 6 ? 2 : 3, 1, far);   // the ogre starts on the far side from the gold, under the panther, and never stops coming
+    if (owns('boots')) preds.forEach(p => { if (p.kind === 'snake') p.every++; });
     st = {g, goldAt, pl, preds, has:false, turn:0}; lives = 3; showLives();
+    kit = {shots: owns('bow') ? 4 : owns('sling') ? 2 : 0, range: owns('bow') ? 99 : 3, spear: owns('spear') ? 1 : 0, smoke: 0}; aiming = false; showPack();
     $('lvl').textContent = level;
     msg('Tap a square next to you to chop towards the gold.');
     draw();
     action('start', "Let's go!");
     busy = true;
     const o = $('over'); o.hidden = false;
-    o.innerHTML = scene('start', `Level ${level}`, level === 1 ? 'Chop a path to the gold, then get back to the boat. Every right answer swings your machete.' : 'The jungle is wilder now. Keep your answers sharp!', 'begin', 'Start the adventure');
+    o.innerHTML = scene('start', `Level ${level}`, level === 1 ? 'Chop a path to the gold, then get back to the boat. Every right answer swings your machete.' : 'The jungle is wilder now. Keep your answers sharp!', 'begin', 'Start the adventure')
+      .replace('</div>', `<button class="btn ghost" data-shop="start">🏕️ Visit the Outdoor Shop</button></div>`);
     loadPics(o);
   }
+  // The pack under the bar: what he is carrying, each usable one a button, and the shop.
+  function showPack(){
+    const el = $('pack'); if (!el) return;
+    const b = (k, icon, label, n, on) => `<button class="jg-item" data-use="${k}" ${on ? '' : 'disabled'} aria-label="${label}">${icon}<small>${label}${n !== null ? ` ×${n}` : ''}</small></button>`;
+    el.innerHTML = [
+      owns('aid') ? b('aid', '🩹', 'First aid', owns('aid'), true) : '',
+      owns('smoke') ? b('smoke', '💨', kit.smoke ? `Smoke: ${kit.smoke} turns` : 'Smoke bomb', kit.smoke ? null : owns('smoke'), !kit.smoke) : '',
+      kit.shots || owns('sling') || owns('bow') ? b('shoot', owns('bow') ? '🏹' : '🪨', aiming ? 'Tap a creature!' : owns('bow') ? 'Arrows' : 'Stones', aiming ? null : kit.shots, kit.shots > 0) : '',
+      owns('spear') ? `<span class="jg-item${kit.spear ? '' : ' used'}">🔱<small>${kit.spear ? 'Spear ready' : 'Spear used'}</small></span>` : '',
+      owns('binoculars') ? '<span class="jg-item">🔭<small>15 seconds</small></span>' : '',
+      owns('boots') ? '<span class="jg-item">🥾<small>Boots on</small></span>' : '',
+      `<button class="jg-item shop" data-shop="bar">🏕️<small>Shop · ${wallet().toLocaleString('en-GB')} ${pts()}</small></button>`,
+    ].join('');
+  }
+  // The Outdoor Shop: everything on one screen, what it does, and whether he can afford it.
+  let shopFrom = null;
+  function openShop(from){
+    shopFrom = from || shopFrom; busy = true; aiming = false;
+    const o = $('over'); o.hidden = false;
+    const card = it => { const n = owns(it.id), got = !it.use && n, short = it.price - wallet();
+      return `<div class="jg-ware${got ? ' got' : ''}"><span class="jg-ware-i">${it.icon}</span><div><b>${it.name}</b><small>${it.what}</small></div>
+        ${got ? '<span class="jg-ware-p">✓ Yours</span>' : `<button class="btn small" data-buy="${it.id}" ${short > 0 ? 'disabled' : ''}>${it.price} ${pts()}</button>${short > 0 ? `<small class="jg-short">${short} more</small>` : ''}`}
+        ${it.use && n ? `<small class="jg-have">In your pack: ${n}</small>` : ''}</div>`; };
+    o.innerHTML = `<div class="sticker jg-shop"><h2>🏕️ The Outdoor Shop</h2><p>You have <b>${wallet().toLocaleString('en-GB')} ${pts()}</b> to spend.${api.demo ? ' (Demo: nothing is kept.)' : ''}</p>
+      <h3>Adventure kit</h3><div class="jg-wares">${SHOP.filter(i => !['sling', 'bow', 'spear'].includes(i.id)).map(card).join('')}</div>
+      <h3>Weapons</h3><div class="jg-wares">${SHOP.filter(i => ['sling', 'bow', 'spear'].includes(i.id)).map(card).join('')}</div>
+      <p class="muted small">Every right answer in Times Tables and Spelling earns more ${pts()}. Spending them never lowers your level.</p>
+      <button class="btn big" data-shopclose>Back to the jungle</button></div>`;
+  }
+  function buy(id){
+    const it = SHOP.find(x => x.id === id), s = shop(); if (!it || it.price > wallet() || (!it.use && owns(id))) return;
+    s.spent += it.price; s.own[id] = (s.own[id] || 0) + 1; s.n = (s.n || 0) + 1; api.save(); api.sound('win');
+    // a new weapon or the spear is ready straight away on this level
+    if (id === 'sling' && !owns('bow')) { kit.shots = Math.max(kit.shots, 2); kit.range = 3; }
+    if (id === 'bow') { kit.shots = Math.max(kit.shots, 4); kit.range = 99; }
+    if (id === 'spear') kit.spear = 1;
+    openShop(); showPack();
+  }
+  function closeShop(){
+    showPack();
+    if (shopFrom === 'start') { newLevelIntro(); return; }
+    $('over').hidden = true; busy = false; draw();
+  }
+  function newLevelIntro(){
+    const o = $('over'); o.hidden = false;
+    o.innerHTML = scene('start', `Level ${level}`, 'Your pack is ready. Chop a path to the gold, then get back to the boat.', 'begin', 'Start the adventure').replace('</div>', `<button class="btn ghost" data-shop="start">🏕️ Visit the Outdoor Shop</button></div>`);
+    loadPics(o);
+  }
+  // Using what he carries. A kit is used up at once; a weapon waits for him to tap a creature, then asks a question.
+  function useItem(k){
+    if (!st || busy) return;
+    const s = shop();
+    if (k === 'aid' && owns('aid')) { s.own.aid--; s.n++; lives = Math.min(5, lives + 1); showLives(); api.save(); api.sound('ok'); msg('Patched up! One more life.'); }
+    else if (k === 'smoke' && owns('smoke') && !kit.smoke) { s.own.smoke--; s.n++; kit.smoke = 3; api.save(); api.sound('ok'); msg('Smoke bomb! The creatures cannot find you for 3 turns.'); }
+    else if (k === 'shoot' && kit.shots > 0) { aiming = !aiming; msg(aiming ? `Tap a creature${kit.range < 99 ? ' up to 3 squares away' : ''}, then answer to fire.` : 'Weapon down.'); }
+    showPack(); draw();
+  }
+  const inRange = p => Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c) <= kit.range;
+  function fire(p){
+    busy = true; aiming = false; draw();
+    $('board').querySelector(`[data-r="${p.r}"][data-c="${p.c}"]`).classList.add('aim');
+    cancelQ = askBox($('q'), api, askSecs(), ok => {
+      cancelQ = null; busy = false; kit.shots--;
+      if (ok) { api.sound('ok'); p.r = p.r0 ?? H - 1; p.c = p.c0 ?? 0; p.moved = false;
+        if (at(st.preds.filter(x => x !== p), p.r, p.c) || (p.r === st.pl.r && p.c === st.pl.c)) { const sp = [[0, 0], [0, W - 1], [H - 1, 0], [H - 1, W - 1]].map(([r, c]) => ({r, c})).find(x => !at(st.preds, x.r, x.c) && !(x.r === st.pl.r && x.c === st.pl.c)); if (sp) { p.r = sp.r; p.c = sp.c; } }
+        msg(`Direct hit! The ${p.kind} ran off.`); }
+      else { api.sound('bad'); msg(owns('bow') ? 'The arrow missed!' : 'The stone missed!'); }
+      showPack(); draw();
+    });
+  }
   const msg = t => { $('msg').textContent = t; };
-  const showLives = () => { const el = $('lives'); if (el) { el.textContent = '❤️'.repeat(lives) + '🤍'.repeat(3 - lives); el.setAttribute('aria-label', `${lives} of 3 lives left`); } };
+  const showLives = () => { const el = $('lives'); if (el) { el.textContent = '❤️'.repeat(Math.max(0, lives)) + '🤍'.repeat(Math.max(0, 3 - lives)); el.setAttribute('aria-label', `${lives} ${lives === 1 ? 'life' : 'lives'} left`); } };
   // Caught, with lives left: the attack plays as before, the creature goes back where it started (an anaconda back to the
   // river), and he carries on from the same square. With no lives left it is the end of the level, as before.
   function hurt(who){
+    if (kit.spear > 0) {   // the spear: fight it off once a level, no life lost
+      kit.spear--; showPack(); api.sound('ok');
+      who.r = who.r0 ?? H - 1; who.c = who.c0 ?? (who.c < BOAT ? 0 : W - 1); who.moved = false;
+      if (at(st.preds.filter(p => p !== who), who.r, who.c)) { const sp = [[0, 0], [0, W - 1], [H - 1, 0], [H - 1, W - 1]].map(([r, c]) => ({r, c})).find(s => !at(st.preds, s.r, s.c) && !(s.r === st.pl.r && s.c === st.pl.c)); if (sp) { who.r = sp.r; who.c = sp.c; } }
+      busy = true; draw();
+      const o = $('over'); o.hidden = false;
+      o.innerHTML = scene('hold', 'You fought it off with your spear!', 'No life lost. The spear is back in your pack next level.', 'resume', 'Keep going');
+      loadPics(o); action('hold', 'Fought it off!'); return;
+    }
     lives--; showLives();
     if (lives <= 0) { over(false, who.kind); return; }
     if (who.kind === 'ogre') { ogreYell(.8); ogreLaugh(); } else if (who.kind !== 'panther') hiss(.9, true); else roar(.8, true);
@@ -250,7 +352,7 @@ function jungle(host, api){
       else if (kind === 'gold') inner = '<span class="emo">💰</span>';
       else if (kind === 'rock') inner = '<span class="emo">🪨</span>';
       else if (kind === 'jungle') inner = `<span class="emo">${['🌿', '🌴', '🌱'][(r * 7 + c * 3) % 3]}</span>`;
-      const cls = `jg-c ${kind}${kind === 'jungle' && (r * 5 + c * 3) % 3 === 0 ? ' alt' : ''}${boat ? ' boat' : ''}${p ? ' has-' + p.kind : ''}${canGo(r, c) ? ' can' : ''}`;
+      const cls = `jg-c ${kind}${kind === 'jungle' && (r * 5 + c * 3) % 3 === 0 ? ' alt' : ''}${boat ? ' boat' : ''}${p ? ' has-' + p.kind : ''}${aiming ? (p && inRange(p) ? ' target' : '') : canGo(r, c) ? ' can' : ''}`;
       h += `<button class="${cls}" data-r="${r}" data-c="${c}" aria-label="Row ${r + 1}, column ${c + 1}">${inner}</button>`;
     }
     $('board').innerHTML = h;
@@ -291,10 +393,10 @@ function jungle(host, api){
       if (st.g[r][c] === 'jungle') st.g[r][c] = 'path';
       if (st.g[r][c] === 'gold' && !st.has) {
         st.has = true; st.g[r][c] = 'path';
-        const ev = level >= 3 ? 2 : 3;
+        const ev = (level >= 3 ? 2 : 3) + (owns('boots') ? 1 : 0);
         const ac3 = BOAT + (Math.random() < .5 ? -2 : 2);
         st.preds.push({kind:'anaconda', every:ev, r:H - 1, c:0, r0:H - 1, c0:0}, {kind:'anaconda', every:ev, r:H - 1, c:W - 1, r0:H - 1, c0:W - 1});
-        if (level >= 3) st.preds.push({kind:'anaconda', every:3, r:H - 1, c:ac3, r0:H - 1, c0:ac3});
+        if (level >= 3) st.preds.push({kind:'anaconda', every:3 + (owns('boots') ? 1 : 0), r:H - 1, c:ac3, r0:H - 1, c0:ac3});
         msg('You got the gold! Run back to the boat before the anacondas get you!');
         action('chase', 'Run!');
         busy = true;
@@ -314,7 +416,8 @@ function jungle(host, api){
     st.preds.forEach(p => { p.moved = false; });
     if (!who) {
       st.turn++;
-      for (const p of st.preds) if (st.turn % p.every === 0) { stepPred(p); if (p.r === st.pl.r && p.c === st.pl.c) { who = p; break; } }
+      if (kit.smoke > 0) { kit.smoke--; showPack(); }
+      else for (const p of st.preds) if (st.turn % p.every === 0) { stepPred(p); if (p.r === st.pl.r && p.c === st.pl.c) { who = p; break; } }
     }
     draw();
     if (who) { hurt(who); return; }
@@ -328,6 +431,12 @@ function jungle(host, api){
     else if (pn === 2 && st.preds.some(p => p.moved && p.kind === 'panther')) roar(.35);
   }
   host.onclick = e => {
+    const sh = e.target.closest('[data-shop]'); if (sh) { if (sh.dataset.shop === 'start' || !busy) openShop(sh.dataset.shop); return; }
+    const by = e.target.closest('[data-buy]'); if (by) { buy(by.dataset.buy); return; }
+    if (e.target.closest('[data-shopclose]')) { closeShop(); return; }
+    const us = e.target.closest('[data-use]'); if (us) { useItem(us.dataset.use); return; }
+    if (aiming) { const tc = e.target.closest('.jg-c'); const p = tc && at(st.preds, +tc.dataset.r, +tc.dataset.c);
+      if (p && inRange(p) && !busy) fire(p); else if (tc) { aiming = false; showPack(); draw(); msg('Weapon down.'); } return; }
     const go = e.target.closest('[data-go]');
     if (go) {
       $('over').hidden = true; busy = false;
@@ -341,7 +450,7 @@ function jungle(host, api){
     if (!canGo(r, c)) return;
     busy = true; draw();
     $('board').querySelector(`[data-r="${r}"][data-c="${c}"]`).classList.add('aim');
-    cancelQ = askBox($('q'), api, 10, (ok, q, timeout) => { cancelQ = null; busy = false; turn(ok, r, c, timeout); });
+    cancelQ = askBox($('q'), api, askSecs(), (ok, q, timeout) => { cancelQ = null; busy = false; turn(ok, r, c, timeout); });
   };
   newLevel();
   return {destroy(){ if (cancelQ) cancelQ(); music.pause(); danger.pause(); clearInterval(fader); stopClipSound(); host.querySelectorAll('video').forEach(v => v.pause()); host.onclick = null; host.innerHTML = ''; }};
