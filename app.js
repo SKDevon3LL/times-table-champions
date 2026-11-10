@@ -302,8 +302,8 @@ const featureNow = () => FEATURES[challengeWeek()] || null;
 const prizeTotal = p => TIERS.reduce((s, t) => s + (p.prizes[t.id] || 0), 0);
 const MODE_NAMES = {practice:'Practice', test:'Test', clock:'Beat the Clock', daily:'Daily Challenge', recite:'Said out loud',
   'spell-daily':'Daily Spelling Challenge', 'spell-clock':'Spelling: Beat the Clock', 'spell-test':'Spelling test', 'spell-practice':'Spelling practice',
-  'fd-practice':'Decimals and fractions practice', 'fd-test':'Decimals and fractions test', 'fd-clock':'Decimals and fractions: Beat the Clock'};
-const tablesLabel = (s) => String(s.mode).startsWith('fd-') ? (s.label || 'Decimals and fractions') : String(s.mode).startsWith('spell') ? `${(s.words || []).length} words` : s.mode === 'daily' || s.pool ? 'Trickiest facts' : [s.sq ? 'Square times' : '', s.tables.length === 12 ? 'All tables' : s.tables.map(t => '×' + t).join(' ')].filter(Boolean).join(' + ');
+  'fd-practice':'Fractions, decimals and percentages practice', 'fd-test':'Fractions, decimals and percentages test', 'fd-clock':'Fractions, decimals and percentages: Beat the Clock'};
+const tablesLabel = (s) => String(s.mode).startsWith('fd-') ? (s.label || 'Fractions, decimals and percentages') : String(s.mode).startsWith('spell') ? `${(s.words || []).length} words` : s.mode === 'daily' || s.pool ? 'Trickiest facts' : [s.sq ? 'Square times' : '', s.tables.length === 12 ? 'All tables' : s.tables.map(t => '×' + t).join(' ')].filter(Boolean).join(' + ');
 
 function hint(a, b){
   const p = a * b;
@@ -1034,7 +1034,7 @@ const subjectPick = () => `<div class="subj" role="group" aria-label="Which app"
   `<button class="subj-card ${S.subject === k ? 'on' : ''}" data-act="subject" data-k="${k}" aria-pressed="${S.subject === k}"><span class="glyph">${g}</span><b>${t}</b><span>${sub}</span></button>`).join('')}</div>`;
 function topbar(cur){
   const me = S.me;
-  const sp = S.subject === 'spell', tabs = sp ? [['spell','Home','go']] : [['home','Home','go'],['fd','Decimals & fractions','go'],['progress','My progress','go']];
+  const sp = S.subject === 'spell', tabs = sp ? [['spell','Home','go']] : [['home','Home','go'],['fd','Fractions, decimals & %','go'],['progress','My progress','go']];
   return `<header class="top"><div class="brand">${logo()}<span>${sp ? 'Spelling Champions' : esc(skin().brand)}</span></div>
     <div class="top-right">
       <span class="sync" id="sync-chip">${esc(syncText())}</span>
@@ -1108,7 +1108,7 @@ function scrHome(){
         ${modeTile('clock', '60s', 'Beat the Clock', 'Beat your best in 60 seconds.', 'tomato')}
         ${modeTile('explore', '12²', 'Explore', 'Spot the patterns.', 'sky')}
       </div>
-      ${FRAC ? `<button class="mode fd-home" style="--c:var(--grape)" data-act="go" data-to="fd"><span class="glyph">¾ 0.5</span><b>Decimals &amp; fractions</b><span>Year ${Math.min(7, yearOf(me))} skills: practise, test and Beat the Clock.</span></button>` : ''}
+      ${FRAC ? `<button class="mode fd-home" style="--c:var(--grape)" data-act="go" data-to="fd"><span class="glyph">¾ 0.5</span><b>Fractions, decimals &amp; percentages</b><span>Year ${Math.min(7, yearOf(me))} skills: practise, test and Beat the Clock.</span></button>` : ''}
       <div class="sticker"><p class="eyebrow">From Taylor, your Times Table Coach</p>${planFor(me) && planFor(me).note ? `<p class="callout" style="margin-top:10px">${esc(planFor(me).note)}</p>` : ''}<ul class="recs">${recommendations(p, S.sessions).map(recItem).join('')}</ul></div>
     </div>
     <div class="col">

@@ -1,4 +1,4 @@
-// Decimals and fractions (Sam, 10 Nov 2026: "add decimals and fractions work too. make it age appropriate"). A tab on the
+// Fractions, decimals and percentages (Sam, 10 Nov 2026: decimals and fractions, then "add percentages"; first ask: "add decimals and fractions work too. make it age appropriate"). A tab on the
 // times-tables side with the same shape as the tables: Practise (a worked explanation when stuck), Take a test (Bronze to
 // Diamond, on the same weekly trail) and Beat the Clock (60 seconds, personal bests).
 // Age appropriate: each skill belongs to the school year the National Curriculum teaches it in (Years 3 to 7). A child
@@ -29,6 +29,9 @@ const mt = r => { const w = Math.floor(r.n / r.d), p = r.n % r.d; return !p ? St
 const gap = '<span class="slot" id="slot">?</span>';
 // A bar cut into d equal parts with k shaded, for the youngest skills.
 const bar = (d, k) => `<svg class="fd-bar" viewBox="0 0 ${d * 30} 34" role="img" aria-label="${k} of ${d} equal parts shaded">${Array.from({length: d}, (_, i) => `<rect x="${i * 30 + 1.5}" y="1.5" width="27" height="31" rx="4" fill="${i < k ? 'var(--me)' : 'var(--card)'}" stroke="var(--line)" stroke-width="2.5"/>`).join('')}</svg>`;
+
+// A 10 by 10 grid with k of its 100 squares shaded, for the first percentages.
+const grid = k => `<svg class="fd-grid" viewBox="0 0 102 102" role="img" aria-label="${k} of 100 squares shaded">${Array.from({length: 100}, (_, i) => `<rect x="${(i % 10) * 10 + 1}" y="${Math.floor(i / 10) * 10 + 1}" width="10" height="10" fill="${i < k ? 'var(--me)' : 'var(--card)'}" stroke="var(--line)" stroke-width=".8"/>`).join('')}</svg>`;
 
 /* ---------- the answer: what was typed, and whether it is the right amount in the right form ---------- */
 function parse(s){
@@ -103,6 +106,9 @@ const SKILLS = [
   {id: 'div10', y: 4, name: 'Divide by 10 and 100', kid: 'The digits move right. The point stays still.', glyph: '34÷10', gen(){
     const by = pick([10, 10, 100]), n = by === 10 ? ri(2, 99) : ri(2, 99);
     return {q: `${n} ÷ ${by} = ${gap}`, t: `${n} ÷ ${by}`, ans: A.dec(R(n, by)), how: `Dividing by ${by} moves every digit ${by === 10 ? 'one place' : 'two places'} to the right: ${n} ÷ ${by} = ${dec(R(n, by))}.`}; }},
+  {id: 'pct-grid', y: 4, name: 'Per cent: out of 100', kid: 'Per cent means out of 100. Count the shaded squares.', glyph: '35%', gen(){
+    const k = ri(1, 99);
+    return {lead: 'What percentage of the grid is shaded?', q: `${gap} %`, t: `${k} of 100 squares shaded = ?%`, ans: A.num(k), pic: grid(k), always: true, how: `The grid has 100 squares and ${k} are shaded. ${k} out of 100 is ${k}%.`}; }},
   {id: 'round', y: 4, name: 'Round decimals', kid: 'To the nearest whole number.', glyph: '6.7≈7', gen(){
     const n = ri(11, 199), x = ds(n, 1), r = Math.floor((n + 5) / 10);
     return {lead: 'Round to the nearest whole number', q: `${x} → ${gap}`, t: `${x} to the nearest whole number`, ans: A.num(r), how: `Look at the tenths digit: ${n % 10}. ${n % 10 >= 5 ? '5 or more rounds up' : 'Less than 5 rounds down'}, so ${x} rounds to ${r}.`}; }},
@@ -127,12 +133,18 @@ const SKILLS = [
   {id: 'make-one', y: 5, name: 'Decimals that make 1', kid: 'What goes with it to make 1 whole?', glyph: '0.36+?=1', gen(){
     const k = pick([1, 2, 2]), n = k === 1 ? ri(1, 9) : ri(1, 99), x = D(n, k), r = sub(R(1), x);
     return {q: `${dec(x)} + ${gap} = 1`, t: `${dec(x)} + ? = 1`, ans: A.dec(r), how: `${k === 1 ? `${n} tenths and ${10 - n} tenths make 10 tenths` : `${n} hundredths and ${100 - n} hundredths make 100 hundredths`}, which is 1. So ${dec(r)}.`}; }},
-  {id: 'percent', y: 5, name: 'Percentages', kid: 'Per cent means out of 100.', glyph: '¼=25%', gen(){
+  {id: 'percent', y: 5, name: 'Fractions and decimals as percentages', kid: 'Per cent means out of 100.', glyph: '¼=25%', gen(){
     const k = ri(0, 2);
     if (k === 0) { const [a, b] = pick([[1, 2], [1, 4], [3, 4], [1, 5], [2, 5], [3, 5], [4, 5], [1, 10], [3, 10], [7, 10], [9, 10], [1, 20], [1, 25]]), p = a * 100 / b;
       return {q: `${FR(a, b)} = ${gap} %`, t: `${a}/${b} = ?%`, ans: A.num(p), how: `Make the bottom 100: ${a}/${b} = ${p}/100, and that is ${p}%.`}; }
     if (k === 1) { const n = ri(1, 99), x = ds(n, 2); return {q: `${x} = ${gap} %`, t: `${x} = ?%`, ans: A.num(n), how: `${x} is ${n} hundredths, and per cent means hundredths: ${n}%.`}; }
     const n = ri(1, 99); return {q: `${n}% = ${gap}`, lead: 'Write it as a decimal', t: `${n}% as a decimal`, ans: A.dec(R(n, 100)), how: `${n}% is ${n}/100, which is ${ds(n, 2)}.`}; }},
+  {id: 'pct-rest', y: 5, name: 'Percentages make 100', kid: 'The whole thing is 100%. What is left?', glyph: '100%', gen(){
+    const p = pick([ri(1, 19) * 5, ri(1, 99)]), [what, rest] = pick([['of the class walk to school', 'do not walk'], ['of the pizza has been eaten', 'is left'], ['of the film has been watched', 'is still to watch'], ['of the crew are on set', 'are not on set'], ['of the tickets are sold', 'are not sold yet']]);
+    return {lead: `${p}% ${what}. What percentage ${rest}?`, q: `${gap} %`, t: `${p}% ${what}: what % ${rest}`, ans: A.num(100 - p), how: `The whole lot is 100%. 100 − ${p} = ${100 - p}, so ${100 - p}%.`}; }},
+  {id: 'pct-easy', y: 5, name: 'Easy percentages of amounts', kid: '50% is half, 25% is a quarter, 10% is a tenth.', glyph: '10% of 70', gen(){
+    const p = pick([50, 25, 10]), n = p === 50 ? 2 * ri(2, 50) : p === 25 ? 4 * ri(2, 25) : 10 * ri(2, 40);
+    return {q: `${p}% of ${n} = ${gap}`, t: `${p}% of ${n}`, ans: A.num(n * p / 100), how: p === 50 ? `50% is a half: ${n} ÷ 2 = ${n / 2}.` : p === 25 ? `25% is a quarter: ${n} ÷ 4 = ${n / 4}.` : `10% is a tenth: ${n} ÷ 10 = ${n / 10}.`}; }},
   {id: 'round1', y: 5, name: 'Round to 1 decimal place', kid: 'Keep one digit after the point.', glyph: '3.47≈3.5', gen(){
     const n = ri(101, 999), x = ds(n, 2), r = Math.floor((n + 5) / 10);
     return {lead: 'Round to 1 decimal place', q: `${x} → ${gap}`, t: `${x} to 1 decimal place`, ans: A.dec(R(r, 10)), how: `Look at the hundredths digit: ${n % 10}. ${n % 10 >= 5 ? '5 or more rounds up' : 'Less than 5 rounds down'}, so ${x} becomes ${dec(R(r, 10))}.`}; }},
@@ -162,6 +174,12 @@ const SKILLS = [
     const p = pick([10, 20, 25, 50, 75, 5, 15, 30, 40, 60, 70]), base = p % 25 === 0 ? 4 : 20, n = base * ri(1, 12);
     return {q: `${p}% of ${n} = ${gap}`, t: `${p}% of ${n}`, ans: A.num(R(p * n, 100)), how: p === 50 ? `50% is a half: ${n} ÷ 2 = ${n / 2}.` : p % 25 === 0 ? `25% is a quarter: ${n} ÷ 4 = ${n / 4}. ${p}% is ${p / 25} of those: ${p * n / 100}.` : `10% is ${n} ÷ 10 = ${n / 10}.${p === 5 ? ` 5% is half of that: ${n / 20}.` : p === 15 ? ` 5% is half of that: ${n / 20}. 10% + 5% = ${p * n / 100}.` : ` ${p}% is ${p / 10} lots of that: ${p * n / 100}.`}`}; }},
 
+  {id: 'pct-out-of', y: 6, name: 'Scores as percentages', kid: 'Turn a score into a percentage, like your tests.', glyph: '18/20=90%', gen(){
+    const t = pick([4, 5, 10, 20, 25, 50]), s = ri(1, t), m = 100 / t;
+    return {lead: `You scored ${s} out of ${t}. What percentage is that?`, q: `${FR(s, t)} = ${gap} %`, t: `${s} out of ${t} = ?%`, ans: A.num(s * m), how: `Make it out of 100: ${t} × ${m} = 100, so times the score by ${m} too. ${s} × ${m} = ${s * m}, so ${s * m}%.`}; }},
+  {id: 'pct-change', y: 7, name: 'Percentage increase and decrease', kid: 'Find the percentage, then add it on or take it off.', glyph: '+25%', gen(){
+    const p = pick([5, 10, 15, 20, 25, 30, 50, 75]), n = 20 * ri(2, 15), part = n * p / 100, up = Math.random() < .5;
+    return {lead: `${up ? 'Increase' : 'Decrease'} ${n} by ${p}%`, q: `${n} ${up ? '+' : '−'} ${p}% = ${gap}`, t: `${n} ${up ? 'increased' : 'decreased'} by ${p}%`, ans: A.num(up ? n + part : n - part), how: `${p}% of ${n} is ${part}. ${up ? `Add it on: ${n} + ${part} = ${n + part}` : `Take it off: ${n} − ${part} = ${n - part}`}.`}; }},
   {id: 'dec-x-dec', y: 7, name: 'Multiply two decimals', kid: 'Times the digits, then count the decimal places.', glyph: '0.3×0.4', gen(){
     const a = ri(2, 9), b = ri(2, 9), k1 = pick([1, 1, 0]), k2 = 1, x = D(a, k1), y = D(b, k2), r = mul(x, y);
     return {q: `${dec(x)} × ${dec(y)} = ${gap}`, t: `${dec(x)} × ${dec(y)}`, ans: A.dec(r), how: `${a} × ${b} = ${a * b}. There ${k1 + k2 === 1 ? 'is 1 decimal place' : `are ${k1 + k2} decimal places`} in the question, so ${k1 + k2 === 1 ? 'there is 1' : `there are ${k1 + k2}`} in the answer: ${dec(r)}.`}; }},
@@ -312,14 +330,14 @@ window.TTCFrac = function(X){
     const pad = !extra.length ? `${digits}<button class="del" data-act="fd-key" data-k="back" aria-label="Delete">⌫</button><button data-act="fd-key" data-k="0">0</button><button class="ok" data-act="fd-key" data-k="ok" aria-label="Check my answer">✓</button>`
       : `${digits}${K(extra[0])}<button data-act="fd-key" data-k="0">0</button><button class="del" data-act="fd-key" data-k="back" aria-label="Delete">⌫</button>${extra[1] ? K(extra[1]) + `<button class="ok fd-ok2" data-act="fd-key" data-k="ok" aria-label="Check my answer">✓</button>` : `<button class="ok fd-ok3" data-act="fd-key" data-k="ok" aria-label="Check my answer">✓</button>`}`;
     const s = BY[q.skill];
-    return `<header class="top"><div class="brand">${X.logo()}<span>Decimals &amp; Fractions</span></div><div class="top-right"><span class="me-chip">${X.avatar(X.S.me, 34)}<span>${esc(X.S.me.name)}</span></span></div></header>
+    return `<header class="top"><div class="brand">${X.logo()}<span>Fractions, Decimals &amp; Percentages</span></div><div class="top-right"><span class="me-chip">${X.avatar(X.S.me, 34)}<span>${esc(X.S.me.name)}</span></span></div></header>
     <section class="play ${cls}">
       <div class="play-main">
         <div class="play-top"><div class="info"><span>${NAME[P.kind]}${P.skillId ? ' · ' + esc(s.name) : ''}</span><span class="num muted" id="fd-time">${P.kind === 'clock' ? Math.ceil(left / 1000) + 's' : X.fmtClock(Date.now() - P.start)}</span>${bestTxt ? `<span class="muted num">${bestTxt}</span>` : ''}${P.streak >= 3 ? `<span class="chip">${P.streak} in a row</span>` : ''}</div><button class="btn ghost small" data-act="fd-quit">Stop</button></div>
         <div class="pbar-wrap"><div class="pbar" role="progressbar" aria-label="How much is left"><span id="pbar-fill" style="width:${(frac * 100).toFixed(1)}%"></span></div><b class="num">${label}</b></div>
         <div class="qcard sticker">
           ${!P.skillId ? `<p class="eyebrow">${esc(s.name)}</p>` : ''}${q.lead ? `<p class="fd-lead">${esc(q.lead)}</p>` : ''}
-          ${q.pic && X.yearOf(X.S.me) <= 4 ? `<div class="fd-pic">${q.pic}</div>` : ''}
+          ${q.pic && (q.always || X.yearOf(X.S.me) <= 4) ? `<div class="fd-pic">${q.pic}</div>` : ''}
           <div class="q fd-q" aria-label="${esc(q.t)}">${qh}</div>
           <div class="fb" role="status">${P.formMsg ? esc(P.formMsg) : P.fb ? esc(P.fb.text) : ''}</div>
           ${P.fb && P.fb.how ? `<p class="hint">${esc(P.fb.how)} Type ${esc(showAns(q.ans))} to carry on.</p>` : ''}
@@ -337,16 +355,16 @@ window.TTCFrac = function(X){
     const pbLine = !r.pb ? '' : r.pb.first ? `<p class="muted">That sets your mark. Beat it next time for 30 bonus ${X.ptsName()}!</p>` : r.pb.x ? `<p class="callout mint">New personal best! It was ${was(r.pb.old)}.</p>` : `<p class="muted">Your best is ${was(r.pb.old)}.</p>`;
     const wrong = r.answers.filter(a => !a.ok);
     return `${X.topbar('fd')}<section class="results"><div class="res-body">
-      <p class="eyebrow">Decimals &amp; fractions · ${NAME[r.kind]} · ${esc(r.label)}</p><h1 class="mega sm">${head}</h1>
+      <p class="eyebrow">Fractions, decimals &amp; percentages · ${NAME[r.kind]} · ${esc(r.label)}</p><h1 class="mega sm">${head}</h1>
       ${r.prize ? `<div class="res-medal pop">${X.medal(r.prize.id, 130)}</div>` : ''}
       <div><span class="score num">${big}</span> <span class="muted" style="font-weight:800">${sub}</span></div>
       ${pbLine}
       <p class="callout mint">+${r.xp} ${X.ptsName()}${r.extra.length ? ` (including ${r.extra.join(' and ')})` : ''}</p>
       ${r.noTrophy ? `<p class="callout">No trophy: ${r.skillId ? 'this one is already strong' : 'these are all strong already'}. Pick something that is not green yet to win one.</p>` : ''}
-      ${r.kind === 'test' && !r.prize && !r.noTrophy && !r.ab && X.S.prog.fd && X.S.prog.fd.won === X.dayStr() && X.tierFor(r.pct) ? `<p class="muted">You already won today's decimals and fractions trophy. Come back tomorrow for another.</p>` : ''}
+      ${r.kind === 'test' && !r.prize && !r.noTrophy && !r.ab && X.S.prog.fd && X.S.prog.fd.won === X.dayStr() && X.tierFor(r.pct) ? `<p class="muted">You already won today's fractions, decimals and percentages trophy. Come back tomorrow for another.</p>` : ''}
       ${X.resultItems(r)}
       ${wrong.length ? `<div><h3 style="margin-bottom:8px">To practise</h3><div class="mistakes">${wrong.slice(0, 12).map(a => `<span>${esc(a.t.includes('?') ? a.t.replace('?', a.a) : `${a.t} = ${a.a}`)} <small>you said ${esc(a.g)}</small></span>`).join('')}</div></div>` : r.n >= 5 ? '<p class="callout mint">Every answer right. Amazing!</p>' : ''}
-      <div class="row" style="margin-top:14px"><button class="btn big" data-act="fd-start" data-k="${r.kind}" data-s="${esc(r.skillId || '')}">Play again</button><button class="btn ghost" data-act="go" data-to="fd">Decimals &amp; fractions</button></div>
+      <div class="row" style="margin-top:14px"><button class="btn big" data-act="fd-start" data-k="${r.kind}" data-s="${esc(r.skillId || '')}">Play again</button><button class="btn ghost" data-act="go" data-to="fd">Fractions, decimals &amp; %</button></div>
     </div></section>`;
   }
   function scrHub(){
@@ -358,7 +376,7 @@ window.TTCFrac = function(X){
     const now = list.filter(x => x.y === y), before = list.filter(x => x.y < y);
     const cb = s.bests['clock:y' + y], tb = s.bests['test:y' + y];
     return `${X.topbar('fd')}
-    <div class="parent-head"><div><p class="eyebrow">Year ${y} · ${strong()} of ${list.length} strong</p><h1 class="mega sm">Decimals &amp; fractions</h1>
+    <div class="parent-head"><div><p class="eyebrow">Year ${y} · ${strong()} of ${list.length} strong</p><h1 class="mega sm">Fractions, decimals &amp; percentages</h1>
       <p class="lede">Practise one skill with help when you are stuck, or test yourself on the lot. Tests win trophies for your trail.</p></div></div>
     <div class="modes fd-modes">
       <button class="mode" style="--c:var(--sun)" data-act="fd-start" data-k="test"><span class="glyph">90%</span><b>Year ${y} test</b><span>20 questions on everything below.${tb ? ` Best ${tb.pct}%.` : ''}</span></button>

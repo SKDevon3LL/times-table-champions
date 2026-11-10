@@ -7,7 +7,7 @@ and works with no internet.
   **Beat the Clock** (60 seconds), **Daily Challenge** (their 15 trickiest facts), **Explore** (dot arrays and patterns).
 - **Square times** (1 × 1 to 12 × 12) is a choice of its own in Practise, Test and Beat the Clock. A week's feature exercise
   gets a card on the home page (`FEATURES` in `app.js`, by challenge week): square times in weeks 2 and 3.
-- **Decimals & fractions** (`fractions.js`, a tab on the times-tables side): 27 skills, each in the school year the National
+- **Fractions, decimals & percentages** (`fractions.js`, a tab on the times-tables side): 32 skills, each in the school year the National
   Curriculum teaches it (Year 3 unit fractions of amounts up to Year 7 dividing by a fraction). A child sees this year's skills
   and last year's, from the school-year slider in Grown-ups. Practise (a worked explanation when wrong), a 20-question test that
   wins a trophy for the weekly trail (one a day), and Beat the Clock with personal bests. The number pad shows only the keys
