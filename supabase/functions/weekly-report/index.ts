@@ -48,7 +48,8 @@ function activity(sessions: any[], prog: any, start: number, methodNames: Record
   const rows = new Map<string, {name: string, times: number, tables: Set<number>, mixed: boolean, squares: boolean}>();
   for (const s of sessions) {
     if (s.ab) continue;
-    const name = s.mode === "daily" ? "Daily Challenge" : s.mode === "recite" ? "Said out loud (a whole table)" : s.mode === "test" ? "Test" : s.mode === "clock" ? "Beat the Clock"
+    const name = String(s.mode).startsWith("fd-") ? `Decimals and fractions ${s.mode === "fd-test" ? "test" : s.mode === "fd-clock" ? "Beat the Clock" : "practice"}${s.label ? `: ${s.label}` : ""}`
+      : s.mode === "daily" ? "Daily Challenge" : s.mode === "recite" ? "Said out loud (a whole table)" : s.mode === "test" ? "Test" : s.mode === "clock" ? "Beat the Clock"
       : s.method ? `Way to learn: ${methodNames[s.method] || s.method}` : "Practise";
     const r = rows.get(name) || {name, times: 0, tables: new Set<number>(), mixed: s.mode === "daily", squares: false};
     r.times++; if (s.mode !== "daily") for (const t of s.tables || []) r.tables.add(t);
@@ -59,7 +60,7 @@ function activity(sessions: any[], prog: any, start: number, methodNames: Record
   const out = [...rows.values()].map(r => ({name: r.name, times: r.times, tables: r.mixed ? "their trickiest facts, mixed"
     : [r.squares ? "square times (1 × 1 to 12 × 12)" : "", tablesText([...r.tables].sort((a, b) => a - b))].filter(Boolean).join(", ")}));
   if (explored) out.push({name: "Explore (5 facts, in the Bonus Round)", times: explored, tables: ""});
-  const order = ["Daily Challenge", "Said out loud", "Beat the Clock", "Explore", "Way to learn", "Test", "Practise"];
+  const order = ["Daily Challenge", "Said out loud", "Beat the Clock", "Explore", "Way to learn", "Test", "Practise", "Decimals and fractions"];
   return out.sort((a, b) => order.findIndex(o => a.name.startsWith(o)) - order.findIndex(o => b.name.startsWith(o)));
 }
 

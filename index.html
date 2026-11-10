@@ -558,6 +558,28 @@ body:has(.jg-bd) .top .brand, body:has(.jg-bd) .top .sync{color:#FFFFFF;text-sha
   .brand span{font-size:19px}
 }
 @media (max-width:400px){ .modes{grid-template-columns:1fr} }
+/* Decimals and fractions: stacked fractions in the sums, a skill list coloured like the times-table map. */
+.fr{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;line-height:1;margin:0 .06em;font-size:.62em}
+.fr i{font-style:normal;padding:0 .12em;min-width:.6em;text-align:center}
+.fr i:first-child{border-bottom:.07em solid currentColor;padding-bottom:.06em}
+.fr i:last-child{padding-top:.06em}
+.fd-q{font-size:clamp(40px,8.5vw,84px);white-space:normal}
+.fd-q .slot{min-width:1.2em}
+.fd-gap{display:inline-block;width:.3em}
+.fd-lead{font-weight:800;font-size:clamp(18px,3.2vw,24px);margin:0 0 14px}
+.fd-pic{margin:0 auto 14px;max-width:min(360px,90%)}.fd-bar{width:100%;height:auto;display:block}
+.fd-pad .fd-ok3{grid-column:1 / -1}.fd-pad .fd-ok2{grid-column:span 2}.fd-pad .fd-sp{font-size:20px}
+.fd-home{width:100%;margin-top:16px;min-height:0}
+.fd-modes{margin-bottom:8px}
+.fd-skills{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.fd-skill{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:center;padding:14px 16px}
+.fd-glyph{font-family:var(--display);font-size:22px;min-width:84px;padding:10px 8px;border:2.5px solid var(--line);border-radius:14px;text-align:center;background:var(--card);white-space:nowrap}
+.fd-skill.lv1 .fd-glyph{background:color-mix(in srgb,var(--tomato) 30%,var(--card))}
+.fd-skill.lv2 .fd-glyph{background:color-mix(in srgb,var(--sun) 45%,var(--card))}
+.fd-skill.lv3 .fd-glyph{background:color-mix(in srgb,var(--mint) 55%,var(--card))}
+.fd-sk-body{display:grid;gap:2px}.fd-sk-body small{color:var(--muted)}.fd-sk-body .fd-lv{font-weight:800;color:var(--ink)}
+.fd-sk-btns{grid-column:1 / -1;display:flex;gap:8px;flex-wrap:wrap}
+@media (max-width:400px){ .fd-skills{grid-template-columns:1fr} .fd-glyph{min-width:64px;font-size:18px} }
 @media (max-width:520px){ .todo li{grid-template-columns:42px minmax(0,1fr)} .todo li .btn{grid-column:2;justify-self:start}
   .board button{min-height:32px} .card-h .link,.foot-link .link{display:inline-block;padding:10px 4px} }
 @media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
@@ -570,6 +592,7 @@ body:has(.jg-bd) .top .brand, body:has(.jg-bd) .top .sync{color:#FFFFFF;text-sha
 <script src="games.js"></script>
 <script src="spellwords.js"></script>
 <script src="spelling.js"></script>
+<script src="fractions.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

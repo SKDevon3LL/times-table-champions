@@ -97,6 +97,7 @@ function mergeDoc(path, a, b){
     r.reciteAw = Object.assign({}, b.reciteAw, a.reciteAw);
     r.reciteBest = Object.assign({}, b.reciteBest); for (const [k, v] of Object.entries(a.reciteBest || {})) if (!r.reciteBest[k] || v.ms < r.reciteBest[k].ms) r.reciteBest[k] = v;
     if (a.spell || b.spell) r.spell = window.TTCSpellMerge ? window.TTCSpellMerge(a.spell, b.spell) : (a.spell || b.spell);
+    if (a.fd || b.fd) r.fd = window.TTCFracMerge ? window.TTCFracMerge(a.fd, b.fd) : (a.fd || b.fd);
     r.badges = Object.assign({}, b.badges); for (const [k, v] of Object.entries(a.badges || {})) if (!r.badges[k] || v < r.badges[k]) r.badges[k] = v;
     const seen = new Set();
     r.prizeLog = [...(a.prizeLog || []), ...(b.prizeLog || [])].filter(x => { const k = x.t + x.tier; if (seen.has(k)) return false; seen.add(k); return true; }).sort((x, y) => y.t - x.t).slice(0, 80);
@@ -297,8 +298,9 @@ const FEATURES = {2: 'squares', 3: 'squares'};
 const featureNow = () => FEATURES[challengeWeek()] || null;
 const prizeTotal = p => TIERS.reduce((s, t) => s + (p.prizes[t.id] || 0), 0);
 const MODE_NAMES = {practice:'Practice', test:'Test', clock:'Beat the Clock', daily:'Daily Challenge', recite:'Said out loud',
-  'spell-daily':'Daily Spelling Challenge', 'spell-clock':'Spelling: Beat the Clock', 'spell-test':'Spelling test', 'spell-practice':'Spelling practice'};
-const tablesLabel = (s) => String(s.mode).startsWith('spell') ? `${(s.words || []).length} words` : s.mode === 'daily' || s.pool ? 'Trickiest facts' : [s.sq ? 'Square times' : '', s.tables.length === 12 ? 'All tables' : s.tables.map(t => '×' + t).join(' ')].filter(Boolean).join(' + ');
+  'spell-daily':'Daily Spelling Challenge', 'spell-clock':'Spelling: Beat the Clock', 'spell-test':'Spelling test', 'spell-practice':'Spelling practice',
+  'fd-practice':'Decimals and fractions practice', 'fd-test':'Decimals and fractions test', 'fd-clock':'Decimals and fractions: Beat the Clock'};
+const tablesLabel = (s) => String(s.mode).startsWith('fd-') ? (s.label || 'Decimals and fractions') : String(s.mode).startsWith('spell') ? `${(s.words || []).length} words` : s.mode === 'daily' || s.pool ? 'Trickiest facts' : [s.sq ? 'Square times' : '', s.tables.length === 12 ? 'All tables' : s.tables.map(t => '×' + t).join(' ')].filter(Boolean).join(' + ');
 
 function hint(a, b){
   const p = a * b;
@@ -835,6 +837,7 @@ function go(to){
   if (S.play && to !== 'play') { quit(); return; }
   if (S.screen === 'recite' && to !== 'recite') reciteStop();
   if (S.screen === 'splay' && to !== 'splay' && SPL) { SPL.stop(); S.sp = null; }
+  if (S.screen === 'fdplay' && to !== 'fdplay' && FRAC) { FRAC.stop(); S.fd = null; }
   if (S.screen === 'game' && (gameTimer || gameInst)) { const demo = !!S.demo; stopGame(); if (!demo) saveProg().catch(saveFail); }
   if (S.reloadSoon && !S.demo && ['home', 'login', 'parent'].includes(to)) { location.reload(); return; }
   if (S.demo && (to === 'home' || to === 'login')) { endDemo(); to = 'parent'; }
@@ -1028,7 +1031,7 @@ const subjectPick = () => `<div class="subj" role="group" aria-label="Which app"
   `<button class="subj-card ${S.subject === k ? 'on' : ''}" data-act="subject" data-k="${k}" aria-pressed="${S.subject === k}"><span class="glyph">${g}</span><b>${t}</b><span>${sub}</span></button>`).join('')}</div>`;
 function topbar(cur){
   const me = S.me;
-  const sp = S.subject === 'spell', tabs = sp ? [['spell','Home','go']] : [['home','Home','go'],['progress','My progress','go']];
+  const sp = S.subject === 'spell', tabs = sp ? [['spell','Home','go']] : [['home','Home','go'],['fd','Decimals & fractions','go'],['progress','My progress','go']];
   return `<header class="top"><div class="brand">${logo()}<span>${sp ? 'Spelling Champions' : esc(skin().brand)}</span></div>
     <div class="top-right">
       <span class="sync" id="sync-chip">${esc(syncText())}</span>
@@ -1102,6 +1105,7 @@ function scrHome(){
         ${modeTile('clock', '60s', 'Beat the Clock', 'Beat your best in 60 seconds.', 'tomato')}
         ${modeTile('explore', '12²', 'Explore', 'Spot the patterns.', 'sky')}
       </div>
+      ${FRAC ? `<button class="mode fd-home" style="--c:var(--grape)" data-act="go" data-to="fd"><span class="glyph">¾ 0.5</span><b>Decimals &amp; fractions</b><span>Year ${Math.min(7, yearOf(me))} skills: practise, test and Beat the Clock.</span></button>` : ''}
       <div class="sticker"><p class="eyebrow">From Taylor, your Times Table Coach</p>${planFor(me) && planFor(me).note ? `<p class="callout" style="margin-top:10px">${esc(planFor(me).note)}</p>` : ''}<ul class="recs">${recommendations(p, S.sessions).map(recItem).join('')}</ul></div>
     </div>
     <div class="col">
@@ -1854,7 +1858,7 @@ async function startGame(){
 function stopGame(){ clearInterval(gameTimer); gameTimer = null; if (gameInst) { try { gameInst.destroy(); } catch {} gameInst = null; } }
 
 /* ---------- render ---------- */
-const SCREENS = {spell:() => SPL ? SPL.screens.spell() : scrHome(), splay:() => SPL ? SPL.screens.splay() : scrHome(), sres:() => SPL ? SPL.screens.sres() : scrHome(), recite:scrRecite, game:scrGame, gate:scrGate, loading:scrLoading, login:scrLogin, home:scrHome, setup:scrSetup, play:scrPlay, results:scrResults, progress:scrProgress, explore:scrExplore, parent:scrParent};
+const SCREENS = {fd:() => FRAC ? FRAC.screens.fd() : scrHome(), fdplay:() => FRAC ? FRAC.screens.fdplay() : scrHome(), fdres:() => FRAC ? FRAC.screens.fdres() : scrHome(), spell:() => SPL ? SPL.screens.spell() : scrHome(), splay:() => SPL ? SPL.screens.splay() : scrHome(), sres:() => SPL ? SPL.screens.sres() : scrHome(), recite:scrRecite, game:scrGame, gate:scrGate, loading:scrLoading, login:scrLogin, home:scrHome, setup:scrSetup, play:scrPlay, results:scrResults, progress:scrProgress, explore:scrExplore, parent:scrParent};
 let lastScreen = null;
 function render(){
   app.innerHTML = SCREENS[S.screen]();
@@ -2026,6 +2030,10 @@ const F = {
 const SPL = window.TTCSpell ? window.TTCSpell({get S(){ return S; }, render, go, saveProg, saveLog, ensureLogCur, sound, confetti, toast, esc, dayStr, ptsName, skinId, tierFor,
   itemsOwned, TRAIL_STOPS, resultItems, topbar, fmtClock, saveFail, yearOf, logo, avatar, medal, journey, gameBanner, weekStart}) : null;
 if (SPL) Object.assign(A, SPL.actions);
+// Decimals and fractions (fractions.js; Sam, 10 Nov 2026): a tab on the times-tables side, skills by school year.
+const FRAC = window.TTCFrac ? window.TTCFrac({get S(){ return S; }, render, go, saveProg, saveLog, ensureLogCur, sound, confetti, esc, dayStr, ptsName, skinId, skin, tierFor,
+  itemsOwned, TRAIL_STOPS, resultItems, topbar, fmtClock, saveFail, yearOf, logo, avatar, medal}) : null;
+if (FRAC) Object.assign(A, FRAC.actions);
 app.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el || !app.contains(el)) return;
   const fn = A[el.dataset.act]; if (fn) { e.preventDefault(); fn(el, e); }
@@ -2036,6 +2044,7 @@ app.addEventListener('submit', e => {
 });
 document.addEventListener('keydown', e => {
   if (SPL && SPL.keydown(e)) { e.preventDefault(); return; }
+  if (FRAC && FRAC.keydown(e)) { e.preventDefault(); return; }
   if (S.screen !== 'play' || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.target.matches && e.target.matches('input,textarea,select')) return;
   if (/^[0-9]$/.test(e.key)) { press(e.key); e.preventDefault(); }
