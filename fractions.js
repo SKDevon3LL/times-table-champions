@@ -27,6 +27,9 @@ const FR = (n, d) => `<span class="fr"><i>${esc(n)}</i><i>${esc(d)}</i></span>`;
 const ft = r => r.d === 1 ? String(r.n) : `${r.n}/${r.d}`;          // the same, as plain text
 const mt = r => { const w = Math.floor(r.n / r.d), p = r.n % r.d; return !p ? String(w) : w ? `${w} ${p}/${r.d}` : `${p}/${r.d}`; };
 const gap = '<span class="slot" id="slot">?</span>';
+// A signed number as it is written in class: N(-3) is −3, B(-3) is (−3); positives are left alone.
+const N = x => String(x).replace('-', '−');
+const B = x => String(x)[0] === '-' ? `(${N(x)})` : String(x);
 // A bar cut into d equal parts with k shaded, for the youngest skills.
 const bar = (d, k) => `<svg class="fd-bar" viewBox="0 0 ${d * 30} 34" role="img" aria-label="${k} of ${d} equal parts shaded">${Array.from({length: d}, (_, i) => `<rect x="${i * 30 + 1.5}" y="1.5" width="27" height="31" rx="4" fill="${i < k ? 'var(--me)' : 'var(--card)'}" stroke="var(--line)" stroke-width="2.5"/>`).join('')}</svg>`;
 
@@ -36,6 +39,7 @@ const grid = k => `<svg class="fd-grid" viewBox="0 0 102 102" role="img" aria-la
 /* ---------- the answer: what was typed, and whether it is the right amount in the right form ---------- */
 function parse(s){
   s = String(s).trim().replace(/\s+/g, ' ');
+  if (s[0] === '-') { const g = parse(s.slice(1)); if (g) g.v = R(-g.v.n, g.v.d); return g; }
   let m;
   if ((m = s.match(/^(\d+) (\d+)\/(\d+)$/))) return +m[3] ? {form: 'mixed', v: R(+m[1] * +m[3] + +m[2], +m[3]), proper: +m[2] < +m[3], low: gcd(+m[2], +m[3]) === 1} : null;
   if ((m = s.match(/^(\d+)\/(\d+)$/))) return +m[2] ? {form: 'frac', v: R(+m[1], +m[2]), low: gcd(+m[1], +m[2]) === 1} : null;
@@ -61,10 +65,12 @@ const A = {
   frac: (v, simplest) => ({kind: 'frac', v, simplest: !!simplest}),
   mixed: v => ({kind: 'mixed', v}),
   improper: v => ({kind: 'improper', v}),
+  int: v => ({kind: 'num', v: R(v), sign: true}),            // a whole number that may be negative: the pad gets a +/− key
+  sdec: v => ({kind: 'dec', v, sign: true}),
 };
-const showAns = a => a.kind === 'num' || a.kind === 'dec' ? dec(a.v) : a.kind === 'improper' ? ft(a.v) : a.kind === 'mixed' ? mt(a.v)
+const showAns = a => a.kind === 'num' || a.kind === 'dec' ? dec(a.v).replace('-', '−') : a.kind === 'improper' ? ft(a.v) : a.kind === 'mixed' ? mt(a.v)
   : a.v.n > a.v.d && a.v.d !== 1 ? `${ft(a.v)} or ${mt(a.v)}` : ft(a.v);
-const keysFor = a => a.kind === 'num' ? [] : a.kind === 'dec' ? ['.'] : a.kind === 'mixed' ? ['/', ' '] : a.kind === 'improper' ? ['/'] : a.v.n > a.v.d ? ['/', ' '] : ['/'];
+const keysFor = a => a.sign ? (a.kind === 'dec' ? ['-', '.'] : ['-']) : a.kind === 'num' ? [] : a.kind === 'dec' ? ['.'] : a.kind === 'mixed' ? ['/', ' '] : a.kind === 'improper' ? ['/'] : a.v.n > a.v.d ? ['/', ' '] : ['/'];
 
 /* ---------- the skills, year by year (National Curriculum, England) ----------
    Each makes one question: lead (a line of words, if needed), q (the sum, with the gap), ans, how (the worked way, shown
@@ -186,6 +192,54 @@ const SKILLS = [
   {id: 'div-frac', y: 7, name: 'Divide by a fraction', kid: 'Keep, change, flip.', glyph: '¾÷½', gen(){
     const [a, b] = pick(PROPER.filter(([, b]) => b <= 8)), [c, d] = pick(PROPER.filter(([, b]) => b <= 6)), r = R(a * d, b * c);
     return {q: `${FR(a, b)} ÷ ${FR(c, d)} = ${gap}`, t: `${a}/${b} ÷ ${c}/${d}`, ans: A.frac(r), how: `Keep ${a}/${b}, change ÷ to ×, flip ${c}/${d} to ${d}/${c}. ${a}/${b} × ${d}/${c} = ${a * d}/${b * c}${r.d !== b * c ? ` = ${ft(r)}` : ''}${r.n > r.d && r.d !== 1 ? ` (= ${mt(r)})` : ''}.`}; }},
+  /* ---------- Negative numbers (Abbey, 19 Nov 2026: Jessica's Year 7 test; the order of MathsPad's Negatives unit:
+     introducing and ordering, adding and subtracting, multiplying and dividing). Their own page, g: 'neg'. ---------- */
+  {id: 'neg-order', g: 'neg', y: 7, name: 'Ordering negative numbers', kid: 'Further left on the number line is smaller. −7 is smaller than −3.', glyph: '−7 < −3', gen(){
+    const want = pick(['smallest', 'largest']), decs = Math.random() < .3;
+    let xs; if (decs) { const set = new Set(); while (set.size < 4) set.add(ri(-9, 3) * 5 + pick([0, 0, 1, 2, 3, 4])); xs = [...set].map(n => R(n, 20)); if (xs.every(x => x.n >= 0)) xs[0] = R(-xs[0].n - 1, xs[0].d); }
+    else { const set = new Set(); while (set.size < 5) set.add(ri(-12, 9)); xs = [...set].map(n => R(n)); if (xs.every(x => x.n >= 0)) xs[0] = R(-xs[0].n - 1); }
+    const val = x => x.n / x.d, sorted = [...xs].sort((a, b) => val(a) - val(b)), a = want === 'smallest' ? sorted[0] : sorted[sorted.length - 1];
+    const list = xs.map(x => N(dec(x))).join(',  ');
+    return {lead: `Type the ${want} number`, q: `<span class="neg-list">${list}</span><br>${gap}`, t: `${want} of ${xs.map(x => dec(x)).join(', ')} is ?`, ans: decs ? A.sdec(a) : A.int(a.n),
+      how: `Picture the number line. In order, smallest first: ${sorted.map(x => N(dec(x))).join(', ')}. ${want === 'smallest' ? 'The smallest is furthest left' : 'The largest is furthest right'}: ${N(dec(a))}.${decs ? ' With negatives, the one that looks bigger (like −0.5) is actually smaller than −0.25.' : ''}`}; }},
+  {id: 'neg-temp', g: 'neg', y: 7, name: 'Temperatures and real life', kid: 'Rises go up the number line, falls go down. Differences count the gap.', glyph: '−4°C', gen(){
+    const k = ri(0, 3);
+    if (k === 0) { const a = ri(-3, 8), d = ri(Math.max(2, a + 1), a + 12); return {lead: `The temperature is ${N(a)}°C. It falls by ${d} degrees. What is the temperature now?`, q: `${gap} °C`, t: `${a}°C falls by ${d} = ?`, ans: A.int(a - d), how: `Start at ${N(a)} and count down ${d}: ${N(a)} − ${d} = ${N(a - d)}.`}; }
+    if (k === 1) { const a = ri(-12, -1), d = ri(2, 15); return {lead: `The temperature is ${N(a)}°C. It rises by ${d} degrees. What is the temperature now?`, q: `${gap} °C`, t: `${a}°C rises by ${d} = ?`, ans: A.int(a + d), how: `Start at ${N(a)} and count up ${d}: ${N(a)} + ${d} = ${N(a + d)}.`}; }
+    if (k === 2) { const a = ri(-12, -1), b = ri(1, 12), [c1, c2] = pick([['Oslo', 'Rome'], ['Moscow', 'Madrid'], ['the freezer', 'the kitchen'], ['the mountain top', 'the valley']]); return {lead: `It is ${N(a)}°C in ${c1} and ${b}°C in ${c2}. What is the difference in temperature?`, q: `${gap} degrees`, t: `difference between ${a}°C and ${b}°C = ?`, ans: A.int(b - a), how: `From ${N(a)} up to 0 is ${-a}. From 0 up to ${b} is ${b}. ${-a} + ${b} = ${b - a}. (Or: ${b} − ${B(a)} = ${b - a}.) A difference is never negative.`}; }
+    const a = ri(5, 40), d = ri(a + 5, a + 60); return {lead: `Jessica has £${a} in the bank. She spends £${d}. What is her balance now?`, q: `£ ${gap}`, t: `£${a} − £${d} = £?`, ans: A.int(a - d), how: `${a} − ${d} goes below zero: it takes ${a} to reach 0, then ${d - a} more. The balance is ${N(a - d)} pounds (overdrawn).`}; }},
+  {id: 'neg-addpos', g: 'neg', y: 7, name: 'Add and subtract across zero', kid: 'Start at the first number. + moves right, − moves left.', glyph: '3 − 8', gen(){
+    const k = ri(0, 2); let a, b, op;
+    if (k === 0) { a = ri(1, 12); b = ri(a + 1, a + 14); op = '−'; } else if (k === 1) { a = ri(-15, -1); b = ri(1, 18); op = '+'; } else { a = ri(-12, -1); b = ri(1, 12); op = '−'; }
+    const r = op === '+' ? a + b : a - b;
+    return {q: `${N(a)} ${op} ${b} = ${gap}`, t: `${a} ${op === '+' ? '+' : '-'} ${b}`, ans: A.int(r), how: `Start at ${N(a)} on the number line and move ${b} to the ${op === '+' ? 'right' : 'left'}: you land on ${N(r)}.`}; }},
+  {id: 'neg-addneg', g: 'neg', y: 7, name: 'Adding a negative', kid: 'Adding a negative is the same as subtracting. + − makes −.', glyph: '5 + (−3)', gen(){
+    const a = ri(-12, 12), b = ri(-12, -1), r = a + b;
+    return {q: `${N(a)} + ${B(b)} = ${gap}`, t: `${a} + (${b})`, ans: A.int(r), how: `Adding a negative means subtract: ${N(a)} + ${B(b)} is the same as ${N(a)} − ${-b}. Start at ${N(a)}, move ${-b} left: ${N(r)}.`}; }},
+  {id: 'neg-subneg', g: 'neg', y: 7, name: 'Subtracting a negative', kid: 'Subtracting a negative is the same as adding. − − makes +.', glyph: '5 − (−3)', gen(){
+    const a = ri(-12, 12), b = ri(-12, -1), r = a - b;
+    return {q: `${N(a)} − ${B(b)} = ${gap}`, t: `${a} - (${b})`, ans: A.int(r), how: `Two minus signs next to each other make a plus: ${N(a)} − ${B(b)} is the same as ${N(a)} + ${-b}. Start at ${N(a)}, move ${-b} right: ${N(r)}.`}; }},
+  {id: 'neg-mul', g: 'neg', y: 7, name: 'Multiplying negatives', kid: 'Signs the same: positive answer. Signs different: negative answer.', glyph: '−3 × 4', gen(){
+    const a = ri(2, 12) * pick([1, -1, -1]), b = ri(2, 12) * (a > 0 ? -1 : pick([1, -1])), r = a * b;
+    return {q: `${N(a)} × ${B(b)} = ${gap}`, t: `${a} x ${b}`, ans: A.int(r), how: `First the numbers: ${Math.abs(a)} × ${Math.abs(b)} = ${Math.abs(r)}. Then the sign: ${a < 0 && b < 0 ? 'both are negative, signs the SAME, so the answer is positive' : 'one is negative and one is positive, signs DIFFERENT, so the answer is negative'}: ${N(r)}.`}; }},
+  {id: 'neg-div', g: 'neg', y: 7, name: 'Dividing negatives', kid: 'Same rule as multiplying: same signs +, different signs −.', glyph: '−24 ÷ 6', gen(){
+    const b = ri(2, 12) * pick([1, -1, -1]), r = ri(2, 12) * (b > 0 ? -1 : pick([1, -1])), a = b * r;
+    return {q: `${N(a)} ÷ ${B(b)} = ${gap}`, t: `${a} / ${b}`, ans: A.int(r), how: `First the numbers: ${Math.abs(a)} ÷ ${Math.abs(b)} = ${Math.abs(r)}. Then the sign: ${a < 0 && b < 0 ? 'both are negative, signs the SAME, so the answer is positive' : 'signs DIFFERENT, so the answer is negative'}: ${N(r)}.`}; }},
+  {id: 'neg-sq', g: 'neg', y: 7, name: 'Squares and three numbers', kid: 'A negative squared is positive. Count the minus signs: even is +, odd is −.', glyph: '(−4)²', gen(){
+    if (Math.random() < .5) { const a = -ri(2, 12); return {q: `${B(a)}² = ${gap}`, t: `(${a}) squared`, ans: A.int(a * a), how: `${B(a)}² means ${B(a)} × ${B(a)}. ${-a} × ${-a} = ${a * a}, and negative × negative is positive: ${a * a}.`}; }
+    const xs = [ri(2, 5), ri(2, 5), ri(2, 4)].map(x => x * pick([1, -1, -1])), r = xs[0] * xs[1] * xs[2], m = xs.filter(x => x < 0).length;
+    return {q: `${N(xs[0])} × ${B(xs[1])} × ${B(xs[2])} = ${gap}`, t: `${xs[0]} x ${xs[1]} x ${xs[2]}`, ans: A.int(r), how: `Numbers first: ${xs.map(Math.abs).join(' × ')} = ${Math.abs(r)}. There ${m === 1 ? 'is 1 minus sign' : `are ${m} minus signs`}: ${m % 2 ? 'an odd number, so the answer is negative' : 'an even number, so the answer is positive'}: ${N(r)}.`}; }},
+  {id: 'neg-missing', g: 'neg', y: 7, name: 'Missing numbers', kid: 'Work backwards to find the number in the gap.', glyph: '? + 5 = −2', gen(){
+    const k = ri(0, 3);
+    if (k === 0) { const x = ri(-12, -1), b = ri(1, 12); return {q: `${gap} + ${b} = ${N(x + b)}`, t: `? + ${b} = ${x + b}`, ans: A.int(x), how: `Undo the + ${b}: ${N(x + b)} − ${b} = ${N(x)}. Check: ${N(x)} + ${b} = ${N(x + b)}.`}; }
+    if (k === 1) { const a = ri(-9, 9), x = ri(-12, -1); return {q: `${N(a)} − ${gap} = ${N(a - x)}`, t: `${a} - ? = ${a - x}`, ans: A.int(x), how: `The answer ${N(a - x)} is bigger than ${N(a)}, so a negative was subtracted. ${N(a)} − ${B(x)} = ${N(a)} + ${-x} = ${N(a - x)}.`}; }
+    if (k === 2) { const a = ri(2, 9) * pick([1, -1]), x = ri(2, 9) * (a > 0 ? -1 : pick([1, -1])); return {q: `${N(a)} × ${gap} = ${N(a * x)}`, t: `${a} x ? = ${a * x}`, ans: A.int(x), how: `Undo the ×: ${N(a * x)} ÷ ${B(a)} = ${N(x)}. Check: ${N(a)} × ${B(x)} = ${N(a * x)}.`}; }
+    const b = ri(2, 9) * pick([1, -1]), r = ri(2, 9) * (b > 0 ? -1 : pick([1, -1])); return {q: `${gap} ÷ ${B(b)} = ${N(r)}`, t: `? / ${b} = ${r}`, ans: A.int(b * r), how: `Undo the ÷: ${N(r)} × ${B(b)} = ${N(b * r)}. Check: ${N(b * r)} ÷ ${B(b)} = ${N(r)}.`}; }},
+  {id: 'neg-mix', g: 'neg', y: 7, name: 'Stretch: two steps', kid: 'Brackets first, then × and ÷, then + and −.', glyph: '−3 + 4 × −2', gen(){
+    const k = ri(0, 2), a = ri(-9, 9) || -4, b = ri(2, 6) * pick([1, -1]), c = ri(2, 6) * pick([1, -1, -1]);
+    if (k === 0) return {q: `${N(a)} + ${B(b)} × ${B(c)} = ${gap}`, t: `${a} + ${b} x ${c}`, ans: A.int(a + b * c), how: `Multiply first: ${N(b)} × ${B(c)} = ${N(b * c)}. Then ${N(a)} + ${B(b * c)} = ${N(a + b * c)}.`};
+    if (k === 1) return {q: `(${N(a)} − ${B(b)}) × ${B(c)} = ${gap}`, t: `(${a} - ${b}) x ${c}`, ans: A.int((a - b) * c), how: `Brackets first: ${N(a)} − ${B(b)} = ${N(a - b)}. Then ${N(a - b)} × ${B(c)} = ${N((a - b) * c)}.`};
+    return {q: `${N(a)} − ${B(b)} × ${B(c)} = ${gap}`, t: `${a} - ${b} x ${c}`, ans: A.int(a - b * c), how: `Multiply first: ${N(b)} × ${B(c)} = ${N(b * c)}. Then ${N(a)} − ${B(b * c)} = ${N(a - b * c)}.`}; }},
 ];
 const BY = Object.fromEntries(SKILLS.map(s => [s.id, s]));
 
@@ -203,7 +257,8 @@ window.TTCFrac = function(X){
   const st = () => { const p = X.S.prog; p.fd = p.fd || {}; p.fd.skills = p.fd.skills || {}; p.fd.bests = p.fd.bests || {}; return p.fd; };
   // Age appropriate: this school year's skills and last year's. Year 3 has no year before it here; Year 8 works on Year 7's.
   const year = () => Math.min(7, Math.max(3, X.yearOf(X.S.me)));
-  const mine = () => SKILLS.filter(s => s.y === year() || s.y === year() - 1);
+  const NEGS = SKILLS.filter(s => s.g === 'neg');
+  const mine = () => SKILLS.filter(s => !s.g && (s.y === year() || s.y === year() - 1));
   const rec = id => st().skills[id];
   const last10 = id => ((rec(id) || {}).r || '').slice(-10);
   const lvl = id => { const r = last10(id), right = r.split('').filter(x => x === '1').length; return !r ? 0 : r.length >= 10 && right >= 9 ? 3 : r.length >= 6 && right >= Math.ceil(r.length * .7) ? 2 : 1; };
@@ -213,11 +268,12 @@ window.TTCFrac = function(X){
   const NAME = {practice: 'Practise', test: 'Test', clock: 'Beat the Clock'};
 
   /* ---------- playing ---------- */
-  function start(kind, skillId){
-    const pool = skillId ? [BY[skillId]] : mine();
+  function start(kind, skillId, group){
+    group = skillId ? (BY[skillId].g || null) : (group || null);
+    const pool = skillId ? [BY[skillId]] : group === 'neg' ? NEGS : mine();
     const total = kind === 'practice' ? 12 : kind === 'test' ? 20 : null;
-    const P = X.S.fd = {kind, skillId: skillId || null, pool, total, answers: [], correct: 0, streak: 0, best: 0, input: '', start: Date.now(), fb: null, retry: false, locked: false, done: false,
-      ends: kind === 'clock' ? Date.now() + 60000 : 0, bestKey: kind + ':' + (skillId || 'y' + year())};
+    const P = X.S.fd = {kind, group, skillId: skillId || null, pool, total, answers: [], correct: 0, streak: 0, best: 0, input: '', start: Date.now(), fb: null, retry: false, locked: false, done: false,
+      ends: kind === 'clock' ? Date.now() + 60000 : 0, bestKey: kind + ':' + (skillId || (group === 'neg' ? 'neg' : 'y' + year()))};
     P.trophyOK = kind === 'test' && pool.some(s => lvl(s.id) < 3);
     P.timer = setInterval(() => tick(P), 250);
     next(P); X.go('fdplay');
@@ -243,6 +299,7 @@ window.TTCFrac = function(X){
   function press(k){
     const P = X.S.fd; if (!P || P.locked || P.done) return;
     if (k === 'back') P.input = P.input.slice(0, -1);
+    else if (k === '-') P.input = P.input[0] === '-' ? P.input.slice(1) : '-' + P.input;
     else if (k === 'ok') { submit(P); return; }
     else if (P.input.length < 9) {
       if (k === '.' && (/\./.test(P.input) || /\//.test(P.input))) return;
@@ -279,7 +336,7 @@ window.TTCFrac = function(X){
   }
   function finish(stopped){
     const P = X.S.fd; if (!P || P.done) return; P.done = true; clearInterval(P.timer);
-    const n = P.answers.length, c = P.correct; if (!n) { X.S.fd = null; X.go('fd'); return; }
+    const n = P.answers.length, c = P.correct; if (!n) { X.S.fd = null; X.go(P.group === 'neg' ? 'neg' : 'fd'); return; }
     const p = X.S.prog, s = st(), pct = Math.round(c / n * 100), ms = Date.now() - P.start, today = X.dayStr();
     let xp = P.answers.reduce((t, a) => t + a.pts, 0), prize = null, pb = null; const extra = [];
     if (!stopped && P.kind === 'test') { prize = P.trophyOK ? X.tierFor(pct) : null; }
@@ -299,20 +356,20 @@ window.TTCFrac = function(X){
     if (prize) { p.prizes[prize.id] = (p.prizes[prize.id] || 0) + 1; p.prizeLog.unshift({t: Date.now(), tier: prize.id, pct, mode: 'fd-test'}); p.prizeLog = p.prizeLog.slice(0, 80); }
     const newItems = []; for (let k = itemsBefore; k < X.itemsOwned(p); k++) newItems.push(k);
     const unlocked = X.skinId() !== 'classic' && itemsBefore < X.TRAIL_STOPS && X.itemsOwned(p) >= X.TRAIL_STOPS;
-    const label = P.skillId ? BY[P.skillId].name : `Year ${year()} mix`;
+    const label = P.skillId ? BY[P.skillId].name : P.group === 'neg' ? 'Negative numbers mix' : `Year ${year()} mix`;
     const entry = {t: P.start, mode: 'fd-' + P.kind, tables: [], n, c, pct, ms, xp, label, skills: [...new Set(P.answers.map(a => a.skill))], wrong: [...new Set(P.answers.filter(a => !a.ok).map(a => a.t))].slice(0, 12)};
     if (prize) entry.prize = prize.id;
     if (stopped) entry.ab = true;
     X.S.sessions.push(entry); X.ensureLogCur(); X.S.logCur.sessions.push(entry);
     if (!X.S.demo) Promise.all([X.saveProg(), X.saveLog()]).catch(X.saveFail);
-    X.S.fdr = Object.assign({}, entry, {kind: P.kind, skillId: P.skillId, prize, pb, extra, newItems, unlocked, answers: P.answers, noTrophy: !stopped && P.kind === 'test' && !P.trophyOK && !!X.tierFor(pct), best: P.best});
+    X.S.fdr = Object.assign({}, entry, {kind: P.kind, group: P.group, skillId: P.skillId, prize, pb, extra, newItems, unlocked, answers: P.answers, noTrophy: !stopped && P.kind === 'test' && !P.trophyOK && !!X.tierFor(pct), best: P.best});
     X.S.fd = null; X.go('fdres');
     if (prize) { X.confetti(prize.id); X.sound('win'); } else if (pb && pb.x) X.confetti('gold');
   }
 
   /* ---------- screens ---------- */
   // What has been typed so far, drawn as it will read: 2 3/4 as a 2 and a stacked fraction.
-  const typed = s => { if (!s) return '?'; const m = s.match(/^(\d*)( ?)(\d*)(\/?)(\d*)$/);
+  const typed = s => { if (!s) return '?'; if (s[0] === '-') return '−' + (s.length > 1 ? typed(s.slice(1)) : ''); const m = s.match(/^(\d*)( ?)(\d*)(\/?)(\d*)$/);
     if (!m) return esc(s);
     if (!m[4] && !m[2]) return esc(s);
     if (m[2] && !m[4]) return `${esc(m[1])}<span class="fd-gap"></span>${esc(m[3]) || ''}`;
@@ -325,12 +382,12 @@ window.TTCFrac = function(X){
     const label = P.kind === 'clock' ? `${P.correct} right` : `${Math.max(0, P.total - P.answers.length)} to go`;
     const best = st().bests[P.bestKey], bestTxt = !best ? '' : P.kind === 'clock' ? `Best ${best.score}` : `Best ${best.pct}% in ${X.fmtClock(best.ms)}`;
     const qh = q.q.replace('<span class="slot" id="slot">?</span>', `<span class="slot" id="slot">${typed(P.input)}</span>`);
-    const extra = keysFor(q.ans), K = k => k === ' ' ? `<button data-act="fd-key" data-k=" " aria-label="Gap before the fraction" class="fd-sp">␣ gap</button>` : `<button data-act="fd-key" data-k="${k}" aria-label="${k === '.' ? 'Decimal point' : 'Fraction line'}">${k === '/' ? '⁄' : k}</button>`;
+    const extra = keysFor(q.ans), K = k => k === '-' ? `<button data-act="fd-key" data-k="-" aria-label="Make it negative or positive" class="fd-sp">+/−</button>` : k === ' ' ? `<button data-act="fd-key" data-k=" " aria-label="Gap before the fraction" class="fd-sp">␣ gap</button>` : `<button data-act="fd-key" data-k="${k}" aria-label="${k === '.' ? 'Decimal point' : 'Fraction line'}">${k === '/' ? '⁄' : k}</button>`;
     const digits = [1,2,3,4,5,6,7,8,9].map(n => `<button data-act="fd-key" data-k="${n}">${n}</button>`).join('');
     const pad = !extra.length ? `${digits}<button class="del" data-act="fd-key" data-k="back" aria-label="Delete">⌫</button><button data-act="fd-key" data-k="0">0</button><button class="ok" data-act="fd-key" data-k="ok" aria-label="Check my answer">✓</button>`
       : `${digits}${K(extra[0])}<button data-act="fd-key" data-k="0">0</button><button class="del" data-act="fd-key" data-k="back" aria-label="Delete">⌫</button>${extra[1] ? K(extra[1]) + `<button class="ok fd-ok2" data-act="fd-key" data-k="ok" aria-label="Check my answer">✓</button>` : `<button class="ok fd-ok3" data-act="fd-key" data-k="ok" aria-label="Check my answer">✓</button>`}`;
     const s = BY[q.skill];
-    return `<header class="top"><div class="brand">${X.logo()}<span>Fractions, Decimals &amp; Percentages</span></div><div class="top-right"><span class="me-chip">${X.avatar(X.S.me, 34)}<span>${esc(X.S.me.name)}</span></span></div></header>
+    return `<header class="top"><div class="brand">${X.logo()}<span>${P.group === 'neg' ? 'Negative Numbers' : 'Fractions, Decimals &amp; Percentages'}</span></div><div class="top-right"><span class="me-chip">${X.avatar(X.S.me, 34)}<span>${esc(X.S.me.name)}</span></span></div></header>
     <section class="play ${cls}">
       <div class="play-main">
         <div class="play-top"><div class="info"><span>${NAME[P.kind]}${P.skillId ? ' · ' + esc(s.name) : ''}</span><span class="num muted" id="fd-time">${P.kind === 'clock' ? Math.ceil(left / 1000) + 's' : X.fmtClock(Date.now() - P.start)}</span>${bestTxt ? `<span class="muted num">${bestTxt}</span>` : ''}${P.streak >= 3 ? `<span class="chip">${P.streak} in a row</span>` : ''}</div><button class="btn ghost small" data-act="fd-quit">Stop</button></div>
@@ -346,6 +403,7 @@ window.TTCFrac = function(X){
       <div class="pad fd-pad" role="group" aria-label="Number pad">${pad}</div>
     </section>`;
   }
+  const pretty = (a, t) => /^neg-/.test(a.skill) ? t.replace(/-/g, '−').replace(/ x /g, ' × ').replace(/ \/ /g, ' ÷ ') : t;
   function scrRes(){
     const r = X.S.fdr; if (!r) return scrHub();
     const head = r.ab ? 'Stopped early' : r.kind === 'clock' ? (r.pb && r.pb.x ? 'New personal best!' : "Time's up!") : r.prize ? `You won a ${esc(r.prize.name)}!` : r.kind === 'test' ? 'Test finished' : 'Practice finished';
@@ -355,7 +413,7 @@ window.TTCFrac = function(X){
     const pbLine = !r.pb ? '' : r.pb.first ? `<p class="muted">That sets your mark. Beat it next time for 30 bonus ${X.ptsName()}!</p>` : r.pb.x ? `<p class="callout mint">New personal best! It was ${was(r.pb.old)}.</p>` : `<p class="muted">Your best is ${was(r.pb.old)}.</p>`;
     const wrong = r.answers.filter(a => !a.ok);
     return `${X.topbar('fd')}<section class="results"><div class="res-body">
-      <p class="eyebrow">Fractions, decimals &amp; percentages · ${NAME[r.kind]} · ${esc(r.label)}</p><h1 class="mega sm">${head}</h1>
+      <p class="eyebrow">${r.group === 'neg' ? 'Negative numbers' : 'Fractions, decimals &amp; percentages'} · ${NAME[r.kind]} · ${esc(r.label)}</p><h1 class="mega sm">${head}</h1>
       ${r.prize ? `<div class="res-medal pop">${X.medal(r.prize.id, 130)}</div>` : ''}
       <div><span class="score num">${big}</span> <span class="muted" style="font-weight:800">${sub}</span></div>
       ${pbLine}
@@ -363,8 +421,8 @@ window.TTCFrac = function(X){
       ${r.noTrophy ? `<p class="callout">No trophy: ${r.skillId ? 'this one is already strong' : 'these are all strong already'}. Pick something that is not green yet to win one.</p>` : ''}
       ${r.kind === 'test' && !r.prize && !r.noTrophy && !r.ab && X.S.prog.fd && X.S.prog.fd.won === X.dayStr() && X.tierFor(r.pct) ? `<p class="muted">You already won today's fractions, decimals and percentages trophy. Come back tomorrow for another.</p>` : ''}
       ${X.resultItems(r)}
-      ${wrong.length ? `<div><h3 style="margin-bottom:8px">To practise</h3><div class="mistakes">${wrong.slice(0, 12).map(a => `<span>${esc(a.t.includes('?') ? a.t.replace('?', a.a) : `${a.t} = ${a.a}`)} <small>you said ${esc(a.g)}</small></span>`).join('')}</div></div>` : r.n >= 5 ? '<p class="callout mint">Every answer right. Amazing!</p>' : ''}
-      <div class="row" style="margin-top:14px"><button class="btn big" data-act="fd-start" data-k="${r.kind}" data-s="${esc(r.skillId || '')}">Play again</button><button class="btn ghost" data-act="go" data-to="fd">Fractions, decimals &amp; %</button></div>
+      ${wrong.length ? `<div><h3 style="margin-bottom:8px">To practise</h3><div class="mistakes">${wrong.slice(0, 12).map(a => `<span>${esc(pretty(a, a.t.includes('?') ? a.t.replace('?', a.a) : `${a.t} = ${a.a}`))} <small>you said ${esc(N(a.g))}</small></span>`).join('')}</div></div>` : r.n >= 5 ? '<p class="callout mint">Every answer right. Amazing!</p>' : ''}
+      <div class="row" style="margin-top:14px"><button class="btn big" data-act="fd-start" data-k="${r.kind}" data-s="${esc(r.skillId || '')}" data-g="${r.group || ''}">Play again</button>${r.group === 'neg' ? `<button class="btn ghost" data-act="go" data-to="neg">Negative numbers</button><button class="btn ghost" data-act="go" data-to="negrev">Revise the rules</button>` : `<button class="btn ghost" data-act="go" data-to="fd">Fractions, decimals &amp; %</button>`}</div>
     </div></section>`;
   }
   function scrHub(){
@@ -387,8 +445,55 @@ window.TTCFrac = function(X){
     <p class="muted small" style="margin-top:16px">Green means strong: 9 of your last 10 right. The skills follow the school year a grown-up sets in Grown-ups.</p>`;
   }
 
+
+  /* ---------- Negative numbers: its own page, with the rules to revise ---------- */
+  const skillCard = sk => { const l = lvl(sk.id), r10 = last10(sk.id), right = r10.split('').filter(x => x === '1').length;
+    return `<div class="fd-skill sticker lv${l}"><div class="fd-glyph" aria-hidden="true">${esc(sk.glyph)}</div><div class="fd-sk-body"><b>${esc(sk.name)}</b><small>${esc(sk.kid)}</small>
+      <small class="fd-lv">${LV[l]}${r10 ? ` · ${right} of the last ${r10.length} right` : ''}</small></div>
+      <div class="fd-sk-btns"><button class="btn small" data-act="fd-start" data-k="practice" data-s="${sk.id}">Practise</button><button class="btn small ghost" data-act="fd-start" data-k="test" data-s="${sk.id}">Test</button></div></div>`; };
+  function scrNeg(){
+    const s = st(), cb = s.bests['clock:neg'], tb = s.bests['test:neg'], strongN = NEGS.filter(x => lvl(x.id) === 3).length;
+    return `${X.topbar('neg')}
+    <div class="parent-head"><div><p class="eyebrow">Year 7 · ${strongN} of ${NEGS.length} strong</p><h1 class="mega sm">Negative numbers</h1>
+      <p class="lede">Revise the rules first, practise each skill (you get the worked answer when you slip), then take the test.</p></div></div>
+    <div class="modes fd-modes">
+      <button class="mode" style="--c:var(--mint)" data-act="go" data-to="negrev"><span class="glyph">−  +</span><b>1. Revise the rules</b><span>The number line, adding and subtracting, multiplying and dividing. Five minutes.</span></button>
+      <button class="mode" style="--c:var(--sun)" data-act="fd-start" data-k="test" data-g="neg"><span class="glyph">20</span><b>3. Take the test</b><span>20 questions on everything below.${tb ? ` Best ${tb.pct}% in ${X.fmtClock(tb.ms)}.` : ''}</span></button>
+      <button class="mode" style="--c:var(--tomato)" data-act="fd-start" data-k="clock" data-g="neg"><span class="glyph">60s</span><b>Beat the Clock</b><span>${cb ? `Your best: ${cb.score}. Beat it!` : 'As many as you can in 60 seconds.'}</span></button>
+    </div>
+    <h2 class="sec">2. Practise each skill</h2><div class="fd-skills">${NEGS.map(skillCard).join('')}</div>
+    <p class="muted small" style="margin-top:16px">To type a negative answer, type the number and press the +/− key. Green means strong: 9 of your last 10 right.</p>`;
+  }
+  const numLine = () => { const xs = []; for (let i = -8; i <= 8; i++) xs.push(i); const px = i => 20 + (i + 8) * 35;
+    return `<svg class="neg-line" viewBox="0 0 600 70" role="img" aria-label="A number line from negative 8 to 8"><line x1="8" y1="26" x2="592" y2="26" stroke="var(--ink)" stroke-width="3"/>${xs.map(i => `<line x1="${px(i)}" y1="${i ? 18 : 12}" x2="${px(i)}" y2="${i ? 34 : 40}" stroke="var(--ink)" stroke-width="${i ? 2 : 4}"/><text x="${px(i)}" y="58" text-anchor="middle" font-size="15" font-weight="800" fill="${i < 0 ? 'var(--tomato)' : 'var(--ink)'}">${N(i)}</text>`).join('')}</svg>`; };
+  function scrNegRev(){
+    const card = (h, body) => `<div class="sticker neg-card"><h3>${h}</h3>${body}</div>`;
+    const ex = rows => `<ul class="neg-ex">${rows.map(r => `<li><b>${r[0]}</b><span>${r[1]}</span></li>`).join('')}</ul>`;
+    return `${X.topbar('neg')}
+    <div class="parent-head"><div><p class="eyebrow">Year 7 · Negative numbers</p><h1 class="mega sm">Revise the rules</h1>
+      <p class="lede">Read each card, say the examples out loud, then go and practise.</p></div></div>
+    <div class="neg-rev">
+    ${card('1. The number line', `${numLine()}<p>Negative numbers are <b>less than zero</b>. The further <b>left</b>, the <b>smaller</b>. The further right, the bigger.</p>
+      ${ex([['−7 &lt; −3', '−7 is further left, so it is smaller (colder!)'], ['−2 &gt; −10', '−2 is closer to zero, so it is bigger'], ['−0.5 &lt; −0.25', 'works for decimals too: −0.5 is further left'], ['In order', '−9, −4, −1, 0, 3, 6 (smallest first)']])}
+      <p class="neg-trap">Trap: 7 is bigger than 3, but −7 is <b>smaller</b> than −3.</p>`)}
+    ${card('2. Add and subtract: move along the line', `<p>Start at the first number. <b>Adding</b> moves <b>right</b>. <b>Subtracting</b> moves <b>left</b>.</p>
+      ${ex([['3 − 8 = −5', 'start at 3, go 8 left: past zero to −5'], ['−4 + 6 = 2', 'start at −4, go 6 right'], ['−2 − 5 = −7', 'start at −2, go 5 left: more negative']])}
+      <p class="neg-trap">Trap: −2 − 5 is <b>not</b> 3 or −3. You are already below zero and going further down.</p>`)}
+    ${card('3. Two signs together', `<p>When two signs sit next to each other, swap them for one:</p>
+      ${ex([['+ −  becomes  −', 'adding a negative is subtracting'], ['− −  becomes  +', 'subtracting a negative is adding'], ['5 + (−3) = 5 − 3 = 2', ''], ['5 − (−3) = 5 + 3 = 8', ''], ['−4 + (−6) = −4 − 6 = −10', ''], ['−4 − (−6) = −4 + 6 = 2', '']])}
+      <p>Think of it like this: taking away a debt makes you richer.</p>`)}
+    ${card('4. Multiply and divide', `<p>Do the numbers first, then sort out the sign:</p>
+      ${ex([['Signs the SAME', 'answer is positive ( + × + or − × − )'], ['Signs DIFFERENT', 'answer is negative ( + × − or − × + )'], ['−3 × 4 = −12', 'different signs'], ['−6 × −7 = 42', 'same signs'], ['−24 ÷ 6 = −4', 'different signs'], ['−35 ÷ −5 = 7', 'same signs'], ['(−4)² = 16', '−4 × −4, same signs'], ['−2 × −3 × −4 = −24', 'three minus signs (odd) → negative']])}
+      <p class="neg-trap">Trap: the "same signs make a plus" rule is for × and ÷ (and two signs touching). It is <b>not</b> for −2 − 5.</p>`)}
+    ${card('5. Real life', `${ex([['Temperature falls', '2°C falls by 7 degrees: 2 − 7 = −5°C'], ['Temperature rises', '−6°C rises by 10 degrees: −6 + 10 = 4°C'], ['Difference', 'between −4°C and 5°C: 5 − (−4) = 9 degrees'], ['Money', '£20 in the bank, spend £35: 20 − 35 = −£15 (overdrawn)']])}
+      <p>A <b>difference</b> is the size of the gap, so it is never negative.</p>`)}
+    ${card('6. Test-day checklist', `<ul class="neg-check"><li>Draw a quick number line if you are not sure.</li><li>Circle any two signs that touch and swap them for one sign first.</li><li>For × and ÷: numbers first, then the sign.</li><li>Check your answer makes sense: colder should be more negative.</li><li>Brackets first, then × and ÷, then + and −.</li></ul>`)}
+    </div>
+    <div class="row" style="margin-top:18px"><button class="btn big" data-act="go" data-to="neg">Now practise</button><button class="btn ghost" data-act="fd-start" data-k="test" data-g="neg">Take the test</button></div>`;
+  }
+
   const actions = {
-    'fd-start': el => start(el.dataset.k, el.dataset.s || null),
+    'fd-start': el => start(el.dataset.k, el.dataset.s || null, el.dataset.g || null),
     'fd-key': el => press(el.dataset.k),
     'fd-quit': () => { const P = X.S.fd; if (P) finish(P.kind !== 'practice'); },
   };
@@ -397,13 +502,13 @@ window.TTCFrac = function(X){
     if (e.target.matches && e.target.matches('input,textarea,select')) return false;
     const P = X.S.fd; if (!P) return false; const extra = keysFor(P.q.ans);
     if (/^[0-9]$/.test(e.key)) press(e.key);
-    else if ((e.key === '.' || e.key === '/' || e.key === ' ') && extra.includes(e.key)) press(e.key);
+    else if ((e.key === '.' || e.key === '/' || e.key === ' ' || e.key === '-') && extra.includes(e.key)) press(e.key);
     else if (e.key === 'Backspace') press('back');
     else if (e.key === 'Enter') press('ok');
     else return false;
     return true;
   };
-  return {screens: {fd: scrHub, fdplay: scrPlay, fdres: scrRes}, actions, keydown, stop: () => { const P = X.S.fd; if (P) { clearInterval(P.timer); } }, _test: {SKILLS, check, parse, dec, showAns}};
+  return {screens: {fd: scrHub, fdplay: scrPlay, fdres: scrRes, neg: scrNeg, negrev: scrNegRev}, actions, keydown, stop: () => { const P = X.S.fd; if (P) { clearInterval(P.timer); } }, _test: {SKILLS, check, parse, dec, showAns}};
 };
 window.TTCFracSkills = SKILLS;   // for the tests
 window.TTCFracCheck = check;

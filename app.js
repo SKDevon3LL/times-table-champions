@@ -303,6 +303,7 @@ const prizeTotal = p => TIERS.reduce((s, t) => s + (p.prizes[t.id] || 0), 0);
 const MODE_NAMES = {practice:'Practice', test:'Test', clock:'Beat the Clock', daily:'Daily Challenge', recite:'Said out loud',
   'spell-daily':'Daily Spelling Challenge', 'spell-clock':'Spelling: Beat the Clock', 'spell-test':'Spelling test', 'spell-practice':'Spelling practice',
   'fd-practice':'Fractions, decimals and percentages practice', 'fd-test':'Fractions, decimals and percentages test', 'fd-clock':'Fractions, decimals and percentages: Beat the Clock'};
+const fdModeName = s => /^Negative|^neg-/.test(s.label || '') || (s.skills || []).some(k => /^neg-/.test(k)) ? 'Negative numbers ' + ({'fd-practice': 'practice', 'fd-test': 'test', 'fd-clock': 'Beat the Clock'})[s.mode] : null;
 const tablesLabel = (s) => String(s.mode).startsWith('fd-') ? (s.label || 'Fractions, decimals and percentages') : String(s.mode).startsWith('spell') ? `${(s.words || []).length} words` : s.mode === 'daily' || s.pool ? 'Trickiest facts' : [s.sq ? 'Square times' : '', s.tables.length === 12 ? 'All tables' : s.tables.map(t => '×' + t).join(' ')].filter(Boolean).join(' + ');
 
 function hint(a, b){
@@ -1034,7 +1035,7 @@ const subjectPick = () => `<div class="subj" role="group" aria-label="Which app"
   `<button class="subj-card ${S.subject === k ? 'on' : ''}" data-act="subject" data-k="${k}" aria-pressed="${S.subject === k}"><span class="glyph">${g}</span><b>${t}</b><span>${sub}</span></button>`).join('')}</div>`;
 function topbar(cur){
   const me = S.me;
-  const sp = S.subject === 'spell', tabs = sp ? [['spell','Home','go']] : [['home','Home','go'],['fd','Fractions, decimals & %','go'],['progress','My progress','go']];
+  const sp = S.subject === 'spell', tabs = sp ? [['spell','Home','go']] : [['home','Home','go'],['fd','Fractions, decimals & %','go'],...(yearOf(me) >= 6 ? [['neg','Negative numbers','go']] : []),['progress','My progress','go']];
   return `<header class="top"><div class="brand">${logo()}<span>${sp ? 'Spelling Champions' : esc(skin().brand)}</span></div>
     <div class="top-right">
       <span class="sync" id="sync-chip">${esc(syncText())}</span>
@@ -1108,7 +1109,7 @@ function scrHome(){
         ${modeTile('clock', '60s', 'Beat the Clock', 'Beat your best in 60 seconds.', 'tomato')}
         ${modeTile('explore', '12²', 'Explore', 'Spot the patterns.', 'sky')}
       </div>
-      ${FRAC ? `<button class="mode fd-home" style="--c:var(--grape)" data-act="go" data-to="fd"><span class="glyph">¾ 0.5</span><b>Fractions, decimals &amp; percentages</b><span>Year ${Math.min(7, yearOf(me))} skills: practise, test and Beat the Clock.</span></button>` : ''}
+      ${FRAC ? `<button class="mode fd-home" style="--c:var(--grape)" data-act="go" data-to="fd"><span class="glyph">¾ 0.5</span><b>Fractions, decimals &amp; percentages</b><span>Year ${Math.min(7, yearOf(me))} skills: practise, test and Beat the Clock.</span></button>${yearOf(me) >= 6 ? `<button class="mode fd-home" style="--c:var(--tomato)" data-act="go" data-to="neg"><span class="glyph">−7 + 3</span><b>Negative numbers</b><span>Year 7: revise the rules, practise, then take the test.</span></button>` : ''}` : ''}
       <div class="sticker"><p class="eyebrow">From Taylor, your Times Table Coach</p>${planFor(me) && planFor(me).note ? `<p class="callout" style="margin-top:10px">${esc(planFor(me).note)}</p>` : ''}<ul class="recs">${recommendations(p, S.sessions).map(recItem).join('')}</ul></div>
     </div>
     <div class="col">
@@ -1486,7 +1487,7 @@ function histTable(sessions){
   const rows = sessions.slice(-40).reverse();
   if (!rows.length) return `<div class="empty-chart">Every practice, test and challenge will be listed here.</div>`;
   return `<div class="hist"><table><thead><tr><th>When</th><th>Activity</th><th>Tables</th><th>Score</th><th>Prize</th><th>Time</th></tr></thead><tbody>${rows.map(s => `<tr>
-    <td>${fmtDateTime(s.t)}</td><td><span class="pill ${s.mode}">${MODE_NAMES[s.mode]}</span>${s.ab ? ' <span class="muted small">stopped early</span>' : ''}</td>
+    <td>${fmtDateTime(s.t)}</td><td><span class="pill ${s.mode}">${fdModeName(s) || MODE_NAMES[s.mode]}</span>${s.ab ? ' <span class="muted small">stopped early</span>' : ''}</td>
     <td>${esc(tablesLabel(s))}</td><td>${s.mode === 'clock' ? `${s.c} in ${s.ab ? fmtDur(s.ms) : '60s'}` : `${s.c}/${s.n} · ${s.pct}%`}</td>
     <td>${s.prize ? medal(s.prize, 26) : '<span class="muted">–</span>'}</td><td>${fmtDur(s.ms)}</td></tr>`).join('')}</tbody></table></div>`;
 }
@@ -1861,7 +1862,7 @@ async function startGame(){
 function stopGame(){ clearInterval(gameTimer); gameTimer = null; if (gameInst) { try { gameInst.destroy(); } catch {} gameInst = null; } }
 
 /* ---------- render ---------- */
-const SCREENS = {fd:() => FRAC ? FRAC.screens.fd() : scrHome(), fdplay:() => FRAC ? FRAC.screens.fdplay() : scrHome(), fdres:() => FRAC ? FRAC.screens.fdres() : scrHome(), spell:() => SPL ? SPL.screens.spell() : scrHome(), splay:() => SPL ? SPL.screens.splay() : scrHome(), sres:() => SPL ? SPL.screens.sres() : scrHome(), recite:scrRecite, game:scrGame, gate:scrGate, loading:scrLoading, login:scrLogin, home:scrHome, setup:scrSetup, play:scrPlay, results:scrResults, progress:scrProgress, explore:scrExplore, parent:scrParent};
+const SCREENS = {fd:() => FRAC ? FRAC.screens.fd() : scrHome(), neg:() => FRAC ? FRAC.screens.neg() : scrHome(), negrev:() => FRAC ? FRAC.screens.negrev() : scrHome(), fdplay:() => FRAC ? FRAC.screens.fdplay() : scrHome(), fdres:() => FRAC ? FRAC.screens.fdres() : scrHome(), spell:() => SPL ? SPL.screens.spell() : scrHome(), splay:() => SPL ? SPL.screens.splay() : scrHome(), sres:() => SPL ? SPL.screens.sres() : scrHome(), recite:scrRecite, game:scrGame, gate:scrGate, loading:scrLoading, login:scrLogin, home:scrHome, setup:scrSetup, play:scrPlay, results:scrResults, progress:scrProgress, explore:scrExplore, parent:scrParent};
 let lastScreen = null;
 function render(){
   app.innerHTML = SCREENS[S.screen]();

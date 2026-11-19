@@ -584,6 +584,17 @@ body:has(.jg-bd) .top .brand, body:has(.jg-bd) .top .sync{color:#FFFFFF;text-sha
 .fd-pad .fd-ok3{grid-column:1 / -1}.fd-pad .fd-ok2{grid-column:span 2}.fd-pad .fd-sp{font-size:20px}
 .fd-home{width:100%;margin-top:16px;min-height:0}
 .fd-modes{margin-bottom:8px}
+/* Negative numbers: the revision cards and the list of numbers to order. */
+.neg-list{font-size:.6em;letter-spacing:.02em}
+.neg-rev{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
+.neg-card{padding:16px 18px}.neg-card h3{margin:0 0 8px}.neg-card p{margin:8px 0}
+.neg-line{width:100%;height:auto;display:block}
+.neg-ex{list-style:none;margin:8px 0;padding:0;display:grid;gap:6px}
+.neg-ex li{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;padding:6px 10px;border:2px solid var(--line);border-radius:10px;background:var(--card)}
+.neg-ex b{font-family:var(--display);font-size:19px;white-space:nowrap}.neg-ex span{color:var(--muted);font-weight:700}
+.neg-trap{font-weight:800;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,var(--tomato) 22%,var(--card))}
+.neg-check{margin:6px 0;padding-left:20px;display:grid;gap:6px;font-weight:700}
+@media (max-width:400px){ .neg-rev{grid-template-columns:1fr} }
 .fd-skills{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
 .fd-skill{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:center;padding:14px 16px}
 .fd-glyph{font-family:var(--display);font-size:22px;min-width:84px;padding:10px 8px;border:2.5px solid var(--line);border-radius:14px;text-align:center;background:var(--card);white-space:nowrap}
