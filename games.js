@@ -181,8 +181,11 @@ function jungle(host, api){
   const owns = id => shop().own[id] || 0;
   const wallet = () => shopWallet(api);
   const pts = () => shopPts(api);
-  // This level's kit: stones or arrows left, the spear, and smoke turns left. aiming: waiting for him to tap a creature.
-  let kit = {shots:0, range:0, spear:0, smoke:0, flame:0}, aiming = false;
+  // This level's kit: each weapon's shots left, the spear, smoke turns and flamethrower blasts left.
+  // aiming: the weapon he picked ('sling', 'bow' or 'mg'), waiting for him to tap a creature; false when none.
+  // Each weapon has its own button and its own shots (Sam, 24 Nov 2026: "give each weapon its own button").
+  const GUNS = {sling:{icon:'🪨', ammo:'Stones', shots:2, range:3, miss:'The stone missed!'}, bow:{icon:'🏹', ammo:'Arrows', shots:4, range:99, miss:'The arrow missed!'}, mg:{icon:'🔫', ammo:'Bullets', shots:8, range:99, miss:'The bullets missed!'}};
+  let kit = {shots:{}, spear:0, smoke:0, flame:0}, aiming = false;
   const askSecs = () => owns('binoculars') ? 15 : 10;
   // Hughie's adventure pictures (private family-photos bucket, made from his own photos): start, chop, gold, chase, win, caught.
   const scene = (name, title, text, go, btn) => `<div class="sticker jg-scene"><img class="jg-photo" data-p="jungle/${name}.jpg" alt=""><h2>${title}</h2><p>${text}</p><button class="btn big" data-go="${go}">${btn}</button></div>`;
@@ -257,7 +260,7 @@ function jungle(host, api){
     put('ogre', level >= 6 ? 2 : 3, 1, far);   // the ogre starts on the far side from the gold, under the panther, and never stops coming
     if (owns('boots')) preds.forEach(p => { if (p.kind === 'snake') p.every++; });
     st = {g, goldAt, pl, preds, has:false, turn:0}; lives = 3; showLives();
-    kit = {shots: owns('mg') ? 8 : owns('bow') ? 4 : owns('sling') ? 2 : 0, range: owns('mg') || owns('bow') ? 99 : 3, spear: owns('spear') ? 1 : 0, smoke: 0, flame: owns('flame') ? 3 : 0}; aiming = false; showPack();
+    kit = {shots: Object.fromEntries(Object.keys(GUNS).filter(owns).map(g => [g, GUNS[g].shots])), spear: owns('spear') ? 1 : 0, smoke: 0, flame: owns('flame') ? 3 : 0}; aiming = false; showPack();
     $('lvl').textContent = level;
     msg('Tap a square next to you to chop towards the gold.');
     draw();
@@ -275,7 +278,7 @@ function jungle(host, api){
     el.innerHTML = [
       owns('aid') ? b('aid', '🩹', 'First aid', owns('aid'), true) : '',
       owns('smoke') ? b('smoke', '💨', kit.smoke ? `Smoke: ${kit.smoke} turns` : 'Smoke bomb', kit.smoke ? null : owns('smoke'), !kit.smoke) : '',
-      kit.shots || owns('sling') || owns('bow') || owns('mg') ? b('shoot', owns('mg') ? '🔫' : owns('bow') ? '🏹' : '🪨', aiming ? 'Tap a creature!' : owns('mg') ? 'Bullets' : owns('bow') ? 'Arrows' : 'Stones', aiming ? null : kit.shots, kit.shots > 0) : '',
+      ...Object.keys(GUNS).filter(owns).map(g => b('shoot:' + g, GUNS[g].icon, aiming === g ? 'Tap a creature!' : GUNS[g].ammo, aiming === g ? null : kit.shots[g] || 0, (kit.shots[g] || 0) > 0)),
       owns('grenade') ? b('grenade', '💣', 'Grenade', owns('grenade'), true) : '',
       owns('flame') ? b('flame', '🔥', 'Flamethrower', kit.flame, kit.flame > 0) : '',
       owns('spear') ? `<span class="jg-item${kit.spear ? '' : ' used'}">🔱<small>${kit.spear ? 'Spear ready' : 'Spear used'}</small></span>` : '',
@@ -294,9 +297,7 @@ function jungle(host, api){
   function buy(id){
     if (!shopBuy(api, id)) return;
     // a new weapon or the spear is ready straight away on this level
-    if (id === 'sling' && !owns('bow') && !owns('mg')) { kit.shots = Math.max(kit.shots, 2); kit.range = 3; }
-    if (id === 'bow') { kit.shots = Math.max(kit.shots, 4); kit.range = 99; }
-    if (id === 'mg') { kit.shots = Math.max(kit.shots, 8); kit.range = 99; }
+    if (GUNS[id]) kit.shots[id] = GUNS[id].shots;
     if (id === 'flame') kit.flame = 3;
     if (id === 'spear') kit.spear = 1;
     openShop(); showPack();
@@ -319,10 +320,11 @@ function jungle(host, api){
     else if (k === 'smoke' && owns('smoke') && !kit.smoke) { s.own.smoke--; s.n++; kit.smoke = 3; api.save(); api.sound('ok'); msg('Smoke bomb! The creatures cannot find you for 3 turns.'); }
     else if (k === 'grenade' && owns('grenade')) { s.own.grenade--; s.n++; api.save(); blast(99, 'grenade'); return; }
     else if (k === 'flame' && kit.flame > 0) { kit.flame--; blast(2, 'flame'); return; }
-    else if (k === 'shoot' && kit.shots > 0) { aiming = !aiming; msg(aiming ? `Tap a creature${kit.range < 99 ? ' up to 3 squares away' : ''}, then answer to fire.` : 'Weapon down.'); }
+    else if (k.startsWith('shoot:') && GUNS[k.slice(6)] && kit.shots[k.slice(6)] > 0) { const g = k.slice(6); aiming = aiming === g ? false : g;
+      msg(aiming ? `${GUNS[g].icon} Tap a creature${GUNS[g].range < 99 ? ' up to 3 squares away' : ''}, then answer to fire.` : 'Weapon down.'); }
     showPack(); draw();
   }
-  const inRange = p => Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c) <= kit.range;
+  const inRange = p => !!aiming && Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c) <= GUNS[aiming].range;
   // A creature hit by anything runs back to where it started (or a free corner if that square is taken).
   function sendBack(p){
     p.r = p.r0 ?? H - 1; p.c = p.c0 ?? 0; p.moved = false;
@@ -342,13 +344,13 @@ function jungle(host, api){
     });
   }
   function fire(p){
-    busy = true; aiming = false; draw();
+    const g = aiming; busy = true; aiming = false; draw();
     $('board').querySelector(`[data-r="${p.r}"][data-c="${p.c}"]`).classList.add('aim');
     cancelQ = askBox($('q'), api, askSecs(), ok => {
-      cancelQ = null; busy = false; kit.shots--;
+      cancelQ = null; busy = false; kit.shots[g]--;
       if (ok) { api.sound('ok'); sendBack(p);
         msg(`Direct hit! The ${p.kind} ran off.`); }
-      else { api.sound('bad'); msg(owns('mg') ? 'The bullets missed!' : owns('bow') ? 'The arrow missed!' : 'The stone missed!'); }
+      else { api.sound('bad'); msg(GUNS[g].miss); }
       showPack(); draw();
     });
   }
