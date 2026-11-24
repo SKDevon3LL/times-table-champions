@@ -1625,7 +1625,7 @@ function strike(host, api){
   }
   function nextWord(){
     const it = SP.item = pickWord();
-    Object.assign(SP, {input: '', used: [], copy: it.mode === 'copy', fix: false, got1: null, won: null, msg: '', newGuns: [], tiles: it.tiles && it.tiles.length ? it.tiles.slice() : shuffle(it.w.toLowerCase().split(''))});
+    Object.assign(SP, {input: '', used: [], copy: false, fix: false, peek: false, got1: null, won: null, msg: '', newGuns: [], tiles: it.tiles && it.tiles.length ? it.tiles.slice() : shuffle(it.w.toLowerCase().split(''))});
     drawSpell(); say();
   }
   // which letters match, lined up properly, so one missing letter is one mark
@@ -1653,9 +1653,11 @@ function strike(host, api){
         <p class="ss-streak">${esc(streakLine())}</p><div class="tools">${more}</div></div>`;
       return;
     }
-    const show = SP.copy || SP.fix;
-    const fb = SP.got1 ? `<div class="fb no">Nearly! You built <b>${diff(SP.got1, w)}</b>. It is <b>${diff(SP.got1, w, 'w')}</b>. Now build it.</div>` : SP.msg ? `<div class="fb no">${esc(SP.msg)}</div>` : SP.copy ? '<div class="fb">A new word! Build it.</div>' : '<div class="fb"></div>';
-    ovSpell.innerHTML = `<div class="ss-spell"><p class="eb">${head}</p><h2>${show ? 'Build the word' : 'Spell the word to open the crate'}</h2>
+    // The word is never on screen while he builds it (Sam, 24 Nov 2026: "why does the word appear on the screen!!!!").
+    // After a mistake the right spelling shows for 4 seconds with the difference marked, then hides: he builds it from memory.
+    const show = SP.fix && SP.peek;
+    const fb = SP.got1 && SP.peek ? `<div class="fb no">Nearly! You built <b>${diff(SP.got1, w)}</b>. It is <b>${diff(SP.got1, w, 'w')}</b>. Look carefully…</div>` : SP.peek ? '<div class="fb no">Not quite. Look carefully…</div>' : SP.fix ? '<div class="fb no">Now build it from memory.</div>' : SP.msg ? `<div class="fb no">${esc(SP.msg)}</div>` : '<div class="fb"></div>';
+    ovSpell.innerHTML = `<div class="ss-spell"><p class="eb">${head}</p><h2>${SP.fix ? 'Spell it again' : 'Spell the word to open the crate'}</h2>
       <div class="say"><button data-a="say">🔊 Hear it again</button>${it.syl && it.syl.includes('-') ? '<button data-a="parts">Say it in parts</button>' : ''}</div>
       ${show ? `<div class="word">${esc(w)}</div>` : ''}${show && it.hook ? `<p class="tip">Tip: ${esc(it.hook)}</p>` : ''}${fb}
       <div class="slots">${[...w].map((_, i) => `<span class="${i === SP.input.length ? 'next' : ''}">${esc(SP.input[i] || '')}</span>`).join('')}</div>
@@ -1663,7 +1665,10 @@ function strike(host, api){
       <div class="tools"><button data-a="undo">⌫ Undo</button>${SP.reason === 'continue' ? '<button data-a="base">Back to base</button>' : '<button data-a="skip">Back to the fight</button>'}</div>
       <p class="prog">${esc(streakLine())}</p></div>`;
   }
-  function tile(i){ if (SP.won || SP.used.includes(i)) return; SP.used.push(i); SP.input += SP.tiles[i]; SP.msg = ''; snd.play('click', .5); if (SP.input.length >= SP.item.w.length) spellCheck(); else drawSpell(); }
+  // Show the right spelling for 4 seconds, then hide it. The tiles wait until it has gone.
+  function peek(){ const it = SP.item; SP.peek = true; drawSpell(); clearTimeout(SP.peekT);
+    SP.peekT = setTimeout(() => { if (SP.open && SP.item === it && !SP.won) { SP.peek = false; drawSpell(); } }, 4000); }
+  function tile(i){ if (SP.won || SP.peek || SP.used.includes(i)) return; SP.used.push(i); SP.input += SP.tiles[i]; SP.msg = ''; snd.play('click', .5); if (SP.input.length >= SP.item.w.length) spellCheck(); else drawSpell(); }
   function undo(){ if (SP.won || !SP.used.length) return; SP.used.pop(); SP.input = SP.input.slice(0, -1); drawSpell(); }
   function spellKey(e){
     if (SP.won) { if (e.key === 'Enter') { e.preventDefault(); const b = ovSpell.querySelector('.ss-go'); if (b) b.click(); } return; }
@@ -1672,10 +1677,10 @@ function strike(host, api){
   }
   function spellCheck(){
     const it = SP.item, ok = SP.input.toLowerCase() === it.w.toLowerCase();
-    if (SP.copy || SP.fix) { if (ok) win(SP.copy ? 'copy' : 'fixed'); else { snd.play('bad'); SP.input = ''; SP.used = []; SP.msg = 'Not quite. Copy it letter by letter.'; drawSpell(); } return; }
+    if (SP.fix) { if (ok) win('fixed'); else { snd.play('bad'); SP.input = ''; SP.used = []; SP.got1 = null; peek(); } return; }
     try { if (spell && spell.result) spell.result(it.w, ok); else if (ok) save.words = (save.words || 0) + 1; } catch (e) { console.warn('spell result', e); }
     if (ok) { win('right'); return; }
-    snd.play('bad'); G.streak = 0; SP.got1 = SP.input; SP.fix = true; SP.input = ''; SP.used = []; drawSpell(); say();
+    snd.play('bad'); G.streak = 0; SP.got1 = SP.input; SP.fix = true; SP.input = ''; SP.used = []; peek(); say();
   }
   function win(how){
     SP.done++; SP.won = how;

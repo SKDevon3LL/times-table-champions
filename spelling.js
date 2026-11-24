@@ -390,7 +390,7 @@ window.TTCSpell = function(X){
     recentGame.push(w.toLowerCase()); while (recentGame.length > Math.min(6, pool.length - 1)) recentGame.shift();
     const o = info(w), r = rec(w), letters = o.w.toLowerCase().split('');
     const extra = r && r.b >= 2 ? shuffle('aeiourstlnmch'.split('').filter(c => !letters.includes(c))).slice(0, 2) : [];
-    return {w: o.w, s: o.s || '', syl: o.syl || '', hook: SP.hooks[o.w.toLowerCase()] || '', mode: !r || r.b === 0 ? 'copy' : 'tiles', tiles: shuffle([...letters, ...extra])};
+    return {w: o.w, s: o.s || '', syl: o.syl || '', hook: SP.hooks[o.w.toLowerCase()] || '', mode: 'tiles', tiles: shuffle([...letters, ...extra])};   // never shown in the game: he hears it and builds it (Sam, 24 Nov 2026: "why does the word appear on the screen!!!!")
   }
   function gameResult(w, ok){ const s = st(), g = s.game = s.game || {right: 0, tries: 0}; g.tries++; if (ok) g.right++; if (!X.S.demo) X.saveProg().catch(X.saveFail); }
   const gameTotal = () => Object.values(st().words).reduce((t, r) => t + (r.c || 0), 0) + ((st().game || {}).right || 0);
