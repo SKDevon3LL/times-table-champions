@@ -343,7 +343,7 @@ function jungle(host, api){
         msg(hit.length ? (what === 'grenade' ? `BOOM! ${hit.length === 1 ? 'The creature ran' : `All ${hit.length} creatures ran`} back where they came from.` : `WHOOSH! ${hit.length} ${hit.length === 1 ? 'creature' : 'creatures'} ran from the flames.`)
           : what === 'grenade' ? 'BOOM! Nothing was there.' : 'WHOOSH! Nothing was close enough.'); }
       else { api.sound('bad'); msg(what === 'grenade' ? 'The grenade was a dud!' : 'The flamethrower spluttered out!'); }
-      showPack(); draw();
+      showPack(); advance();
     });
   }
   function fire(p){
@@ -354,7 +354,7 @@ function jungle(host, api){
       if (ok) { api.sound('ok'); sendBack(p); action(g, 'Direct hit!', true);
         msg(`Direct hit! The ${p.kind} ran off.`); }
       else { api.sound('bad'); msg(GUNS[g].miss); }
-      showPack(); draw();
+      showPack(); advance();   // firing uses his turn: the creatures take their step
     });
   }
   const msg = t => { $('msg').textContent = t; };
@@ -415,14 +415,20 @@ function jungle(host, api){
     setMood(Math.min(...st.preds.map(p => Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c)), 9));
     if (!busy && boxedIn()) msg('Boxed in! Tap yourself to hold your ground.');
   }
+  // A creature heads for him along the shortest way it can walk (round rocks; only an anaconda swims), so it never
+  // freezes behind a rock. If another creature blocks its best square it steps round it rather than stand still.
   function stepPred(p){
-    const opts = [[1,0],[-1,0],[0,1],[0,-1]].map(([dr, dc]) => ({r:p.r + dr, c:p.c + dc}))
-      .filter(o => o.r >= 0 && o.r < H && o.c >= 0 && o.c < W && st.g[o.r][o.c] !== 'rock' && st.g[o.r][o.c] !== 'gold' && (p.kind === 'anaconda' || st.g[o.r][o.c] !== 'river') && !at(st.preds, o.r, o.c));
-    if (!opts.length) return;
-    const d = o => Math.abs(o.r - st.pl.r) + Math.abs(o.c - st.pl.c), best = Math.min(...opts.map(d));
-    if (d(p) > SENSE[p.kind]) return;
-    const pick = shuffle(opts.filter(o => d(o) === best))[0];
-    if (best >= d(p)) return;   // never wander away
+    const ok = (r, c) => r >= 0 && r < H && c >= 0 && c < W && st.g[r][c] !== 'rock' && st.g[r][c] !== 'gold' && (p.kind === 'anaconda' || st.g[r][c] !== 'river');
+    const D = Array.from({length:H}, () => Array(W).fill(99)), q = [st.pl]; D[st.pl.r][st.pl.c] = 0;
+    while (q.length) { const {r, c} = q.shift();
+      for (const [dr, dc] of [[1,0],[-1,0],[0,1],[0,-1]]) { const nr = r + dr, nc = c + dc; if (ok(nr, nc) && D[nr][nc] > D[r][c] + 1) { D[nr][nc] = D[r][c] + 1; q.push({r:nr, c:nc}); } } }
+    const here = D[p.r][p.c];
+    const opts = [[1,0],[-1,0],[0,1],[0,-1]].map(([dr, dc]) => ({r:p.r + dr, c:p.c + dc})).filter(o => ok(o.r, o.c) && D[o.r][o.c] < 99 && !at(st.preds, o.r, o.c));
+    if (!opts.length || here > SENSE[p.kind]) return;
+    const best = Math.min(...opts.map(o => D[o.r][o.c]));
+    if (best > here) return;   // never wander away
+    if (best === here && Math.random() < .5) return;   // stepping round a creature in its way: half the time it waits instead
+    const pick = shuffle(opts.filter(o => D[o.r][o.c] === best))[0];
     p.r = pick.r; p.c = pick.c; p.moved = true;
   }
   const caught = () => st.preds.find(p => p.r === st.pl.r && p.c === st.pl.c);
@@ -445,7 +451,8 @@ function jungle(host, api){
       api.sound('ok');
       const stay = r === st.pl.r && c === st.pl.c;
       st.pl = {r, c};
-      if (st.g[r][c] === 'jungle') st.g[r][c] = 'path';
+      const chopped = st.g[r][c] === 'jungle';
+      if (chopped) st.g[r][c] = 'path';
       if (st.g[r][c] === 'gold' && !st.has) {
         st.has = true; st.g[r][c] = 'path';
         const ev = (level >= 3 ? 2 : 3) + (owns('boots') ? 1 : 0);
@@ -458,15 +465,18 @@ function jungle(host, api){
         const o = $('over'); o.hidden = false;
         o.innerHTML = scene('gold', 'You found the gold!', 'Now run back to the boat. The anacondas are coming out of the river!', 'run', 'Run for the boat!');
         loadPics(o);
-      } else { msg(stay ? 'You held your ground!' : st.has ? 'Keep going: back to the boat!' : 'Chop! Keep heading for the gold.'); action(stay ? 'hold' : st.has ? (st.turn % 2 ? 'run' : 'chase') : 'chop', stay ? 'Held it!' : st.has ? 'Run!' : 'Chop!'); }
+      } else { msg(stay ? 'You held your ground!' : st.has ? 'Keep going: back to the boat!' : chopped ? 'Chop! Keep heading for the gold.' : 'Along the path. Keep heading for the gold.'); action(stay ? 'hold' : st.has ? (st.turn % 2 ? 'run' : 'chase') : 'chop', stay ? 'Held it!' : st.has ? 'Run!' : 'Chop!'); }
       if (st.has && r === H - 1 && c === BOAT) { draw(); over(true); return; }
     } else {
       api.sound('bad');
       const og = ogreOf(), od = og ? Math.abs(og.r - st.pl.r) + Math.abs(og.c - st.pl.c) : 99;
-      if (og && od <= 5 && timeout) { ogreYell(.6); ogreLaugh(); missile(true); fly(og, true); draw(); busy = true; setTimeout(() => hurt(og), 450); return; }
       if (og && od <= 5) { const axe = Math.random() < .5; ogreYell(.45); if (Math.random() < .5) ogreLaugh(); missile(axe); fly(og, axe); msg(axe ? 'The ogre threw his axe! It nicked your hat!' : 'An arrow! It just missed you!'); action('ogre-chase', 'Duck!'); }
       else { msg('Missed! They are getting closer.'); action('miss', 'Missed!'); }
     }
+    advance();
+  }
+  // The creatures' step after his turn: a move, a held square, or a weapon fired.
+  function advance(){
     let who = caught();
     st.preds.forEach(p => { p.moved = false; });
     if (!who) {
@@ -503,6 +513,9 @@ function jungle(host, api){
     if (!cell) return;
     const r = +cell.dataset.r, c = +cell.dataset.c;
     if (!canGo(r, c)) return;
+    // Walking on the path he has already chopped, or into the boat, needs no question: only new jungle (and the gold)
+    // does. The creatures still take their step (Sam, 24 Nov 2026, after the review: "Yes, all four").
+    if (st.g[r][c] === 'path' || (st.g[r][c] === 'river' && st.has)) { turn(true, r, c, false); return; }
     busy = true; draw();
     $('board').querySelector(`[data-r="${r}"][data-c="${c}"]`).classList.add('aim');
     cancelQ = askBox($('q'), api, askSecs(), (ok, q, timeout) => { cancelQ = null; busy = false; turn(ok, r, c, timeout); });
