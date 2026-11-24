@@ -189,14 +189,17 @@ function jungle(host, api){
   const askSecs = () => owns('binoculars') ? 15 : 10;
   // Hughie's adventure pictures (private family-photos bucket, made from his own photos): start, chop, gold, chase, win, caught.
   const scene = (name, title, text, go, btn) => `<div class="sticker jg-scene"><img class="jg-photo" data-p="jungle/${name}.jpg" alt=""><h2>${title}</h2><p>${text}</p><button class="btn big" data-go="${go}">${btn}</button></div>`;
-  const FALLBACK = {'jungle/ogre-pot.jpg': 'jungle/caught.jpg', 'jungle/ogre-chase.jpg': 'jungle/chase.jpg'};
+  const FALLBACK = {'jungle/ogre-pot.jpg': 'jungle/caught.jpg', 'jungle/ogre-chase.jpg': 'jungle/chase.jpg',
+    // the weapons have clips but no pictures of their own: his "held it" picture shows under them
+    'jungle/sling.jpg': 'jungle/hold.jpg', 'jungle/bow.jpg': 'jungle/hold.jpg', 'jungle/mg.jpg': 'jungle/hold.jpg', 'jungle/flame.jpg': 'jungle/hold.jpg', 'jungle/grenade.jpg': 'jungle/hold.jpg'};
   const loadPics = el => el.querySelectorAll('img[data-p]').forEach(im => api.picture(im.dataset.p).catch(() => FALLBACK[im.dataset.p] ? api.picture(FALLBACK[im.dataset.p]) : Promise.reject()).then(u => { if (im.isConnected) im.src = u; }).catch(() => {}));
   const backdrop = name => { const im = host.querySelector('.jg-bd'); if (im) { im.dataset.p = `jungle/${name}.jpg`; loadPics(host); } };
   // The action panel beside the board (held sideways) and the blurred backdrop: what Hughie is doing this turn.
   // Each moment also has a 10-second video clip (clips/, made with Google's video model; jungle, creatures and his-eye
   // views, never his face). The side screen mixes them with his own picture (Sam, 24 Oct 2026): the picture for 2.5
   // seconds, then the clip fades in; when the clip ends his picture shows for 3 seconds and the clip plays again.
-  const CLIP = {'ogre-chase':'ogre', 'ogre-pot':'ogre', start:'start', chop:'chop', miss:'miss', hold:'hold', chase:'chase', run:'run', gold:'gold', win:'win', 'snake-attack':'snake', 'panther-attack':'panther'};
+  const CLIP = {'ogre-chase':'ogre', 'ogre-pot':'ogre', start:'start', chop:'chop', miss:'miss', hold:'hold', chase:'chase', run:'run', gold:'gold', win:'win', 'snake-attack':'snake', 'panther-attack':'panther',
+    sling:'sling', bow:'bow', mg:'mg', flame:'flame', grenade:'grenade'};   // the weapons' own clips (Sam, 24 Nov 2026)
   const clipUrls = new Map();
   // Each clip's own action sound (clips/<name>.m4a, from the original video) plays through the game's audio in step with
   // it (Sam, 24 Oct 2026). Played this way rather than by the video itself, which an iPad may silence when it starts alone.
@@ -206,7 +209,7 @@ function jungle(host, api){
   const playClipSound = c => { stopClipSound(); if (api.soundOn && !api.soundOn()) return;
     clipSound(c).then(buf => { const ac = api.audio(), s = ac.createBufferSource(), g = ac.createGain(); s.buffer = buf; g.gain.value = .8; s.connect(g); g.connect(ac.destination); s.start(); clipSrc = s; }).catch(() => {}); };
   const clipUrl = c => clipUrls.get(c) || clipUrls.set(c, fetch(`clips/${c}.mp4`).then(r => r.ok ? r.blob() : Promise.reject()).then(b => URL.createObjectURL(b))).get(c);
-  const action = (name, cap) => {
+  const action = (name, cap, now) => {   // now: play the clip at once (a weapon going off), not after his picture
     const a = $('act'); if (!a) { backdrop(name); return; }
     a.querySelector('img').dataset.p = `jungle/${name}.jpg`; a.querySelector('b').textContent = cap; backdrop(name);
     const v = a.querySelector('video'), c = CLIP[name], go = (a._go || 0) + 1; a._go = go; a.dataset.clip = c || '';
@@ -214,9 +217,9 @@ function jungle(host, api){
     if (!c) return;
     const play = () => { if (a._go !== go || !a.isConnected) return; v.currentTime = 0; v.play().catch(() => {}); a.classList.add('has-clip'); playClipSound(c); };
     v.onended = () => { if (a._go !== go) return; stopClipSound(); a.classList.remove('has-clip'); a._t = setTimeout(play, 3000); };
-    clipUrl(c).then(u => { if (a._go !== go) return; if (v.src !== u) v.src = u; a._t = setTimeout(play, 2500); }).catch(() => {});
+    clipUrl(c).then(u => { if (a._go !== go) return; if (v.src !== u) v.src = u; a._t = setTimeout(play, now ? 0 : 2500); }).catch(() => {});
   };
-  setTimeout(() => Object.values(CLIP).forEach(c => { clipUrl(c).catch(() => {}); clipSound(c).catch(() => {}); }), 1500);   // fetch the rest in the background
+  setTimeout(() => [...new Set(Object.values(CLIP))].filter(c => !['sling', 'bow', 'mg', 'flame', 'grenade'].includes(c) || owns(c)).forEach(c => { clipUrl(c).catch(() => {}); clipSound(c).catch(() => {}); }), 1500);   // fetch the rest in the background
 
   // The board's picture tiles: shown once every one is on the device, the emoji until then.
   const TILES = ['jungle1', 'jungle2', 'path', 'rock', 'gold', 'river', 'boat', 'snake', 'panther', 'anaconda'];
@@ -336,7 +339,7 @@ function jungle(host, api){
     msg(what === 'grenade' ? 'Pull the pin: answer to throw!' : 'Answer to fire the flamethrower!');
     cancelQ = askBox($('q'), api, askSecs(), ok => {
       cancelQ = null; busy = false;
-      if (ok) { const hit = st.preds.filter(p => Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c) <= reach); hit.forEach(sendBack); api.sound('ok');
+      if (ok) { const hit = st.preds.filter(p => Math.abs(p.r - st.pl.r) + Math.abs(p.c - st.pl.c) <= reach); hit.forEach(sendBack); api.sound('ok'); action(what, what === 'grenade' ? 'BOOM!' : 'WHOOSH!', true);
         msg(hit.length ? (what === 'grenade' ? `BOOM! ${hit.length === 1 ? 'The creature ran' : `All ${hit.length} creatures ran`} back where they came from.` : `WHOOSH! ${hit.length} ${hit.length === 1 ? 'creature' : 'creatures'} ran from the flames.`)
           : what === 'grenade' ? 'BOOM! Nothing was there.' : 'WHOOSH! Nothing was close enough.'); }
       else { api.sound('bad'); msg(what === 'grenade' ? 'The grenade was a dud!' : 'The flamethrower spluttered out!'); }
@@ -348,7 +351,7 @@ function jungle(host, api){
     $('board').querySelector(`[data-r="${p.r}"][data-c="${p.c}"]`).classList.add('aim');
     cancelQ = askBox($('q'), api, askSecs(), ok => {
       cancelQ = null; busy = false; kit.shots[g]--;
-      if (ok) { api.sound('ok'); sendBack(p);
+      if (ok) { api.sound('ok'); sendBack(p); action(g, 'Direct hit!', true);
         msg(`Direct hit! The ${p.kind} ran off.`); }
       else { api.sound('bad'); msg(GUNS[g].miss); }
       showPack(); draw();
