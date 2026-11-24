@@ -1287,7 +1287,7 @@ function collectionCard(p){
     ${n < TRAIL_STOPS ? `<p style="font-weight:800;margin:6px 0 4px">Next: camp ${n + 1}. Win a trophy to get there.</p>` : ''}
     <div class="kit">${JUNGLE.map((j, k) => `<button class="slot-btn ${k < n ? '' : 'locked'} ${sel === k ? 'on' : ''}" data-act="item" data-i="${k}" aria-label="${esc(TOOLS[j.tool].name)}${k < n ? '' : ', not won yet'}">${toolSvg(j.tool, 36, k >= n)}<span>${k < n ? esc(TOOLS[j.tool].name) : '?'}</span></button>`).join('')}</div>
     ${tl ? `<div class="item-detail">${toolSvg(JUNGLE[sel].tool, 60, sel >= n)}<div><p class="eyebrow">Camp ${sel + 1} · ${esc(JUNGLE[sel].camp)}</p><p>${sel < n ? `<b>${esc(tl.name)}.</b> ${esc(tl.use)}` : `Win ${sel + 1 - n} more troph${sel + 1 - n === 1 ? 'y' : 'ies'} to get this tool.`}</p></div></div>` : ''}
-    ${goal}${trophyLine(p)}</div>`;
+    ${goal}<p style="margin:8px 0 0"><button class="btn ghost" data-act="shop">🏕️ Visit the Outdoor Shop</button></p>${trophyLine(p)}</div>`;
 }
 // Home's one reward card: Jessica's Eras Tour or Hughie's adventure, and the plain trophy cabinet for the classic look.
 function journey(p){ return skinId() === 'classic' ? trophyShelf(p) : collectionCard(p); }
@@ -1859,14 +1859,28 @@ async function startGame(){
     } else if (ticks % 15 === 0) saveProg().catch(saveFail);
   }, 1000);
 }
+// Hughie's Outdoor Shop on its own screen, from Home, open any time (Sam, 24 Nov 2026: "Yes, add it"). games.js draws it;
+// it is drawn again on every render, so nothing needs stopping when he leaves.
+function scrShop(){
+  return `<header class="top"><div class="brand">${logo()}<span>The Outdoor Shop</span></div>
+    <div class="top-right"><button class="btn ghost small" data-act="go" data-to="home">Back to Home</button></div></header>
+    <div id="shop-host" class="game-host"></div>`;
+}
+function mountShop(){
+  const el = document.getElementById('shop-host'), p = S.prog;
+  if (!el || !p || !window.TTCGames || !window.TTCGames.shop) return;
+  p.game = p.game || {};
+  window.TTCGames.shop(el, {state: p.game, save: () => saveProg().catch(saveFail), points: () => p.xp || 0, ptsName, sound, exit: () => go('home')});
+}
 function stopGame(){ clearInterval(gameTimer); gameTimer = null; if (gameInst) { try { gameInst.destroy(); } catch {} gameInst = null; } }
 
 /* ---------- render ---------- */
-const SCREENS = {fd:() => FRAC ? FRAC.screens.fd() : scrHome(), neg:() => FRAC ? FRAC.screens.neg() : scrHome(), negrev:() => FRAC ? FRAC.screens.negrev() : scrHome(), fdplay:() => FRAC ? FRAC.screens.fdplay() : scrHome(), fdres:() => FRAC ? FRAC.screens.fdres() : scrHome(), spell:() => SPL ? SPL.screens.spell() : scrHome(), splay:() => SPL ? SPL.screens.splay() : scrHome(), sres:() => SPL ? SPL.screens.sres() : scrHome(), recite:scrRecite, game:scrGame, gate:scrGate, loading:scrLoading, login:scrLogin, home:scrHome, setup:scrSetup, play:scrPlay, results:scrResults, progress:scrProgress, explore:scrExplore, parent:scrParent};
+const SCREENS = {fd:() => FRAC ? FRAC.screens.fd() : scrHome(), neg:() => FRAC ? FRAC.screens.neg() : scrHome(), negrev:() => FRAC ? FRAC.screens.negrev() : scrHome(), fdplay:() => FRAC ? FRAC.screens.fdplay() : scrHome(), fdres:() => FRAC ? FRAC.screens.fdres() : scrHome(), spell:() => SPL ? SPL.screens.spell() : scrHome(), splay:() => SPL ? SPL.screens.splay() : scrHome(), sres:() => SPL ? SPL.screens.sres() : scrHome(), recite:scrRecite, game:scrGame, shop:scrShop, gate:scrGate, loading:scrLoading, login:scrLogin, home:scrHome, setup:scrSetup, play:scrPlay, results:scrResults, progress:scrProgress, explore:scrExplore, parent:scrParent};
 let lastScreen = null;
 function render(){
   app.innerHTML = SCREENS[S.screen]();
   hydratePhotos();
+  if (S.screen === 'shop') mountShop();
   if (S.screen !== lastScreen || S.focusNext) {
     const af = app.querySelector('[data-autofocus]'); if (af) af.focus();
     S.focusNext = false;
@@ -1929,6 +1943,7 @@ const A = {
   pp: el => { S.v.pp = el.dataset.id; render(); },
   gtab: el => { S.gtab = el.dataset.t; S.okMsg = null; render(); scrollTo(0, 0); },
   game: () => startGame(),
+  shop: () => { if (skinId() === 'trail' && S.prog) go('shop'); },
   demo: el => startDemo(el.dataset.id, el.dataset.what),
   'game-approve': el => setGameApproval(el.dataset.id, 'approved'),
   'game-unapprove': el => setGameApproval(el.dataset.id, 'pending'),
@@ -2081,7 +2096,7 @@ async function boot(){
     // A new version installs in the background; the page reloads into it at the next calm moment (not mid-question or
     // mid-game), and the app checks for one whenever it comes back to the front.
     const had = !!navigator.serviceWorker.controller;
-    navigator.serviceWorker.addEventListener('controllerchange', () => { if (had) { S.reloadSoon = true; if (!S.play && !['game', 'setup'].includes(S.screen)) location.reload(); } });
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (had) { S.reloadSoon = true; if (!S.play && !['game', 'setup', 'shop'].includes(S.screen)) location.reload(); } });
     navigator.serviceWorker.register('sw.js').then(reg => document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); })).catch(() => {});
   }
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch {}
