@@ -1176,7 +1176,11 @@ const itemsOwned = p => Math.min(TRAIL_STOPS, (p.prizeLog || []).filter(x => x.t
 const gameUsed = p => p.gameTrail === trailStart(p) ? (p.gameMs || 0) : 0;
 // A child's game opens only once a grown-up has approved it in the Grown-ups area (games/<id>; Sam, 24 Oct 2026: "final approval").
 const gameApproved = pl => !!pl && ((S.gameOK || {})[pl.id] || {}).status === 'approved';
-const gameOpen = p => skinId() !== 'classic' && (itemsOwned(p) >= TRAIL_STOPS || reciteAllDone(p)) && gameUsed(p) < GAME_MS && gameApproved(S.me);
+// Spell Strike also waits for today's Daily Spelling Challenge (80% or more): his trophies come from the times tables,
+// so without this he could play it having done no spelling (Sam, 24 Nov 2026: "Yes, gate it").
+const spellToday = () => !SPL || !SPL.dailyDone || SPL.dailyDone();
+const trailWon = p => skinId() !== 'classic' && (itemsOwned(p) >= TRAIL_STOPS || reciteAllDone(p)) && gameUsed(p) < GAME_MS && gameApproved(S.me);
+const gameOpen = p => trailWon(p) && (!strikeGame() || spellToday());
 // On the spelling side Hughie's reward game is Spell Strike, the robot shooter (shooter.js; Sam, 27 Oct 2026). The times
 // tables keep the Jungle Gold Run.
 const strikeGame = () => skinId() === 'trail' && S.subject === 'spell';
@@ -1259,6 +1263,7 @@ function collectionCard(p){
   const id = skinId(); if (id === 'classic') return '';
   const n = itemsOwned(p), sel = S.v.item, open = gameOpen(p), mins = Math.ceil((GAME_MS - gameUsed(p)) / 60000);
   const goal = open ? `<div class="callout mint unlock"><div><b>${id === 'eras' ? 'Your stadium show is open!' : strikeGame() ? 'Spell Strike is ready!' : 'The jungle gold is waiting!'}</b> ${mins} minutes of play left.</div><button class="btn" data-act="game">${id === 'eras' ? 'Go on stage' : strikeGame() ? 'Play Spell Strike' : 'Start the Gold Run'}</button></div>`
+    : trailWon(p) && strikeGame() && !spellToday() ? `<p class="callout">Trail complete! Spell Strike opens once you finish today's Daily Spelling Challenge with 80% or more.</p>`
     : (n >= TRAIL_STOPS || reciteAllDone(p)) && !gameApproved(S.me) ? `<p class="callout">Trail complete! Your ${id === 'eras' ? 'stadium show' : gameName()} is waiting for a grown-up to approve it.</p>`
     : `<p class="muted small">Win ${TRAIL_STOPS - n} more troph${TRAIL_STOPS - n === 1 ? 'y' : 'ies'} by Sunday to unlock ${id === 'eras' ? 'your stadium show' : strikeGame() ? 'Spell Strike' : 'the Jungle Gold Run'}.</p>`;
   if (id === 'eras') {

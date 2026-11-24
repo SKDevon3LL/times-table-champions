@@ -396,6 +396,6 @@ window.TTCSpell = function(X){
   const gameTotal = () => Object.values(st().words).reduce((t, r) => t + (r.c || 0), 0) + ((st().game || {}).right || 0);
   const gameWeek = () => { const since = X.weekStart(); return (X.S.sessions || []).filter(e => e.t >= since && /^spell-/.test(e.mode || '')).reduce((t, e) => t + (e.c || 0), 0); };
   return {screens: {spell: scrSpell, splay: scrPlay, sres: scrRes}, actions, keydown, homeLine, stop: () => { const P = X.S.sp; if (P) clearInterval(P.timer); },
-    game: {word: gameWord, say: sayWord, parts: sayParts, result: gameResult, total: gameTotal, week: gameWeek}};
+    game: {word: gameWord, say: sayWord, parts: sayParts, result: gameResult, total: gameTotal, week: gameWeek}, dailyDone};
 };
 })();
